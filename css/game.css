@@ -1,0 +1,696 @@
+/* Giao diện Chúa Tể — tách từ civilization.html (Phase 3.16), dòng 7–701 */
+  /* ============================================================
+     SƠN MÀI — bảng màu, kiểu chữ, và cái khung của cả trang.
+
+     Bản trước mặc nguyên bộ màu Material Design (đỏ 500, lam 400, hổ phách,
+     tím 400, v.v.). Chúng là màu của BẢNG ĐIỀU KHIỂN — đỏ = lỗi, vàng =
+     cảnh báo, xanh = thông báo — nên dù vẽ gì lên đó, mắt vẫn đọc ra "công cụ
+     lập trình" chứ không đọc ra "một thế giới".
+
+     Thay bằng khoáng chất. Và không phải khoáng chất tuỳ ý: chính TÊN bốn bộ
+     lạc đã gọi ra bốn thứ bột màu của tranh sơn mài —
+        Xích Long → chu sa (cinnabar)      Thanh Vân → thanh lục (azurite)
+        Hoàng Kim → thư hoàng (orpiment)   Tử Vi     → tử (imperial violet)
+     nên đổi màu ở đây không phải là "cho đẹp", nó là làm cho hình khớp với
+     chữ đã có sẵn trong luật chơi. Nền là sơn ta đen ẤM (ngả nâu), không phải
+     xám lạnh: đen ấm là thứ làm bột khoáng nổi lên: xám lạnh dìm nó xuống.
+     ============================================================ */
+  :root {
+    color-scheme: dark;
+    --lac-900:#0d0b09;  --lac-850:#12100c;  --lac-800:#191510;  --lac-700:#221b15;
+    --rule:#2d2419;     --rule-soft:#1f1a13;
+    --bone:#e7dcc6;     --bone-2:#b1a58c;   --bone-3:#7b7160;
+    --gold:#d8a544;     --gold-hi:#f0cf85;  --gold-dim:#8a6a2c;
+    --cinnabar:#c4402d; --cinnabar-hi:#e05b40;
+    --jade:#5aa07c;
+    /* Tử — bột màu thứ tư, đã nằm sẵn trong tên bộ lạc Tử Vi nhưng trước đây chỉ
+       được rắc lẻ bằng hằng số #b783cc ở 9 chỗ, không có tên trong bảng màu. Đặt
+       tên cho nó là làm cho quái vật (thứ mặc màu tử) khớp với hệ, không phải thêm màu. */
+    --tuvi:#b783cc; --tuvi-dim:#6f4f86;
+
+    /* Chữ hiển thị là một chữ SÁCH, không phải chữ tạp chí: Iowan Old Style —
+       old-style serif ấm, chân nét dày, đủ dấu tiếng Việt trên macOS. Đây là
+       giọng của một cuốn biên niên sử. Chữ giao diện thì trung tính và gọn.
+       Con số luôn đi bằng chữ đơn cách để cột số không nhảy khi giá trị đổi. */
+    --f-display:"Iowan Old Style","Superclarendon",Charter,Palatino,Georgia,serif;
+    --f-ui:"Avenir Next","Segoe UI",system-ui,-apple-system,sans-serif;
+    --f-data:"SF Mono",ui-monospace,Menlo,"Roboto Mono",monospace;
+
+    /* Hạt mực: nhiễu fractal đã bị ngưỡng hoá thành đốm rời (feFuncA discrete,
+       6 bậc 0 rồi 1 bậc 1 → chỉ ~1/7 diện tích là đốm). Dùng làm MẶT NẠ nên
+       nó không tô thêm màu nào, nó chỉ ăn bớt đi — đúng cách mực khô trên gỗ. */
+    --ink-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' seed='7'/><feComponentTransfer><feFuncA type='discrete' tableValues='0 0 0 0 0 0 1'/></feComponentTransfer></filter><rect width='60' height='60' filter='url(%23g)'/></svg>");
+  }
+  body {
+    margin: 0;
+    font-family: var(--f-ui);
+    background: var(--lac-900);
+    color: var(--bone);
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+  ::selection { background: rgba(216,165,68,.28); }
+  #world-pane { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; padding: 14px; gap: 10px; overflow: hidden; height: 100vh; box-sizing: border-box; }
+
+  /* Khung tranh: một nét sẫm sát mép, rồi một sợi vàng lá mảnh bên ngoài. Hai
+     nét thôi, nhưng nó là thứ nói rằng phần bên trong là BỨC TRANH còn phần
+     bên ngoài là cái khung — trước đây cả hai cùng một sắc xám nên khung nhìn
+     trôi vào nền trang. */
+  /* --hud-top: DẢI ĐẤT RIÊNG của thanh Kỳ quan trên mép khung hình.
+     Thanh đó vẽ trên canvas (y 0..26) còn minimap/nút/bảng phủ là HTML, hai hệ toạ
+     độ không biết gì về nhau — nên trước đây khi Kỳ quan hoàn thành, thanh đếm
+     ngược chạy NGẦM DƯỚI cả minimap lẫn hai nút, và dòng chữ căn giữa khung bị
+     minimap ăn mất 52px đuôi. Một biến CSS duy nhất, JS bơm 26px vào khi thanh
+     hiện và 0 khi tắt, để mọi lớp phủ tự dịch xuống. Chỗ nào cộng vào biến này
+     thì vĩnh viễn không bao giờ đè lên thanh nữa. */
+  #canvasWrap { position: relative; --hud-top: 0px; box-shadow: 0 0 0 1px var(--rule), 0 0 0 2px rgba(216,165,68,.16), 0 18px 44px rgba(0,0,0,.55); }
+  #simCanvas { background: var(--lac-900); cursor: grab; display: block; }
+  #simCanvas.god-armed { cursor: crosshair; }
+  #minimapCanvas {
+    position: absolute; right: 10px; top: calc(10px + var(--hud-top)); cursor: pointer; opacity: 0.94;
+    box-shadow: 0 0 0 1px rgba(216,165,68,.34), 0 4px 14px rgba(0,0,0,.6);
+  }
+  /* Giờ là một ô trong hàng #ovChips (xem chú thích ở phần HTML), nên bỏ hết
+     position/left/top — vị trí do flex row quyết định. */
+  #directorLabel {
+    background: rgba(13,11,9,0.78); box-shadow: inset 0 0 0 1px rgba(216,165,68,.28);
+    padding: 5px 11px; font-size: 12px; color: var(--gold-hi); letter-spacing: .06em;
+    font-family: var(--f-ui); white-space: nowrap;
+    pointer-events: none; display: none; backdrop-filter: blur(4px);
+  }
+
+  /* ===== Lớp phủ trên khung hình chính (bảng bộ lạc / nhật ký / đang chọn) =====
+     Cùng ngôn ngữ với #directorLabel: sơn ta đen mờ, một sợi vàng lá mảnh viền
+     trong, làm nhoè hậu cảnh. Nằm ở bốn góc để chừa giữa khung cho việc chọn quân. */
+  #ovChips { position: absolute; left: 11px; top: calc(11px + var(--hud-top)); display: flex; gap: 6px; align-items: center; z-index: 5; }
+  .ov-chip {
+    font: 600 11.5px var(--f-ui); letter-spacing: .03em; color: var(--bone-2); cursor: pointer;
+    background: rgba(13,11,9,0.8); box-shadow: inset 0 0 0 1px rgba(216,165,68,.24);
+    padding: 5px 10px; white-space: nowrap; backdrop-filter: blur(4px);
+  }
+  .ov-chip:hover { color: var(--gold-hi); box-shadow: inset 0 0 0 1px rgba(216,165,68,.5); }
+  .ov-chip.on { color: var(--lac-900); background: var(--gold); box-shadow: inset 0 0 0 1px var(--gold-hi); }
+
+  .ov-panel {
+    position: absolute; z-index: 5; color: var(--bone-2); font: 11px var(--f-ui);
+    background: rgba(11,9,7,0.88); box-shadow: inset 0 0 0 1px rgba(216,165,68,.24);
+    padding: 8px 10px; backdrop-filter: blur(5px);
+  }
+  #ovTribes { left: 11px; top: calc(50px + var(--hud-top)); max-height: 46%; overflow: auto; }
+  #ovLog { left: 11px; bottom: 30px; width: 300px; max-width: 54%; max-height: 40%; overflow: auto; }
+  /* THẺ "ĐANG CHỌN" ĐÃ RỜI KHỎI KHUNG HÌNH (Phase 3.17).
+     Nó từng là một tấm thẻ nổi đè lên góc dưới-phải bản đồ, và chỗ đó là chỗ tệ
+     nhất có thể: nó che đúng phần bản đồ mà người ta vừa bấm vào để xem, nên xem
+     chỉ số thì mất cảnh, xem cảnh thì phải tắt chỉ số. Giờ nó là một DẢI nằm dưới
+     bảng điều khiển — cùng một cột, không che gì cả, và vì nó nằm ngang nên đọc
+     hết một lượt bằng một đường mắt thay vì một khối phải quét dọc.
+     Xem #inspectBar bên dưới. */
+
+  #ovTribes table { border-collapse: collapse; width: 100%; }
+  #ovTribes th { color: var(--bone-3); font: 600 10px var(--f-ui); text-transform: uppercase; letter-spacing: .04em; text-align: left; padding: 1px 7px 5px; }
+  #ovTribes td { padding: 3px 7px; border-top: 1px solid var(--rule-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #ovTribes tr[data-tribe] { cursor: pointer; }
+  #ovTribes tr[data-tribe]:hover td { background: rgba(216,165,68,.1); }
+  #ovTribes tr.dead td { opacity: .42; }
+  #ovTribes .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+  #ovTribes .tg { margin-left: 4px; font-size: 10px; }
+
+  #ovLog .row { padding: 1.5px 0; line-height: 1.35; }
+  #ovLog .t { color: var(--bone-3); font: 10px var(--f-data); margin-right: 6px; }
+
+  #eraCard { z-index: 20; }
+
+  /* ---- DẢI "ĐANG CHỌN", nằm ngay dưới bảng điều khiển ----
+     Cùng khung inset, cùng nền, cùng bề rộng với #controls, nên hai cái đọc ra
+     MỘT bàn điều khiển hai tầng chứ không phải hai hộp xếp chồng. Luôn chiếm chỗ
+     kể cả khi rỗng (min-height cố định): nếu để nó co lại lúc không chọn gì thì
+     mỗi lần bấm vào một quân, cả khung nhìn phía trên bị đẩy lên vài chục pixel —
+     và người ta vừa bấm vào một thứ đang chuyển động. */
+  #inspectBar {
+    max-width: 900px; width: 100%; box-sizing: border-box;
+    background: var(--lac-850); box-shadow: inset 0 0 0 1px var(--rule);
+    padding: 0 10px; min-height: 36px; display: flex; align-items: center;
+    border-top: 1px solid var(--lac-900);
+  }
+  #inspectEmpty { font-size: 11px; color: var(--bone-3); letter-spacing: .03em; }
+  #inspectEmpty b { color: var(--bone-2); font-weight: 600; }
+  #inspectBody { display: flex; align-items: center; gap: 13px; width: 100%; flex-wrap: wrap; padding: 5px 0; }
+  /* Lớp bọc TÀNG HÌNH: con của nó lên thẳng làm con flex của #inspectBody, nên
+     `gap`, `flex-wrap` và `margin-left:auto` của nút ✕ hoạt động y như khi chưa
+     có lớp bọc. Lý do phải bọc: tách nút ✕ ra khỏi phần dựng lại — xem setPanelHTML. */
+  #insContent { display: contents; }
+  .ins-name { display: flex; align-items: center; gap: 7px; font-weight: 600; font-size: 12.5px; }
+  .ins-name .sw { width: 9px; height: 9px; flex: 0 0 auto; }
+  .ins-hp { display: flex; align-items: center; gap: 6px; }
+  .ins-hp .bar { width: 88px; height: 6px; background: var(--lac-700); flex: 0 0 auto; }
+  .ins-hp .bar > i { display: block; height: 100%; }
+  .ins-hp .num { font: 10.5px var(--f-data); color: var(--bone-3); }
+  /* Mỗi cặp nhãn/giá trị là một khối KHÔNG xuống dòng: khi dải hẹp lại thì nó
+     ngắt giữa các cặp, không bao giờ ngắt giữa nhãn và số của chính nó. */
+  .ins-kv { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 11.5px; }
+  .ins-kv span { white-space: nowrap; }
+  .ins-kv b { color: var(--bone-3); font-weight: 400; margin-right: 5px; }
+  .ins-close {
+    margin-left: auto; cursor: pointer; color: var(--bone-3); font-size: 12px;
+    padding: 2px 5px; flex: 0 0 auto; box-shadow: inset 0 0 0 1px var(--rule);
+  }
+  .ins-close:hover { color: var(--cinnabar-hi); box-shadow: inset 0 0 0 1px var(--cinnabar-hi); }
+  /* Hòm đồ thu nhỏ cho dải ngang: 6 ngăn × 30px là 205px, chiếm gần một phần tư
+     bề ngang và đẩy mọi thứ khác xuống hàng hai. 21px thì cả hòm gọn trong 145px. */
+  .slots.mini { gap: 3px; }
+  .slots.mini .slot { width: 21px; height: 21px; font-size: 11px; }
+  .ins-chest { display: flex; align-items: center; gap: 7px; }
+  .ins-chest > .lb { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold-dim); }
+
+  /* Dấu son (triện). Thứ DUY NHẤT trong cả trang được phép ồn ào — nó là bàn
+     tay người chép sử hiện ra giữa một thế giới vốn chỉ có bột màu và ánh
+     sáng. Mặt nạ nhiễu phía trên đục thủng vài đốm để mực trông bị ăn mòn:
+     con dấu in ra từ gỗ thì không bao giờ đặc kín. */
+  .seal {
+    position: relative; flex: 0 0 auto;
+    width: 46px; height: 46px; background: var(--cinnabar);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    transform: rotate(-2.5deg); color: #fbeee0; font-family: var(--f-display);
+    box-shadow: inset 0 0 0 1px rgba(251,238,224,.5), inset 0 0 0 4px var(--cinnabar);
+  }
+  .seal::after {
+    content: ''; position: absolute; inset: 0; background: var(--lac-900); opacity: .5;
+    -webkit-mask-image: var(--ink-grain); mask-image: var(--ink-grain);
+    -webkit-mask-size: 60px; mask-size: 60px;
+  }
+  .seal .k { font-size: 8.5px; letter-spacing: .22em; opacity: .78; margin-bottom: -1px; }
+  .seal .n { font-size: 21px; line-height: 1; font-weight: 700; }
+
+  /* Thẻ tổng kết kỷ nguyên — khoảnh khắc "đọc kết quả" giữa hai kỷ nguyên.
+     Đây là TRANG SÁCH: một tấm sơn ta có sợi vàng viền quanh, con dấu son
+     đóng lệch ở góc trên trái đúng như người ta đóng dấu lên một tờ chiếu. */
+  #eraCard {
+    position: absolute; inset: 0; display: none;
+    align-items: center; justify-content: center;
+    background: radial-gradient(circle at 50% 45%, rgba(13,11,9,0.5), rgba(8,6,5,0.94));
+    pointer-events: none;
+    animation: eraBackdropIn .4s ease both;
+  }
+  #eraCard .card {
+    position: relative; width: 470px; max-width: 86%;
+    background: linear-gradient(180deg, #1c1712, #12100c);
+    box-shadow: 0 0 0 1px var(--rule), 0 0 0 2px rgba(216,165,68,.22), 0 26px 74px rgba(0,0,0,.75);
+    padding: 24px 26px 20px; text-align: center;
+    animation: eraCardIn .5s cubic-bezier(.2,.7,.2,1) both;
+  }
+  /* Con dấu đóng XUỐNG trang, chậm hơn thẻ một nhịp — bàn tay người chép sử hiện ra
+     cuối cùng. Đây là khoảnh khắc chữ ký của cả trò chơi, nên nó xứng đáng có một
+     cử động; mọi thứ khác trong trang vẫn đứng yên. */
+  #eraCard .card > .seal { position: absolute; left: -14px; top: -14px; animation: sealStamp .4s .16s cubic-bezier(.2,.85,.25,1) both; }
+  @keyframes eraBackdropIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes eraCardIn { from { opacity: 0; transform: translateY(11px) scale(.985); } to { opacity: 1; transform: none; } }
+  @keyframes sealStamp { from { opacity: 0; transform: rotate(-2.5deg) scale(1.65); } to { opacity: 1; transform: rotate(-2.5deg) scale(1); } }
+  #eraCard .eyebrow { font-size: 10.5px; letter-spacing: .26em; text-transform: uppercase; color: var(--bone-3); }
+  #eraCard .champ { font-family: var(--f-display); font-size: 34px; font-weight: 700; letter-spacing: .01em; margin: 8px 0 3px; }
+  #eraCard .how { font-size: 13px; color: var(--bone-2); margin-bottom: 16px; }
+  #eraCard .facts { display: flex; justify-content: center; gap: 26px; margin-bottom: 16px; }
+  #eraCard .fact { text-align: center; }
+  #eraCard .fact b { display: block; font-family: var(--f-display); font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--bone); }
+  #eraCard .fact span { font-size: 10px; color: var(--bone-3); text-transform: uppercase; letter-spacing: .12em; }
+  #eraCard .dna { text-align: left; border-top: 1px solid var(--rule); padding-top: 13px; }
+  #eraCard .dna-title { font-size: 10.5px; color: var(--bone-3); text-transform: uppercase; letter-spacing: .14em; margin-bottom: 9px; }
+  #eraCard .gene { display: grid; grid-template-columns: 96px 1fr 56px; gap: 9px; align-items: center; font-size: 11.5px; margin-bottom: 6px; }
+  #eraCard .gene .n { color: var(--bone-2); }
+  #eraCard .gene .v { text-align: right; font-family: var(--f-data); font-size: 10.5px; color: var(--bone); }
+  #eraCard .gene .track { height: 5px; background: var(--lac-700); overflow: hidden; }
+  #eraCard .gene .track > i { display: block; height: 100%; background: linear-gradient(90deg, var(--gold-dim), var(--gold)); }
+  #eraCard .up { color: var(--jade); } #eraCard .down { color: var(--cinnabar-hi); }
+  #eraCard .next { font-size: 11.5px; color: var(--bone-3); margin-top: 15px; font-style: italic; }
+
+  /* ============================================================
+     TRÌNH ĐƠN — trang bìa của cuốn biên niên sử
+     ============================================================
+     Đây là màn hình ĐẦU TIÊN, hiện ra trước khi thế giới bắt đầu chạy. Nó không
+     phải một hộp thoại nổi lên trên game — nó LÀ trang bìa của cuốn sách: cùng
+     sơn ta đen ấm, cùng con dấu son, cùng chữ Iowan. Người chơi chọn một THẾ CUỘC
+     ở đây thay cho ô <select> luôn hiện trên thanh điều khiển — vì đổi thế cuộc là
+     bắt đầu lại từ số không, nó xứng đáng là một quyết định có nghi thức chứ không
+     phải một cú kéo dropdown vô tình. Phủ kín cả màn (fixed, inset:0) nên không có
+     nút nào phía sau bấm nhầm được khi chưa có ván nào chạy. */
+  #menuScreen {
+    position: fixed; inset: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: center;
+    background:
+      radial-gradient(circle at 50% 36%, rgba(28,22,17,0.6), rgba(8,6,5,0.97)),
+      var(--lac-900);
+    animation: eraBackdropIn .45s ease both;
+  }
+  /* Hạt mực phủ nhẹ toàn màn — đúng mặt gỗ sơn, chỉ ăn bớt chứ không tô thêm màu. */
+  #menuScreen::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .5;
+    background: var(--lac-850);
+    -webkit-mask-image: var(--ink-grain); mask-image: var(--ink-grain);
+    -webkit-mask-size: 60px; mask-size: 60px;
+  }
+  .menu-inner {
+    position: relative; width: 860px; max-width: 92vw; max-height: 92vh; overflow-y: auto;
+    text-align: center; padding: 10px 10px 6px;
+    animation: eraCardIn .55s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .menu-resume {
+    display: none; margin: 0 auto 20px; padding: 8px 18px;
+    background: transparent; color: var(--bone-2); cursor: pointer;
+    font: inherit; font-size: 12.5px; letter-spacing: .04em;
+    box-shadow: inset 0 0 0 1px var(--rule);
+    transition: box-shadow .18s ease, color .18s ease;
+  }
+  .menu-resume:hover { color: var(--gold-hi); box-shadow: inset 0 0 0 1px var(--gold-dim); }
+  .menu-head { position: relative; margin-bottom: 28px; }
+  .menu-seal { width: 58px; height: 58px; margin: 0 auto 18px; }
+  .menu-seal .k { font-size: 9px; }
+  .menu-seal .n { font-size: 25px; }
+  .menu-eyebrow { font-size: 11px; letter-spacing: .32em; text-transform: uppercase; color: var(--bone-3); }
+  .menu-title { font-family: var(--f-display); font-size: 58px; font-weight: 700; letter-spacing: .02em; margin: 6px 0 12px; color: var(--bone); }
+  .menu-sub { font-size: 14.5px; color: var(--bone-2); max-width: 32em; margin: 0 auto; line-height: 1.6; }
+  .menu-sub b { color: var(--bone); font-weight: 600; }
+  .menu-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; text-align: left; }
+  /* Mỗi thẻ mang màu LÃNH VỰC của nó — chu sa cho chinh phạt (gây hại), thanh lục
+     cho thủ thành (chở che) — đúng bảng mã màu god-power, nên đây là thông tin
+     chứ không phải trang trí. */
+  .mode-card {
+    position: relative; display: flex; flex-direction: column;
+    background: linear-gradient(180deg, #1c1712, #12100c);
+    box-shadow: inset 0 0 0 1px var(--rule), 0 14px 40px rgba(0,0,0,.5);
+    padding: 22px 22px 20px; cursor: pointer; color: inherit; font: inherit;
+    text-align: left; overflow: hidden;
+    transition: box-shadow .18s ease, transform .18s ease, background .18s ease;
+  }
+  .mode-card::before {
+    content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px;
+    background: var(--accent); opacity: .55;
+  }
+  .mode-card[data-mode="conquest"] { --accent: var(--cinnabar); }
+  .mode-card[data-mode="defend"] { --accent: var(--jade); }
+  .mode-card:hover {
+    background: linear-gradient(180deg, #221b14, #16120d); transform: translateY(-3px);
+    box-shadow: inset 0 0 0 1px var(--gold-dim), 0 0 0 1px rgba(216,165,68,.26), 0 18px 46px rgba(0,0,0,.62);
+  }
+  .mode-card:hover::before { opacity: 1; }
+  .mode-card:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+  .mc-icon { font-size: 30px; line-height: 1; margin-bottom: 12px; }
+  .mc-name { font-family: var(--f-display); font-size: 27px; font-weight: 700; color: var(--bone); }
+  .mc-tag { font-size: 12px; letter-spacing: .04em; color: var(--accent, var(--gold)); margin: 3px 0 12px; }
+  .mc-desc { font-size: 13px; color: var(--bone-2); line-height: 1.62; flex: 1 1 auto; }
+  .mc-go { font-size: 12.5px; letter-spacing: .06em; color: var(--bone-3); margin-top: 16px; transition: color .18s ease; }
+  .mode-card:hover .mc-go { color: var(--gold-hi); }
+  .menu-foot { font-size: 11.5px; color: var(--bone-3); margin-top: 26px; line-height: 1.7; }
+  @media (max-width: 720px) {
+    .menu-modes { grid-template-columns: 1fr; }
+    .menu-title { font-size: 42px; }
+  }
+
+  /* Chú giải là thứ DUY NHẤT được phép cuộn trong khung trái, và nó chiếm nốt
+     phần cao còn thừa. Cho cả #world-pane cuộn thì trên cửa sổ thấp, chính khung
+     nhìn — thứ không bao giờ được rời mắt — sẽ trôi lên mất. */
+  #legend { font-size: 11px; color: var(--bone-3); text-align: center; max-width: 900px; line-height: 1.62; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  #legend strong { color: var(--bone-2); font-weight: 600; }
+  #legend kbd {
+    background: var(--lac-800); box-shadow: inset 0 0 0 1px var(--rule), 0 1px 0 var(--rule);
+    padding: 0 4px; font-family: var(--f-data); font-size: 10px; color: var(--bone-2);
+  }
+  /* max-width khớp với canvas (900px, xem CANVAS_PX_W). #world-pane là flex item
+     `0 0 auto` nên nó rộng bằng ĐỨA CON RỘNG NHẤT — thiếu cái chặn này, hàng nút
+     dài ra một chút là cả khung nhìn bị đẩy sang phải và bảng bên phải bị cắt cụt
+     ngoài mép cửa sổ (body có overflow:hidden nên không cuộn được mà cứ thế mất). */
+  /* ---- Bảng điều khiển: một CÁI HỘP, không phải một hàng nút rời. Khung inset
+     cùng ngôn ngữ với khung tranh phía trên, để nó đọc ra "bàn điều khiển đặt
+     dưới bức tranh" chứ không phải mấy nút mặc-định-trình-duyệt trôi trên nền. */
+  #controls {
+    display: flex; gap: 6px; align-items: stretch; flex-wrap: wrap; justify-content: center;
+    max-width: 900px; padding: 7px 9px; box-sizing: border-box;
+    background: var(--lac-850); box-shadow: inset 0 0 0 1px var(--rule);
+  }
+  .ctl-group { display: flex; gap: 5px; align-items: stretch; flex-wrap: wrap; }
+  .ctl-div { width: 1px; align-self: stretch; background: var(--rule); margin: 3px 2px; }
+  /* Nút chỉ có ký hiệu (⏭). Bỏ padding ngang rộng của nút có chữ và ép vuông:
+     một ký hiệu đơn nằm giữa một cái nút rộng 60px đọc ra là "nút bị lỗi mất chữ". */
+  .ctl.ctl-icon { padding: 0; width: 30px; justify-content: center; font-size: 13px; }
+
+  /* Ô chọn ở MỌI nơi — trong bảng điều khiển lẫn ô chọn tiêu chí anh hùng bên phải —
+     dùng chung một hình: bỏ mũi tên mặc định của HĐH (thứ hét lên "form trình duyệt")
+     và thay bằng một chevron vàng-trầm vẽ tay. Dùng `background-color` chứ KHÔNG `background`
+     shorthand vì shorthand sẽ xoá luôn cái chevron (background-image). */
+  select {
+    -webkit-appearance: none; appearance: none; box-sizing: border-box;
+    background-color: var(--lac-800); color: var(--bone); border: 0;
+    box-shadow: inset 0 0 0 1px var(--rule);
+    padding: 7px 28px 7px 11px; cursor: pointer; font-size: 12.5px; font-family: var(--f-ui); letter-spacing: .01em;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='11' height='7'><path d='M1 1l4.5 4.5L10 1' fill='none' stroke='%238a6a2c' stroke-width='1.4' stroke-linecap='round'/></svg>");
+    background-repeat: no-repeat; background-position: right 10px center;
+    transition: box-shadow .14s ease, background-color .14s ease;
+  }
+  select:hover {
+    background-color: var(--lac-700); box-shadow: inset 0 0 0 1px var(--gold-dim);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='11' height='7'><path d='M1 1l4.5 4.5L10 1' fill='none' stroke='%23d8a544' stroke-width='1.4' stroke-linecap='round'/></svg>");
+  }
+  select option { background: var(--lac-800); color: var(--bone); }
+
+  /* Nút và ô chọn TRONG bảng điều khiển chia chung một chiều cao, để cả hàng đọc ra một bộ. */
+  .ctl, #controls select {
+    height: 30px; box-sizing: border-box;
+    background-color: var(--lac-800); color: var(--bone); border: 0;
+    box-shadow: inset 0 0 0 1px var(--rule);
+    padding: 0 10px; cursor: pointer; font-size: 12px; font-family: var(--f-ui); letter-spacing: .01em;
+    transition: box-shadow .14s ease, background-color .14s ease, color .14s ease;
+  }
+  #controls select { padding: 0 23px 0 9px; }
+  .ctl { display: inline-flex; align-items: center; }
+  .ctl:hover, #controls select:hover { background-color: var(--lac-700); box-shadow: inset 0 0 0 1px var(--gold-dim); }
+  .ctl:active { background-color: var(--lac-900); }
+
+  /* Nút chính (Tạm dừng/Tiếp tục) là mỏ neo của cả hàng: đeo sẵn viền vàng-trầm và
+     một dấu play/pause nhỏ để đọc ra "nút phát" ngay từ liếc mắt đầu tiên. Khi đang
+     DỪNG, nó ngả vàng — một lời mời bấm tiếp. */
+  .ctl-primary { box-shadow: inset 0 0 0 1px var(--gold-dim); color: var(--gold-hi); font-weight: 600; }
+  .ctl-primary::before { content: '\2016'; font-size: 12px; letter-spacing: -1.5px; margin-right: 9px; color: var(--gold); }
+  .ctl-primary[data-running="false"] { background: rgba(216,165,68,.13); box-shadow: inset 0 0 0 1px var(--gold); }
+  .ctl-primary[data-running="false"]::before { content: '\25B6'; font-size: 10px; margin-right: 9px; }
+  .ctl-primary:hover { box-shadow: inset 0 0 0 1px var(--gold); background: rgba(216,165,68,.10); }
+
+  /* Công tắc: một viên nhỏ sáng lên khi bật (:has để cả viên đổi theo ô tích bên trong). */
+  .ctl-toggle {
+    display: inline-flex; align-items: center; gap: 6px; padding: 0 9px; height: 30px; box-sizing: border-box;
+    box-shadow: inset 0 0 0 1px var(--rule); background: var(--lac-800);
+    font-size: 11.5px; color: var(--bone-3); cursor: pointer; user-select: none;
+    transition: box-shadow .14s ease, color .14s ease;
+  }
+  .ctl-toggle:hover { box-shadow: inset 0 0 0 1px var(--gold-dim); }
+  .ctl-toggle:has(input:checked) { color: var(--bone); box-shadow: inset 0 0 0 1px var(--gold-dim); }
+  input[type=checkbox] { accent-color: var(--gold-dim); }
+  :focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+  #hotkeys {
+    font-size: 10.5px; color: var(--bone-3); letter-spacing: .02em; max-width: 900px; text-align: center; opacity: .82;
+  }
+  #hotkeys b { color: var(--bone-2); font-weight: 600; }
+  #hotkeys kbd {
+    background: var(--lac-800); box-shadow: inset 0 0 0 1px var(--rule), 0 1px 0 var(--rule);
+    padding: 0 4px; font-family: var(--f-data); font-size: 10.5px; color: var(--bone-2);
+  }
+
+  /* Bức tường hướng dẫn (#hotkeys + #legend) là "cuốn sách luật" chứ không phải
+     phần của màn chơi — mặc định GẬP lại sau một thanh mảnh, để màn chơi chỉ còn
+     {khung tranh + bảng điều khiển + cột dữ liệu}. Gập bằng một class trên
+     #world-pane thay vì bọc lại DOM: nhờ vậy khi MỞ, #legend lấy lại đúng hành vi
+     flex:1 cũ (chiếm nốt phần cao thừa và tự cuộn), không phải dựng lại layout. */
+  #world-pane.help-collapsed #hotkeys,
+  #world-pane.help-collapsed #legend { display: none; }
+  #helpBar { max-width: 900px; width: 100%; display: flex; justify-content: center; }
+  #helpToggle {
+    font: inherit; font-size: 11px; letter-spacing: .05em; color: var(--bone-3);
+    background: transparent; border: 0; box-shadow: inset 0 0 0 1px var(--rule);
+    padding: 5px 15px; cursor: pointer; display: inline-flex; align-items: center; gap: 9px;
+    transition: color .14s ease, box-shadow .14s ease;
+  }
+  #helpToggle:hover { color: var(--gold-hi); box-shadow: inset 0 0 0 1px var(--gold-dim); }
+  #helpToggle .ht-mark { color: var(--gold-dim); font-family: var(--f-data); }
+  #helpToggle .ht-chev { transition: transform .2s ease; font-size: 8px; opacity: .8; }
+  #world-pane:not(.help-collapsed) #helpToggle .ht-chev { transform: rotate(180deg); }
+
+  /* `scrollbar-gutter: stable` — luôn chừa 9px cho thanh cuộn, kể cả khi không cần.
+     Đo được: tờ nào vừa một màn hình thì cột rộng 421px, tờ nào tràn thì 412px, và
+     bề rộng đó là bề rộng của CẢ CỘT — nên mỗi lần đổi tờ thì hàng tờ, bảng bộ lạc
+     và các biểu đồ đều nhích 9px một lượt. Cái giật đó không đọc ra là "trang mới",
+     nó đọc ra là giao diện bị lỗi. Chừa sẵn chỗ thì bề rộng là một hằng số. */
+  #side-pane {
+    flex: 1 1 auto; padding: 0 18px 20px; overflow-y: auto; scrollbar-gutter: stable;
+    border-left: 1px solid var(--rule); min-width: 380px; background: var(--lac-850);
+  }
+
+  /* ĐẦU CỘT DÁN ĐỈNH = thanh biên niên + hàng tờ, một khối duy nhất.
+     Ba con số của thanh biên niên (đang ở kỷ nguyên nào, kỷ nguyên trôi tới đâu,
+     còn bao nhiêu Đức Tin) là ba con số duy nhất luôn có nghĩa ở MỌI thời điểm,
+     nên chúng phải nằm ngoài hệ thống tờ — đổi tờ không được làm chúng biến mất.
+     Hàng tờ dán cùng chúng vì cùng lý do: thứ dùng để ĐI LẠI trong cột thì không
+     bao giờ được cuộn ra khỏi tầm mắt.
+
+     Nền phải ĐẶC. Bản trước #chronicleRail tự sticky một mình với gradient nhoè ở
+     đáy để chữ trôi lấp ló dưới nó; giờ có hàng tờ nằm ngay dưới, gradient sẽ để
+     lộ nội dung chui qua khe giữa hai thanh. */
+  #paneHead {
+    position: sticky; top: 0; z-index: 6;
+    background: var(--lac-850);
+    box-shadow: 0 7px 13px -8px rgba(0,0,0,.75);
+  }
+  #chronicleRail {
+    display: flex; align-items: center; gap: 13px;
+    padding: 13px 0 11px;
+    border-bottom: 1px solid var(--rule);
+  }
+  #chronicleRail .rail-main { flex: 1 1 auto; min-width: 0; }
+  #chronicleRail .rail-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  #chronicleRail .rail-name { font-family: var(--f-display); font-size: 16px; color: var(--bone); letter-spacing: .01em; }
+  #chronicleRail .rail-tick { font-family: var(--f-data); font-size: 10.5px; color: var(--bone-3); }
+  #chronicleRail .era-track { height: 3px; background: var(--lac-700); margin: 7px 0 8px; overflow: hidden; }
+  #chronicleRail .era-track > i { display: block; height: 100%; width: 0%; background: var(--bone-3); }
+  #chronicleRail .rail-bot { display: flex; align-items: center; gap: 8px; font-size: 10.5px; color: var(--bone-3); }
+  #chronicleRail .rail-bot .faith-track { flex: 1 1 auto; margin: 0; }
+  #chronicleRail #faithLabel { font-family: var(--f-data); color: var(--gold); }
+
+  /* ===== HÀNG TỜ =====
+     Không viền, không nền, không bo góc — cùng ngôn ngữ với cả trang. Tờ đang mở
+     nhận dạng bằng MỘT vạch vàng dưới chân, đúng cách một cuốn sổ cái đánh dấu
+     trang đang giở. Chữ nhỏ và giãn nhẹ để bốn nhãn tiếng Việt vừa bề ngang 407px.
+
+     `flex: 1 1 0` + `min-width: 0` cho bốn tờ chữ: chúng chia đều phần còn lại sau
+     khi tờ ⚙ lấy phần cố định của nó, nên hàng tờ không bao giờ TRÀN — chật thì
+     nhãn tự cắt bằng dấu lửng, không đẩy nút nào ra ngoài. Đo ở sàn bề rộng của
+     cột (#side-pane min-width 380px): mỗi nút được 87px, không nhãn nào bị cắt —
+     nên bốn cái tên tiếng Việt cộng biểu tượng vừa ở mọi cỡ cửa sổ chơi được. */
+  #paneTabs { display: flex; gap: 1px; border-bottom: 1px solid var(--rule); }
+  .pane-tab {
+    position: relative; flex: 1 1 0; min-width: 0;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+    padding: 9px 3px 8px; background: transparent; border: 0; cursor: pointer;
+    font-family: var(--f-ui); font-size: 11px; letter-spacing: .035em; color: var(--bone-3);
+    white-space: nowrap; transition: color .14s ease, background .14s ease;
+  }
+  .pane-tab .tb-ico { font-size: 10.5px; opacity: .75; }
+  .pane-tab .tb-name { overflow: hidden; text-overflow: ellipsis; }
+  .pane-tab:hover { color: var(--bone-2); background: rgba(216,165,68,.05); }
+  .pane-tab[aria-selected="true"] { color: var(--gold-hi); }
+  .pane-tab[aria-selected="true"] .tb-ico { opacity: 1; }
+  /* Vạch đè LÊN đường kẻ chân hàng tờ (bottom:-1px) chứ không nằm trên nó — hai
+     vạch chồng nhau đọc ra là một cái gạch dày, không phải một trang được giở. */
+  .pane-tab[aria-selected="true"]::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--gold);
+  }
+  .pane-tab.tab-gear { flex: 0 0 auto; padding: 9px 11px 8px; }
+  /* Con dấu "có lời khẩn cầu đang chờ". Vuông, chu sa như con dấu trên bản đồ —
+     đây là thứ DUY NHẤT trong cột đòi hành động và có hạn giờ, nên nó được dùng
+     màu mà không thứ nào khác trong hàng tờ được dùng. Ẩn hẳn khi bằng 0: một
+     huy hiệu lúc nào cũng sáng thì không còn là tín hiệu. */
+  .tab-badge {
+    display: none; min-width: 13px; height: 13px; padding: 0 3px; box-sizing: border-box;
+    align-items: center; justify-content: center;
+    background: var(--cinnabar); color: #f4e6cc;
+    font: 700 9px var(--f-data); font-style: normal; letter-spacing: 0; line-height: 1;
+  }
+  .tab-badge.on { display: inline-flex; }
+
+  /* Tờ không mở thì KHÔNG vẽ — xem renderActiveTab(): vòng lặp hình cũng bỏ qua
+     luôn hàm dựng của nó, nên `display:none` ở đây và cái gate bên JS phải luôn
+     nói cùng một điều. Thay đổi danh sách tờ thì phải sửa cả hai chỗ. */
+  .tabpane { display: none; }
+  .tabpane.on { display: block; }
+  /* H2 đầu mỗi tờ không cần khoảng thở 22px như khi nó là một mục thứ n trong một
+     cuộn dài — ngay trên nó đã là đường kẻ chân hàng tờ. */
+  .tabpane > h2:first-child, #selectedDock > h2:first-child { margin-top: 13px; }
+
+  /* Nút gập trong thẻ "đang chọn". Trông như một dòng tiêu đề nhỏ chứ không như
+     một cái nút — nó không phải một hành động, nó là một nhan đề bấm được. */
+  .sel-fold {
+    display: flex; align-items: baseline; gap: 6px; width: 100%; margin-top: 10px;
+    background: transparent; border: 0; padding: 3px 0; cursor: pointer; text-align: left;
+    font-family: var(--f-ui); font-size: 11px; color: var(--bone-3); transition: color .14s ease;
+  }
+  .sel-fold:hover { color: var(--bone-2); }
+  .sel-fold .sf-chev { font-size: 8px; color: var(--gold-dim); transition: transform .18s ease; }
+  .sel-fold[aria-expanded="true"] .sf-chev { transform: rotate(180deg); }
+
+  h2 {
+    font-family: var(--f-display); font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .18em; color: var(--bone-3);
+    margin: 22px 0 9px; display: flex; align-items: center; gap: 10px;
+  }
+  h2::after { content: ''; flex: 1 1 auto; height: 1px; background: var(--rule); }
+
+  .panel { box-shadow: inset 0 0 0 1px var(--rule); background: var(--lac-800); padding: 11px 13px; font-size: 13px; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12px; }
+  .kv .label { color: var(--bone-3); }
+  .kv .value { text-align: right; font-family: var(--f-data); font-size: 11px; color: var(--bone); }
+
+  /* Quyền năng chúa tể */
+  .faith-track { height: 6px; background: var(--lac-700); box-shadow: inset 0 0 0 1px var(--rule-soft); overflow: hidden; margin: 6px 0 10px; }
+  .faith-fill { height: 100%; background: linear-gradient(90deg, var(--gold-dim), var(--gold-hi)); width: 0%; }
+  #godButtons { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+  /* Tên quyền năng đặt bằng chữ SÁCH (Iowan Old Style) — đọc ra như tên một phép
+     thuật được chép trong sử, không phải một nhãn nút. Vạch màu bên trái nói lãnh vực. */
+  .god-btn {
+    position: relative; display: flex; flex-direction: column; gap: 3px;
+    background: var(--lac-700); color: var(--bone); border: 0; box-shadow: inset 0 0 0 1px var(--rule);
+    padding: 8px 10px 8px 13px; cursor: pointer; text-align: left; font-family: var(--f-ui);
+    transition: box-shadow .14s ease, background .14s ease, color .14s ease;
+  }
+  .god-btn::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--gold-dim); }
+  .god-btn[data-tone="harm"]::before { background: var(--cinnabar); }
+  .god-btn[data-tone="grow"]::before { background: var(--jade); }
+  .god-btn[data-tone="gift"]::before { background: var(--gold); }
+  .god-btn .gb-name { font-family: var(--f-display); font-size: 13.5px; letter-spacing: .01em; line-height: 1.1; }
+  .god-btn .gb-cost { font-family: var(--f-data); font-size: 11px; color: var(--gold); }
+  .god-btn .gb-cost i { font-style: normal; color: var(--bone-3); font-size: 9.5px; margin-left: 3px; letter-spacing: .04em; }
+  .god-btn:hover:not(:disabled) { background: #2b231b; box-shadow: inset 0 0 0 1px var(--gold-dim); }
+  .god-btn.armed { box-shadow: inset 0 0 0 1px var(--gold); background: rgba(216,165,68,.14); }
+  .god-btn.armed .gb-name { color: var(--gold-hi); }
+  .god-btn:disabled { opacity: 0.35; cursor: default; }
+  #godHint { font-size: 11px; color: var(--bone-3); margin-top: 10px; min-height: 15px; line-height: 1.5; }
+
+  /* Lời khẩn cầu: mỗi dòng là một câu hỏi thật gửi người xem; nút "Đáp lời" là một
+     hành động vàng, đủ khác với các nút xám để tay tự tìm tới nó khi có lời cầu. */
+  .pray-row { padding: 9px 0; border-bottom: 1px solid var(--rule-soft); font-size: 12px; }
+  .pray-row:last-child { border-bottom: 0; padding-bottom: 2px; }
+  .pray-row--active { font-size: 11.5px; color: var(--bone-2); }
+  .pray-btn {
+    width: 100%; margin-top: 7px; padding: 7px 11px; box-sizing: border-box;
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    background: rgba(216,165,68,.10); box-shadow: inset 0 0 0 1px var(--gold-dim);
+    color: var(--gold-hi); border: 0; cursor: pointer; font-family: var(--f-ui); font-size: 12px; text-align: left;
+    transition: box-shadow .14s ease, background .14s ease;
+  }
+  .pray-btn:hover:not(:disabled) { background: rgba(216,165,68,.17); box-shadow: inset 0 0 0 1px var(--gold); }
+  .pray-btn:disabled { opacity: .5; cursor: default; color: var(--bone-3); background: var(--lac-800); box-shadow: inset 0 0 0 1px var(--rule); }
+  .pray-btn .pb-cost { font-family: var(--f-data); font-size: 10.5px; color: var(--gold); }
+  .pray-btn:disabled .pb-cost { color: var(--bone-3); }
+
+  /* Bảng bộ lạc — một sổ cái chín cột. Ở đúng bề rộng thiết kế (~415px) nó chật, nên:
+     tên bộ lạc KHÔNG xuống dòng, đệm ô mảnh lại, và cả bảng nằm trong khung cuộn ngang
+     để dù một cái tên có kèm nhiều huy hiệu cũng không bao giờ làm vỡ bố cục các cột. */
+  .board-wrap { overflow-x: auto; overflow-y: hidden; }
+  table.board { width: 100%; min-width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.board th { color: var(--bone-3); font-weight: 500; text-align: right; padding: 4px 3px; border-bottom: 1px solid var(--rule); font-size: 10px; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; }
+  table.board th:first-child, table.board td:first-child { text-align: left; }
+  table.board td { padding: 4px 3px; border-bottom: 1px solid var(--rule-soft); font-family: var(--f-data); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  table.board td:first-child { font-family: var(--f-ui); font-size: 12px; }
+  table.board .tribe-name { color: var(--bone); }
+  table.board .tags { margin-left: 4px; white-space: nowrap; }
+  table.board .tag { font-size: 10px; margin-left: 2px; }
+  table.board tr[data-tribe] { cursor: pointer; }
+  table.board tr[data-tribe]:hover td { background: var(--lac-800); }
+  table.board tr.dead td { opacity: 0.3; text-decoration: line-through; }
+  .swatch { display: inline-block; width: 8px; height: 8px; margin-right: 6px; vertical-align: 0; }
+
+  #eventLog { font-size: 11.5px; line-height: 1.6; max-height: 150px; overflow-y: auto; }
+  #eventLog .t { color: var(--bone-3); font-family: var(--f-data); font-size: 10px; margin-right: 6px; }
+  /* Biên niên sử phải có TRẦN. Nó dài thêm ~45px mỗi kỷ nguyên khép lại và không
+     bao giờ ngắn đi, nên không chặn thì riêng nó đủ kéo tờ "Biên niên" vượt một
+     màn hình sau khoảng năm kỷ nguyên — tức là dựng lại đúng cái bệnh mà cả hàng
+     tờ này sinh ra để chữa. 170px = 3-4 mục gần nhất, phần còn lại cuộn trong khung. */
+  #eraHistory { font-size: 11.5px; line-height: 1.65; color: var(--bone-2); max-height: 170px; overflow-y: auto; }
+  #eraHistory .win { font-family: var(--f-display); font-weight: 700; font-size: 12.5px; }
+
+  canvas.chart { width: 100%; height: 70px; background: var(--lac-800); box-shadow: inset 0 0 0 1px var(--rule); display: block; }
+  .chart-title { font-size: 11px; color: var(--bone-3); display: flex; justify-content: space-between; margin-bottom: 5px; letter-spacing: .03em; }
+  .chart-title span:last-child { font-family: var(--f-data); color: var(--bone-2); }
+
+  #tuning label { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; margin-bottom: 6px; align-items: center; color: var(--bone-2); }
+  #tuning input, input[type=number] {
+    width: 90px; background: var(--lac-900); color: var(--bone); border: 0;
+    box-shadow: inset 0 0 0 1px var(--rule); padding: 4px 7px; font-family: var(--f-data); font-size: 11px;
+  }
+  #tuning .hint { margin: -2px 0 9px; }
+  .hint { color: var(--bone-3); font-size: 11px; line-height: 1.6; }
+  .bar { height: 4px; background: var(--lac-700); overflow: hidden; }
+  .bar > div { height: 100%; }
+
+  /* ===== HÒM ĐỒ CỦA ANH HÙNG =====
+     Một hộp sơn mài chia ngăn, không phải một dòng chữ liệt kê. Lý do là cái TRẦN:
+     luật cho giữ tối đa ba món, và ba cái ngăn — kể cả ngăn rỗng — nói ra cái trần
+     đó ngay lập tức, trong khi một dòng "🗡 Đại đao · 👢 Giày gió" thì không nói gì
+     về việc còn thừa chỗ hay đã đầy. Ngăn rỗng vì thế phải VẼ RA, không được giấu.
+
+     Ô đồ là hình vuông, viền vàng lá mảnh, có một mảng màu riêng của món đồ hắt lên
+     từ đáy ngăn — đủ để bốn loại đồ phân biệt được bằng màu ngay cả khi biểu tượng
+     emoji hiển thị khác nhau giữa các máy. */
+  .chest { margin-top: 6px; }
+  .chest-hd {
+    display: flex; align-items: baseline; gap: 6px;
+    font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: var(--bone-3);
+    margin-bottom: 4px;
+  }
+  .chest-hd b { font-weight: 600; color: var(--gold-dim); letter-spacing: .09em; }
+  .chest-hd .cnt { margin-left: auto; font-family: var(--f-data); font-size: 10px; letter-spacing: 0; }
+  .slots { display: flex; gap: 5px; }
+  .slot {
+    position: relative; width: 30px; height: 30px; flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; line-height: 1; cursor: default;
+    background: var(--lac-900); box-shadow: inset 0 0 0 1px #372c1f;
+  }
+  /* Ngăn rỗng: một dấu gạch mờ giữa ô. Không để trống hẳn — ô trống trơn đọc ra
+     "chỗ này hỏng", còn một dấu gạch đọc ra "chỗ này còn để dành". Viền phải ĐẬM
+     HƠN var(--rule): trên nền panel --lac-800 thì --rule chỉ hơn nền đúng một nấc,
+     và ba cái ngăn rỗng biến mất hẳn — tức là mất luôn cái trần ba món mà chúng
+     sinh ra để nói. */
+  .slot.empty::after { content: '·'; color: #4a3f31; font-size: 17px; }
+  .slot.full { cursor: help; box-shadow: inset 0 0 0 1px var(--gold-dim); }
+  .slot.full:hover { box-shadow: inset 0 0 0 1px var(--gold-hi); }
+  .slot .glow { position: absolute; inset: 0; opacity: .2; pointer-events: none; }
+  .slot .ico { position: relative; }
+  /* CẤP MÓN ĐỒ (hợp nhất). Ba tín hiệu chồng lên nhau vì ô chỉ rộng 30px và ở bản
+     thu nhỏ chỉ còn 21px — một tín hiệu đơn lẻ ở cỡ đó thì hoặc không thấy, hoặc
+     che mất chính cái biểu tượng nó đang chú thích:
+       · chữ số La Mã ở góc dưới phải — thứ đọc được một mình, không cần so sánh
+       · viền vàng dày dần theo cấp — thấy được ở bản thu nhỏ khi chữ đã quá bé
+       · nền hơi sáng lên — để một ô cấp cao nổi lên khỏi hàng ngăn ngay từ đuôi mắt */
+  .slot.lv2 { box-shadow: inset 0 0 0 1px var(--gold); background: #241d14; }
+  .slot.lv3 { box-shadow: inset 0 0 0 2px var(--gold-hi); background: #2b2216; }
+  .slot .lvtag {
+    position: absolute; right: 1px; bottom: 0; z-index: 2;
+    font: 700 8px var(--f-data); letter-spacing: -.02em; line-height: 1;
+    color: var(--gold-hi); text-shadow: 0 0 2px #000, 0 0 2px #000;
+    pointer-events: none;
+  }
+  .slots.mini .slot .lvtag { font-size: 7px; }
+  /* Ngăn của đền: cùng ngôn ngữ nhưng nhỏ hơn và đóng dấu chu sa, để mắt đọc ra
+     ngay rằng đây là kho khác — thứ đời sau thừa kế, không phải thứ đang cầm. */
+  .slot.shrine-slot { width: 24px; height: 24px; font-size: 12px; box-shadow: inset 0 0 0 1px #5d2e26; }
+
+  #itemTip {
+    position: fixed; z-index: 90; max-width: 236px; pointer-events: none;
+    display: none; padding: 8px 10px 9px;
+    background: rgba(11,9,7,0.96); box-shadow: inset 0 0 0 1px rgba(216,165,68,.34), 0 8px 26px rgba(0,0,0,.6);
+    font: 11px var(--f-ui); color: var(--bone-2); backdrop-filter: blur(5px);
+  }
+  #itemTip .ti-hd { font-weight: 700; font-size: 12.5px; margin-bottom: 5px; display: flex; gap: 6px; align-items: center; }
+  #itemTip .ti-kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
+  #itemTip .ti-kv .l { color: var(--bone-3); }
+  #itemTip .ti-kv .v { text-align: right; font-family: var(--f-data); font-size: 10.5px; color: var(--jade); }
+  #itemTip .ti-note { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--rule); color: var(--bone-3); line-height: 1.5; }
+  #itemTip .ti-src { margin-top: 5px; color: var(--bone-3); font-size: 10px; letter-spacing: .02em; }
+
+  /* Thanh cuộn: mảnh và cùng tông, để nó không thành một vạch sáng cắt dọc
+     bên cạnh bức tranh. */
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-track { background: var(--lac-900); }
+  ::-webkit-scrollbar-thumb { background: var(--lac-700); }
+  ::-webkit-scrollbar-thumb:hover { background: #33291f; }
+
+  /* Trò chơi này thửa cho màn rộng, nhưng thu nhỏ cửa sổ thì cũng không được vỡ.
+     Canvas kẹp max-width để không bao giờ tràn ngang; dưới 880px thì xếp dọc và cho
+     cuộn thay vì cắt cụt cột phải ra ngoài mép. */
+  #canvasWrap, #simCanvas { max-width: 100%; height: auto; }
+  @media (max-width: 880px) {
+    body { flex-direction: column; height: auto; min-height: 100vh; overflow-y: auto; }
+    #world-pane { height: auto; width: 100%; box-sizing: border-box; }
+    #side-pane { width: 100%; min-width: 0; border-left: 0; border-top: 1px solid var(--rule); }
+    /* Cột xếp dọc dưới khung hình thì không còn khung nhìn riêng để dán vào —
+       đầu cột dán đỉnh sẽ trôi lơ lửng giữa trang. */
+    #paneHead { position: static; box-shadow: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) { * { animation-duration: .001ms !important; transition-duration: .001ms !important; } }

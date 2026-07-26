@@ -1,0 +1,14 @@
+# NOW board — trạng thái local mỗi máy, không phải nguồn sự thật của repo
+NOW.json
+NOW.md
+
+# Launcher trỏ bằng đường dẫn TUYỆT ĐỐI của máy này, máy khác mở không ra
+*.webloc
+
+# Cấu hình riêng của công cụ trên máy này
+.claude/settings.local.json
+
+# Bản sao lưu thủ công trước mỗi phase
+*.bak.html
+
+.DS_Store

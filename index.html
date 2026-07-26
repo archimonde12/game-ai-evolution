@@ -1,0 +1,2045 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Evolution Sim — Phase 1</title>
+<style>
+  :root {
+    color-scheme: dark;
+  }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #12151a;
+    color: #d8dee9;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+  #world-pane {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px;
+    gap: 8px;
+  }
+  #canvasWrap {
+    position: relative;
+  }
+  #simCanvas {
+    background: #1b2027;
+    border: 1px solid #333a45;
+    cursor: grab;
+    display: block;
+  }
+  #minimapCanvas {
+    position: absolute;
+    right: 9px;
+    top: 9px;
+    border: 1px solid #3a4150;
+    cursor: pointer;
+    opacity: 0.92;
+  }
+  #legend {
+    font-size: 11px;
+    color: #8b95a6;
+    text-align: center;
+    max-width: 500px;
+  }
+  #controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  #controls button, #controls select {
+    background: #262b33;
+    color: #d8dee9;
+    border: 1px solid #3a4150;
+    border-radius: 4px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  #controls button:hover { background: #333a45; }
+  #side-pane {
+    flex: 1 1 auto;
+    padding: 12px 16px;
+    overflow-y: auto;
+    border-left: 1px solid #262b33;
+    min-width: 320px;
+  }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .05em; color: #8b95a6; margin: 18px 0 8px; }
+  h2:first-child { margin-top: 0; }
+  #stats, .stat-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 12px;
+    font-size: 13px;
+  }
+  #stats span.label, .stat-grid span.label { color: #8b95a6; }
+  #stats span.value, .stat-grid span.value { font-variant-numeric: tabular-nums; text-align: right; }
+  #selectedStatus { font-size: 12px; margin-bottom: 6px; }
+  #selectedStatus.alive { color: #81c784; }
+  #selectedStatus.dead { color: #e57373; }
+  .chart-block { margin-bottom: 14px; }
+  .chart-title { font-size: 12px; color: #8b95a6; display: flex; justify-content: space-between; }
+  canvas.trait-chart {
+    width: 100%;
+    height: 60px;
+    background: #1b2027;
+    border: 1px solid #262b33;
+    margin-top: 2px;
+  }
+  #tuning label {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    margin-bottom: 8px;
+    align-items: center;
+  }
+  #tuning input {
+    width: 90px;
+    background: #262b33;
+    color: #d8dee9;
+    border: 1px solid #3a4150;
+    border-radius: 4px;
+    padding: 3px 6px;
+  }
+  #tuning .hint { color: #626b7a; font-size: 11px; margin: -4px 0 8px; }
+
+  /* PHASE 2 — game-hoá: panel mục tiêu/thắng-thua, xem renderGoalPanel() */
+  #goalPanel {
+    border: 1px solid #3a4150;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 4px;
+    font-size: 13px;
+  }
+  #goalPanel.goal-won { border-color: #81c784; background: rgba(129, 199, 132, 0.08); }
+  #goalPanel.goal-lost { border-color: #e57373; background: rgba(229, 115, 115, 0.08); }
+  .goal-progress-track {
+    height: 8px;
+    background: #1b2027;
+    border: 1px solid #262b33;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 8px 0 6px;
+  }
+  .goal-progress-fill {
+    height: 100%;
+    background: #64b5f6;
+    width: 0%;
+  }
+  .goal-status { font-size: 12px; color: #8b95a6; }
+  .goal-status.won { color: #81c784; font-weight: 600; }
+  .goal-status.lost { color: #e57373; font-weight: 600; }
+  #goalPanel label { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; margin: 10px 0 0; align-items: center; }
+  #goalPanel input {
+    width: 90px;
+    background: #262b33;
+    color: #d8dee9;
+    border: 1px solid #3a4150;
+    border-radius: 4px;
+    padding: 3px 6px;
+  }
+  #goalPanel .hint { color: #626b7a; font-size: 11px; margin: 4px 0 0; }
+</style>
+</head>
+<body>
+
+<div id="world-pane">
+  <div id="canvasWrap">
+    <canvas id="simCanvas"></canvas>
+    <canvas id="minimapCanvas" title="Click/kéo để camera nhảy tới khu vực đó"></canvas>
+  </div>
+  <div id="legend">
+    <strong style="color:#ff6659;">▲ Tam giác đỏ, to, viền đen = PREDATOR (săn mồi)</strong> — màu/hình này CỐ ĐỊNH, không đổi theo chế độ tô màu bên dưới.
+    <span id="legendEnergy">Chấm tròn = PREY (ăn cỏ), màu chấm = mức năng lượng: <span style="color:#e57373">đỏ (sắp chết đói)</span> → <span style="color:#81c784">xanh lá (sắp đủ sinh sản)</span>.</span>
+    <span id="legendLineage" style="display:none;">Chấm tròn = PREY (ăn cỏ), màu chấm = dòng họ (mỗi tổ tiên gen-0 một màu riêng, con cháu giữ nguyên màu tổ tiên). Cụm màu lan rộng = dòng họ đó đang thắng thế; cụm màu biến mất = dòng họ đó tuyệt chủng.</span>
+    <br>Click vào 1 chấm để xem chi tiết gene + năng lượng + số hậu duệ còn sống của nó. Map lớn hơn màn hình — kéo chuột / phím mũi tên-WASD / minimap góc phải để xem khu vực khác.
+  </div>
+  <div id="controls">
+    <button id="btnPause">Pause</button>
+    <button id="btnStep">Step +1 tick</button>
+    <button id="btnReset">Reset</button>
+    <select id="speedSelect">
+      <option value="1">1x</option>
+      <option value="4">4x</option>
+      <option value="10">10x</option>
+      <option value="30">30x</option>
+    </select>
+    <select id="colorModeSelect">
+      <option value="energy">Màu: năng lượng</option>
+      <option value="lineage">Màu: dòng họ</option>
+    </select>
+  </div>
+</div>
+
+<div id="side-pane">
+  <h2>Mục tiêu</h2>
+  <div id="goalPanel">
+    <div>Giữ CẢ prey và predator sống sót tới tick <strong id="goalTarget">20000</strong>.</div>
+    <div class="goal-progress-track"><div class="goal-progress-fill" id="goalProgressFill"></div></div>
+    <div class="goal-status" id="goalStatus">Tick 0 / 20000</div>
+    <label>Đòn bẩy của bạn — foodSpawnRate <input type="number" id="tuneFoodSpawnRate" step="1" min="0"></label>
+    <div class="hint">food cells mới/tick — công cụ can thiệp DUY NHẤT của bạn, không giới hạn ngân sách. Thử tăng/giảm khi thấy 1 loài đang mất cân bằng.</div>
+  </div>
+
+  <h2>Trạng thái</h2>
+  <div id="stats">
+    <span class="label">Tick</span><span class="value" id="statTick">0</span>
+    <span class="label">Dân số prey</span><span class="value" id="statPop">0</span>
+    <span class="label">Dân số predator</span><span class="value" id="statPredatorPop">0</span>
+    <span class="label">Food trên grid</span><span class="value" id="statFood">0</span>
+    <span class="label">Sinh / N tick (prey)</span><span class="value" id="statBirths">0</span>
+    <span class="label">Chết / N tick (prey)</span><span class="value" id="statDeaths">0</span>
+  </div>
+
+  <h2>Creature đã chọn</h2>
+  <div id="selectedInfo">
+    <div class="hint" id="selectedHint">Click vào 1 chấm trên bản đồ để xem gene, năng lượng, tuổi của nó.</div>
+    <div id="selectedDetails" style="display:none;">
+      <div id="selectedStatus"></div>
+      <div class="stat-grid">
+        <span class="label">Loài</span><span class="value" id="selSpecies">-</span>
+        <span class="label">Energy</span><span class="value" id="selEnergy">-</span>
+        <span class="label">Age (tick)</span><span class="value" id="selAge">-</span>
+        <span class="label">Đời thứ (generation)</span><span class="value" id="selGen">-</span>
+        <span class="label">Cùng dòng họ còn sống</span><span class="value" id="selLineageCount">-</span>
+        <span class="label">speed</span><span class="value" id="selSpeed">-</span>
+        <span class="label">senseRange</span><span class="value" id="selSense">-</span>
+        <span class="label">metabolism</span><span class="value" id="selMetab">-</span>
+        <span class="label">reproThreshold</span><span class="value" id="selRepro">-</span>
+        <span class="label">size</span><span class="value" id="selSize">-</span>
+        <span class="label">reproInvestment</span><span class="value" id="selReproInvest">-</span>
+        <span class="label">↳ gen con (polygenic)</span><span class="value" id="selReproInvestGenes">-</span>
+      </div>
+    </div>
+  </div>
+
+  <h2>Trait trung bình theo thời gian</h2>
+  <div class="chart-block">
+    <div class="chart-title"><span>speed</span><span id="labelSpeed">-</span></div>
+    <canvas class="trait-chart" id="chartSpeed"></canvas>
+  </div>
+  <div class="chart-block">
+    <div class="chart-title"><span>senseRange</span><span id="labelSense">-</span></div>
+    <canvas class="trait-chart" id="chartSense"></canvas>
+  </div>
+  <div class="chart-block">
+    <div class="chart-title"><span>metabolism</span><span id="labelMetab">-</span></div>
+    <canvas class="trait-chart" id="chartMetab"></canvas>
+  </div>
+  <div class="chart-block">
+    <div class="chart-title"><span>reproThreshold</span><span id="labelRepro">-</span></div>
+    <canvas class="trait-chart" id="chartRepro">-</canvas>
+  </div>
+  <div class="chart-block">
+    <div class="chart-title"><span>size</span><span id="labelSize">-</span></div>
+    <canvas class="trait-chart" id="chartSize"></canvas>
+  </div>
+  <div class="chart-block">
+    <div class="chart-title"><span>reproInvestment (polygenic)</span><span id="labelReproInvest">-</span></div>
+    <canvas class="trait-chart" id="chartReproInvest"></canvas>
+  </div>
+  <div class="chart-block">
+    <div class="chart-title"><span>population — prey (xanh) / predator (hồng)</span><span id="labelPop">-</span></div>
+    <canvas class="trait-chart" id="chartPop"></canvas>
+  </div>
+
+  <h2>Tham số tune (live)</h2>
+  <div id="tuning">
+    <div class="hint" style="margin-top:0;">foodSpawnRate đã chuyển lên panel "Mục tiêu" ở trên — đó là đòn bẩy chính của người chơi.</div>
+
+    <label>maxFoodCells <input type="number" id="tuneMaxFood" step="10" min="0"></label>
+    <div class="hint">trần tổng số food trên grid tại một thời điểm</div>
+
+    <label>mutationRate <input type="number" id="tuneMutationRate" step="0.01" min="0" max="1"></label>
+    <div class="hint">xác suất mỗi trait bị mutate khi sinh con (~0.05–0.1)</div>
+
+    <label>initialPopulation <input type="number" id="tuneInitialPopulation" step="10" min="1"></label>
+    <div class="hint">số con khởi tạo — hạ xuống 10-20 rồi bấm Reset để dễ theo dõi từng cá thể như phim tài liệu</div>
+
+    <label>speedEnergyCost <input type="number" id="tuneSpeedCost" step="0.01" min="0"></label>
+    <div class="hint">năng lượng/tick tốn thêm cho mỗi đơn vị speed — cao thì "nhanh" trở nên đắt đỏ, ép trade-off với metabolism/senseRange</div>
+
+    <label>senseEnergyCost <input type="number" id="tuneSenseCost" step="0.01" min="0"></label>
+    <div class="hint">năng lượng/tick tốn thêm cho mỗi đơn vị senseRange — cao thì "tinh mắt" trở nên đắt đỏ</div>
+
+    <label>metabolismEfficiencyBonus <input type="number" id="tuneMetabBonus" step="0.1" min="0"></label>
+    <div class="hint">hệ số lợi ích của metabolism khi ăn — quá thấp thì metabolism vẫn trôi về floor; quá cao thì trôi lên ceiling. ~2.5 đang cho điểm cân bằng ổn</div>
+
+    <div class="hint" style="margin-top:4px;">Đổi khoảng trait ban đầu: sửa CONFIG.PREY_GENOME.INITIAL_TRAIT_RANGE (hoặc CONFIG.PREDATOR_GENOME cho predator) trong &lt;script&gt; rồi Reset.</div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ============================================================
+// CONFIG — mọi tham số cần tune nằm ở đây. Ba tham số chính
+// (foodSpawnRate, mutationRate, reproThreshold range) cũng có
+// input live ở panel bên phải để chỉnh không cần sửa code.
+// ============================================================
+const CONFIG = {
+  // ============================================================
+  // PHASE 1.1 — thế giới lớn hơn khung nhìn: WORLD (GRID_WIDTH/HEIGHT) giờ TÁCH
+  // KHỎI VIEWPORT (VIEWPORT_WIDTH/HEIGHT). World là toàn bộ bản đồ mô phỏng (creature
+  // di chuyển/spawn food trên toàn bộ world); viewport là khung 900x600px hiển thị
+  // TRÊN MÀN HÌNH, chỉ là 1 cửa sổ con di chuyển được (camX/camY) trên world — giống
+  // camera trong game chiến thuật (AoE): map thật lớn hơn hẳn màn hình đang thấy.
+  // VIEWPORT giữ nguyên 150x100 (= kích thước GRID_WIDTH/HEIGHT cũ của Phase 0/1) để
+  // không đổi cỡ canvas hiển thị; chỉ WORLD phình to hơn xung quanh nó.
+  GRID_WIDTH: 240,
+  GRID_HEIGHT: 160,
+  VIEWPORT_WIDTH: 150,
+  VIEWPORT_HEIGHT: 100,
+  CELL_SIZE: 6,           // px per grid cell khi render
+
+  INITIAL_POPULATION: 180, // KHÔNG scale theo diện tích world — world lớn hơn chỉ để tạo "vùng để khám phá", không có ý định nuôi đông hơn theo cùng mật độ
+
+  // World lớn gấp 240*160 / 150*100 = 2.56x diện tích Phase 0/1 — food-related config
+  // bên dưới scale theo đúng tỉ lệ này để giữ MẬT ĐỘ food/diện tích không đổi, nếu
+  // không giữ điểm cân bằng quần thể đã verify ở Phase 1 (~150-280) sẽ bị phá vỡ chỉ
+  // vì world to hơn chứ không phải vì cơ chế gen nào thay đổi.
+  INITIAL_FOOD: 1200,     // 470 * 2.56
+  MAX_FOOD_CELLS: 1800,   // 700 * 2.56 — vẫn là trần khan hiếm, không nuôi nổi dân số tối đa
+  FOOD_SPAWN_RATE: 50,    // 20 * 2.56 — food cell mới spawn mỗi tick (giới hạn bởi MAX_FOOD_CELLS)
+
+  // Food giờ mọc theo CỤM (patch) thay vì rải đều ngẫu nhiên toàn bản đồ — giống thực tế
+  // hơn (nguồn thức ăn thường tập trung ở một số khu vực: bụi cây, ao...). Mỗi lần spawn,
+  // chọn ngẫu nhiên 1 patch rồi rải quanh tâm patch đó trong bán kính FOOD_PATCH_RADIUS.
+  // Hệ quả: senseRange/vị trí ban đầu giờ có ý nghĩa thật — con ở gần patch có lợi thế
+  // rõ rệt so với con ở xa, thay vì food ở đâu cũng như nhau.
+  // KHÔNG scale theo diện tích world (cố tình giữ nguyên 14/10): world to hơn + số patch
+  // như cũ = mỗi patch chiếm 1 phần nhỏ hơn của map -> các cụm food tách biệt rõ hơn,
+  // đúng cảm giác "đi từ vùng này sang vùng khác" mà camera/pan mới thêm vào hỗ trợ.
+  FOOD_PATCH_COUNT: 14,
+  FOOD_PATCH_RADIUS: 10,
+
+  FOOD_ENERGY_VALUE: 10,  // năng lượng NỀN nhận được khi ăn 1 food cell — xem METABOLISM_EFFICIENCY_BONUS bên dưới, giá trị thật ăn được còn phụ thuộc metabolism của chính con đó
+
+  // Phải THẤP HƠN hẳn mép dưới của INITIAL_TRAIT_RANGE.reproThreshold (60), nếu không
+  // phần lớn quần thể gen-0 sẽ sinh sản ngay tick đầu tiên (chưa cần ăn) -> bùng nổ dân
+  // số tức thời trước khi áp lực chọn lọc (đói) kịp phát huy tác dụng.
+  START_ENERGY: 25,       // năng lượng khởi tạo cho creature thế hệ 0
+
+  // Chi phí năng lượng/tick cho speed và senseRange — ĐIỂM TRADE-OFF: nếu không có 2
+  // dòng này, speed/senseRange là "lợi ích miễn phí" (tìm food nhanh/xa hơn mà không
+  // mất gì), chọn lọc sẽ đẩy cả 2 lên vô hạn (chỉ bị chặn bởi TRAIT_BOUNDS — 1 giới hạn
+  // kỹ thuật, không phải quy luật sinh học). Có cost thì 1 con muốn vừa nhanh vừa tinh
+  // mắt phải trả giá bằng việc cần ăn nhiều hơn hẳn để tồn tại — tạo áp lực chọn lọc
+  // thật giữ traits ở điểm cân bằng thay vì trôi tới biên clamp.
+  SPEED_ENERGY_COST: 0.15,  // năng lượng tốn thêm mỗi tick, nhân với genome.speed
+  SENSE_ENERGY_COST: 0.05,  // năng lượng tốn thêm mỗi tick, nhân với genome.senseRange
+  SIZE_ENERGY_COST: 0.1,    // PHASE 1.5 — năng lượng tốn thêm mỗi tick, nhân với genome.size (thân to hơn tốn nhiều hơn để duy trì, xem effectiveSteps cho cái giá thứ 2 của size: chậm hơn)
+
+  // ĐIỂM TRADE-OFF cho metabolism: trước đây metabolism chỉ có HẠI (tốn năng lượng/tick),
+  // không có LỢI nào bù lại -> chọn lọc luôn đẩy nó về floor, không có điểm cân bằng thật.
+  // Giờ metabolism cao hơn cũng giúp "hấp thụ" được nhiều năng lượng hơn từ mỗi miếng food
+  // (ăn hiệu quả hơn) — như trao đổi chất nhanh thật ngoài đời thường đi kèm khả năng
+  // chuyển hoá dinh dưỡng nhanh hơn. Trade-off: metabolism cao = tốn nhanh hơn NHƯNG mỗi
+  // lần ăn được nhiều hơn; metabolism thấp = tốn chậm hơn NHƯNG mỗi lần ăn được ít hơn.
+  // Không còn "thấp luôn luôn tốt" một chiều nữa.
+  // Lưu ý khi tune: cost tính MỖI TICK (dù không ăn), còn benefit chỉ nhận được LÚC ĂN
+  // (không phải mỗi tick) -> hệ số phải đủ lớn để bù phần "không phải lúc nào cũng được
+  // hưởng". Test thật: 1.0 chưa đủ (metabolism vẫn từ từ trôi về floor 0.05, chỉ chậm
+  // hơn); 2.5 cho kết quả đúng ý — avgMetabolism dao động quanh ~0.25-0.35 (gần giá trị
+  // khởi tạo) suốt hàng chục nghìn tick, không còn xu hướng 1 chiều.
+  METABOLISM_EFFICIENCY_BONUS: 2.5, // hệ số nhân thêm vào FOOD_ENERGY_VALUE theo genome.metabolism
+
+  // ============================================================
+  // PHASE 1.2 — "NO BỤNG": giới hạn năng lượng dự trữ tối đa, áp dụng cho CẢ prey lẫn
+  // predator (xem PREDATOR.MAX_ENERGY bên dưới cho predator).
+  // ============================================================
+  // LÝ DO THÊM: predator-prey thuần (không có gì giới hạn thêm) có tính chất toán học
+  // là dao động "trung hoà" (neutrally stable) — không có lực kéo hệ về lại 1 quỹ đạo
+  // cố định, nên nhiễu ngẫu nhiên (bắt/thoát là tung đồng xu, số cá thể là số nguyên)
+  // khiến biên độ dao động RANDOM-WALK dần ra ngoài, sớm muộn cũng chạm đáy tuyệt
+  // chủng (test thật: predator/prey lần lượt tuyệt chủng dù đã tune 3 vòng). Việc chặn
+  // năng lượng dự trữ (không thể "ăn no" quá 1 mức bất kể ăn được bao nhiêu) mô phỏng
+  // sức chứa dạ dày/mỡ thật ngoài đời — nó GIỚI HẠN LỢI THẾ của 1 cá thể may mắn gặp
+  // vận may liên tiếp (nhiều food/prey liền nhau), vì phần dư ra bị LÃNG PHÍ thay vì
+  // tích luỹ vô hạn để tài trợ cho hàng loạt lần sinh sản liên tiếp. Đây chính là cơ
+  // chế "functional response bão hoà" trong sinh thái học (mô hình Rosenzweig-MacArthur)
+  // — thứ biến quỹ đạo trung hoà thành hệ có xu hướng tắt dần về 1 điểm cân bằng thật.
+  // PHASE 1.5 — trần "no bụng" giờ theo TỪNG CÁ THỂ (size × hệ số) thay vì 1 hằng số
+  // chung cho cả quần thể — xem CONFIG.PREY_GENOME.size bên dưới. Con to hơn CHỨA
+  // ĐƯỢC nhiều năng lượng hơn thật sự (không chỉ là hiển thị), một phần thưởng thật
+  // cho việc đầu tư gen vào size, đánh đổi với chi phí SIZE_ENERGY_COST + di chuyển
+  // chậm hơn (xem effectiveSteps). Ở size=1.0 (chính giữa khoảng khởi tạo), trần =
+  // đúng bằng 250 cũ, nên hành vi gen-0 không đổi đột ngột so với Phase 1.2-1.4.
+  PREY_MAX_ENERGY_PER_SIZE: 250,
+
+  MUTATION_RATE: 0.08,    // xác suất MỖI trait bị mutate khi sinh con (spec: ~0.05-0.1) — DÙNG CHUNG cho cả prey lẫn predator
+
+  // ============================================================
+  // PHASE 1.2 — predator-prey: tách "gene spec" (bounds/sigma/initial-range/
+  // polygenic) ra khỏi CONFIG cấp cao nhất thành CONFIG.PREY_GENOME riêng, để
+  // randomGenome/mutateGenome/phenotypeOf nhận spec làm THAM SỐ thay vì đọc thẳng
+  // CONFIG toàn cục — nhờ vậy CÙNG 1 bộ hàm gen dùng được cho cả predator (xem
+  // CONFIG.PREDATOR_GENOME bên dưới) mà không phải chép lại logic mutation/
+  // polygenic. Giá trị bên trong PREY_GENOME giữ NGUYÊN các con số đã tune ở
+  // Phase 0/1 — đây thuần là đổi CHỖ CHỨA, không đổi hành vi của prey.
+  // ============================================================
+  PREY_GENOME: {
+    MUTATION_SIGMA: {       // độ lệch chuẩn của nhiễu Gaussian khi 1 trait mutate
+      speed: 0.3,
+      senseRange: 1.0,
+      metabolism: 0.05,
+      reproThreshold: 6,
+      size: 0.15
+    },
+
+    // Chặn trait trong khoảng hợp lý để tránh trôi dạt vô hạn (vd speed/senseRange
+    // không có cost trực tiếp trong spec nên về lý thuyết có thể tăng mãi — clamp
+    // là biện pháp kỹ thuật, không phải thay đổi cơ chế chọn lọc).
+    TRAIT_BOUNDS: {
+      speed: [0.5, 6],
+      senseRange: [2, 25],
+      metabolism: [0.05, 1.5],
+      reproThreshold: [30, 200],
+      size: [0.3, 3.0]
+    },
+
+    INITIAL_TRAIT_RANGE: {
+      speed: [1, 2],
+      senseRange: [4, 8],
+      metabolism: [0.2, 0.5],
+      reproThreshold: [60, 100],
+      size: [0.8, 1.2] // khởi tạo quanh baseline 1.0 — tương tự cách reproInvestment khởi tạo quanh 0.5, để so sánh "trước/sau" chọn lọc sạch
+    },
+
+    // reproInvestment: trait polygenic — thay 50/50 cố định bằng % năng lượng cha/mẹ
+    // CHO CON lúc đẻ. Đầu tư cao (gần 0.8) -> con khoẻ hơn nhưng cha/mẹ yếu đi; đầu tư
+    // thấp (gần 0.2) -> ngược lại. Trade-off kiểu r- vs K-selection. Polygenic (geneCount
+    // gen con nhỏ cộng trung bình thành 1 phenotype) CHỈ áp dụng cho trait này — 4 trait
+    // trên vẫn monogenic để giữ được phép so sánh "polygenic vs monogenic" sạch trong
+    // cùng 1 lần chạy (xem phenotypeOf/mutateGenome).
+    POLYGENIC_TRAITS: {
+      reproInvestment: {
+        geneCount: 4,
+        subgeneMutationSigma: 0.08,
+        initialSubgeneRange: [0.4, 0.6],
+        phenotypeBounds: [0.2, 0.8]
+      }
+    },
+
+    // PHASE 1.4 (round 2) — xem findNearestMateInRange: khi tìm bạn tình, tầm nhận biết
+    // dùng = senseRange * MATE_SENSE_MULTIPLIER thay vì senseRange thường (vẫn dùng
+    // senseRange thô cho tìm food/phát hiện predator). Prey giữ 1 (không đổi gì) vì mật
+    // độ quần thể đã đủ dày — bottleneck tìm bạn tình chỉ xảy ra ở predator thưa dân.
+    MATE_SENSE_MULTIPLIER: 1
+  },
+
+  // ============================================================
+  // PHASE 1.2 — predator: loài thứ 2, CHỈ ăn prey (Lotka-Volterra thuần, không ăn
+  // được food thực vật) — điều kiện để có dao động số lượng theo chu kỳ giữa 2 loài
+  // thay vì tắt dần về 1 điểm cân bằng phẳng. Dùng CHUNG kiến trúc gen với prey (5
+  // trait y hệt: speed/senseRange/metabolism/reproThreshold/reproInvestment polygenic)
+  // nhưng với bounds/range/sigma RIÊNG — predator khởi tạo nhanh hơn, tinh mắt hơn,
+  // ngưỡng đẻ cao hơn (đầu tư lâu dài hơn cho 1 lần sinh sản, phù hợp bậc dinh dưỡng
+  // cao hơn, quần thể nhỏ hơn nhiều so với prey).
+  // ============================================================
+  PREDATOR_GENOME: {
+    MUTATION_SIGMA: {
+      speed: 0.3,
+      senseRange: 1.2,
+      metabolism: 0.05,
+      reproThreshold: 12,
+      size: 0.15
+    },
+    TRAIT_BOUNDS: {
+      speed: [0.5, 8],
+      senseRange: [2, 30],
+      metabolism: [0.05, 1.5],
+      reproThreshold: [80, 350],
+      size: [0.3, 3.0]
+    },
+    // GHI CHÚ TUNE (v2 -> v3): tốc độ khởi tạo NGANG prey ([1,2], v2) khiến predator
+    // gần như không bao giờ đuổi kịp được prey đang chạy trốn (2 bên tốc độ ngang
+    // nhau, prey lại thường phát hiện trước nhờ senseRange) — predator tuyệt chủng vì
+    // đói (không bắt được gì) dù CATCH_BASE_PROB không hề thấp. Trả lại 1 lợi thế tốc
+    // độ NHỎ (không lớn như v1's [2,3]) để predator còn cơ hội thật sự áp sát — mức độ
+    // "đúng" của lợi thế này là đúng chỗ cần tiếp tục quan sát/tune thêm.
+    INITIAL_TRAIT_RANGE: {
+      speed: [1.5, 2.2],
+      senseRange: [6, 10],
+      metabolism: [0.2, 0.5],
+      reproThreshold: [150, 250],
+      size: [0.8, 1.2]
+    },
+    POLYGENIC_TRAITS: {
+      reproInvestment: {
+        geneCount: 4,
+        subgeneMutationSigma: 0.08,
+        initialSubgeneRange: [0.4, 0.6],
+        phenotypeBounds: [0.2, 0.8]
+      }
+    },
+
+    // PHASE 1.4 (round 2) — fix Allee effect KHÔNG PHẢI bằng tăng INITIAL_POPULATION
+    // (đã thử 35 và 60, xem GHI CHÚ TUNE ở CONFIG.PREDATOR — cả 2 đều thất bại theo 2
+    // kiểu khác nhau), mà bằng cách cho predator một "tầm tìm bạn tình" RIÊNG, rộng hơn
+    // hẳn senseRange dùng để săn mồi (sinh học thật: nhiều loài có tín hiệu gọi bạn tình
+    // — pheromone, tiếng gọi — tầm xa hơn hẳn tầm nhìn săn mồi thông thường). Chỉ áp
+    // dụng lúc gọi findNearestMateInRange, KHÔNG ảnh hưởng săn mồi/né predator — nên
+    // không làm tăng áp lực săn mồi lên prey như cách tăng số lượng đã làm.
+    MATE_SENSE_MULTIPLIER: 4
+  },
+
+  // Năng lượng/kinh tế riêng của predator — KHÔNG dùng chung với prey (FOOD_ENERGY_VALUE,
+  // SPEED_ENERGY_COST... ở trên) vì predator vận động/săn theo cách khác hẳn con mồi.
+  // INITIAL_POPULATION nhỏ hơn nhiều lần prey — đúng tỉ lệ sinh khối thấp của bậc dinh
+  // dưỡng cao hơn trong thực tế, và cũng để tránh predator xoá sổ prey ngay từ đầu
+  // trước khi 2 quần thể kịp tìm điểm cân bằng động.
+  //
+  // GHI CHÚ TUNE (v1 -> v2): bộ số ban đầu (MEAT_ENERGY_VALUE=35, speed khởi tạo cao
+  // hơn prey, CATCH_BASE_PROB=0.5) khiến prey TUYỆT CHỦNG chỉ sau ~210 tick — predator
+  // "quá lời" mỗi lần bắt (đủ nuôi sống ~35-45 tick chỉ từ 1 con mồi, trong khi prey cần
+  // NHIỀU lần ăn mới đủ năng lượng sinh sản) nên predator nhân số nhanh hơn hẳn tốc độ
+  // prey mất đi. Hạ MEAT_ENERGY_VALUE, tăng chi phí/tick, tăng reproThreshold, hạ
+  // CATCH_BASE_PROB để mỗi lần săn "đắt" hơn và cần nhiều lần săn hơn mới đẻ được —
+  // tương tự bài học METABOLISM_EFFICIENCY_BONUS ở Phase 0 (lợi ích ăn-được-1-lần phải
+  // cân với chi phí trả MỖI TICK).
+  PREDATOR: {
+    // GHI CHÚ TUNE (PHASE 1.4 Allee-effect fix, round 1 -> round 2): sau khi thêm sinh
+    // sản hữu tính, quần thể predator khởi tạo ở 20 con liên tục tuyệt chủng trong <2000
+    // tick — không phải vì thiếu mồi (đã quan sát predator từng đạt 590-642 con ở Phase
+    // 1.2 khi còn vô tính), mà vì ở mật độ 20 con / 38400 ô, số bạn tình kỳ vọng trong
+    // senseRange lúc nào cũng gần 0 (Allee effect). Round 1 thử TĂNG INITIAL_POPULATION
+    // (35, rồi 60) — cả 2 đều thất bại: 35 vẫn không đủ mật độ (vẫn trượt về 1 con), 60
+    // thoát được Allee nhưng lại săn prey quá mạnh ngay từ đầu -> prey tuyệt chủng ở tick
+    // ~1337 (nhanh hơn cả baseline Phase 1.2). Giữ nguyên INITIAL_POPULATION=20 — fix
+    // THẬT SỰ nằm ở MATE_SENSE_MULTIPLIER (xem PREDATOR_GENOME): tăng tầm tìm-bạn-tình
+    // mà không tăng số cá thể/áp lực săn mồi.
+    INITIAL_POPULATION: 20,
+    START_ENERGY: 30,
+    SPEED_ENERGY_COST: 0.25,
+    SENSE_ENERGY_COST: 0.08,
+    SIZE_ENERGY_COST: 0.15, // PHASE 1.5 — xem CONFIG.SIZE_ENERGY_COST (prey), cùng cơ chế
+    MEAT_ENERGY_VALUE: 22,           // v2 hạ 35->16 làm predator tuyệt chủng (không bắt đủ để sống) vì mất luôn lợi thế speed cùng lúc — v3 nới lên 22, giữa 2 thái cực
+    METABOLISM_EFFICIENCY_BONUS: 2.5, // giống cơ chế trade-off metabolism của prey, áp dụng lên MEAT_ENERGY_VALUE
+    // PHASE 1.5 — trần "no bụng" giờ theo size × hệ số, xem PREY_MAX_ENERGY_PER_SIZE.
+    // Ở size=1.0 (giữa khoảng khởi tạo), trần = đúng 420 cũ.
+    MAX_ENERGY_PER_SIZE: 420,
+
+    // GHI CHÚ (Phase 1.3): MAX_ENERGY (trần dự trữ) không chặn được việc predator bắt
+    // NHIỀU con liên tiếp trong ít tick khi lạc vào 1 khu prey tụ tập đông (rừng food
+    // đậm đặc) — mỗi lần bắt vẫn hợp lệ miễn năng lượng chưa chạm trần, nên 1 predator
+    // có thể "quét sạch" cả ổ prey chỉ trong vài tick. HANDLING_TIME chặn ĐÚNG chỗ này:
+    // sau 1 lần bắt được, predator cần vài tick "tiêu hoá" (không bắt thêm được, dù vẫn
+    // di chuyển/rình bình thường) trước khi bắt tiếp — đây là "functional response bão
+    // hoà" ĐÚNG NGHĨA (giới hạn theo TỐC ĐỘ tiêu thụ, không chỉ theo SỨC CHỨA) trong mô
+    // hình Rosenzweig-MacArthur, khác với MAX_ENERGY (chỉ giới hạn sức chứa).
+    HANDLING_TIME: 8
+  },
+
+  // Cơ chế bắt mồi: KHÔNG chắc-chắn-bắt-được khi cùng ô — xác suất bắt phụ thuộc
+  // CHÊNH LỆCH speed predator vs prey, luôn kẹp trong CATCH_PROB_BOUNDS (không bao giờ
+  // 0% hay 100% tuyệt đối — luôn còn yếu tố may rủi, tránh 1 bên "miễn nhiễm" hoàn
+  // toàn chỉ vì chênh speed rất lớn). v3: CATCH_BASE_PROB nới lên 0.4 (giữa 0.5 gốc và
+  // 0.3 của v2) — v2 hạ quá tay CÙNG LÚC với việc bỏ lợi thế speed khiến predator gần
+  // như không bao giờ bắt được gì.
+  CATCH_BASE_PROB: 0.4,
+  CATCH_SPEED_SENSITIVITY: 0.12,  // mỗi 1 đơn vị predator.speed - prey.speed làm xác suất bắt đổi thêm 12 điểm %
+  // PHASE 1.5 — size của PREY (không phải predator) trừ thêm vào xác suất bắt được:
+  // con to hơn khó nuốt/khó khống chế hơn — 1 trục phòng thủ THỨ 2 độc lập với
+  // tốc độ chạy trốn, đổi lại size cũng làm prey chậm hơn (effectiveSteps) và tốn
+  // năng lượng/tick hơn (SIZE_ENERGY_COST) — không phải "phòng thủ miễn phí".
+  CATCH_SIZE_DEFENSE: 0.08,
+  CATCH_PROB_BOUNDS: [0.05, 0.9],
+
+  // ============================================================
+  // PHASE 1.1/1.3 — địa hình: chướng ngại vật (cây) chặn CẢ di chuyển LẪN tầm nhìn.
+  // ============================================================
+  // GHI CHÚ (v1 -> v2, Phase 1.3): v1 rải cây NGẪU NHIÊN DÀY ĐẶC trong 1 đĩa tròn
+  // (density 0.55 trên bán kính nhỏ 6) -> rừng đặc như 1 khối, khó phân biệt lối đi.
+  // v2 rải cây theo LƯỚI THƯA (spacing giữa các điểm lưới) trên 1 vùng RỘNG hơn hẳn,
+  // mỗi điểm lưới có xác suất OBSTACLE_DENSITY thành cây + rung ngẫu nhiên nhẹ quanh
+  // điểm lưới (tránh trông cứng nhắc như bàn cờ) -> cây CÁCH NHAU XA, nhiều khoảng
+  // trống giữa các cây tạo cảm giác "mê cung nhiều lối ra vào" thay vì 1 bức tường
+  // rừng đặc. Vì chướng ngại vật chặn CẢ LINE-OF-SIGHT (xem hasLineOfSight), đây cũng
+  // là nơi ẩn nấp một phần cho prey (xem findNearestPredatorInRange) — rừng thưa vẫn
+  // che được tầm nhìn theo từng góc cụ thể dù không phải "vô hình hoàn toàn".
+  OBSTACLE_CLUSTER_COUNT: 10,
+  OBSTACLE_CLUSTER_RADIUS: 14,     // v1: 6 -> v2: 14 — vùng rừng rộng hơn hẳn để có không gian tạo hành lang
+  OBSTACLE_TREE_SPACING: 4,        // khoảng cách LƯỚI giữa các cây — càng lớn cây càng cách xa nhau, càng nhiều lối đi
+  OBSTACLE_DENSITY: 0.7,           // xác suất 1 điểm lưới THỰC SỰ mọc cây (bỏ bớt để rìa/lối đi không đều tăm tắp)
+
+  // PHASE 1.3 — food mọc nhiều hơn TRONG rừng: tâm mỗi khu rừng (xem forestClusters)
+  // cũng được tính là 1 "food patch" bổ sung (xem generateFoodPatches). Vì food KHÔNG
+  // được phép spawn đè lên ô cây (xem spawnFood), food dồn vào đúng KHOẢNG TRỐNG giữa
+  // cây — biến rừng thành nơi vừa kiếm ăn tốt vừa có chút an toàn (line-of-sight bị che
+  // 1 phần).
+  //
+  // GHI CHÚ TUNE (v1 -> v2, cùng ngày): v1 dùng weight=2 (10 rừng × 2 = 20 "vé", chiếm
+  // ~59% tổng patch) — test thật: dồn QUÁ NHIỀU prey vào chỉ 10 điểm nhỏ, khi 1 (hoặc
+  // NHIỀU) predator lạc vào là "buffet", sập quần thể chỉ sau ~600-1900 tick dù đã
+  // thêm HANDLING_TIME (giới hạn tốc độ bắt của TỪNG predator — không giúp được nhiều
+  // vì NHIỀU predator cùng hội tụ vào 1 điểm vẫn cộng dồn bắt được rất nhanh). Bài học:
+  // limit tốc độ 1 cá thể không đủ nếu bản thân sự TỤ TẬP KHÔNG GIAN quá mạnh — phải
+  // giảm ngay từ gốc mức độ tụ tập đó. v2 hạ xuống 0.5 (~26% tổng patch, ~1.6x mật độ
+  // trung bình theo diện tích rừng thay vì áp đảo) — vẫn cao hơn ngoài rừng nhưng không
+  // đủ để tạo 1 điểm nóng dễ bị "quét sạch". Hỗ trợ số lẻ (không nguyên) qua làm tròn
+  // ngẫu nhiên trong generateFoodPatches.
+  FOREST_FOOD_WEIGHT: 0.5,
+
+  // ============================================================
+  // PHASE 1.1 — camera: pan khung nhìn quanh world (xem clampCamera/updateCameraFromKeys).
+  // ============================================================
+  CAMERA_PAN_SPEED: 1.5,   // ô/frame khi giữ phím mũi tên/WASD — đây là tốc độ UI (mỗi frame vẽ), KHÔNG phụ thuộc ticksPerFrame hay running (pan được kể cả lúc Pause)
+  MINIMAP_SCALE: 0.75,     // px/ô trên minimap (world 240x160 -> minimap 180x120px)
+
+  LOG_INTERVAL: 10,          // mỗi N tick: console.log trait trung bình + lấy mẫu cho chart
+  CHART_HISTORY_LENGTH: 400,  // số điểm mẫu giữ lại trên mỗi chart (rolling window)
+
+  // ============================================================
+  // PHASE 2 — game-hoá: trước đây đây thuần là sandbox quan sát, không có "thắng/thua".
+  // Người chơi giờ có vai trò "Thượng đế điều khiển hệ sinh thái": mục tiêu là giữ CẢ 2
+  // loài còn sống tới TARGET_TICK; thua ngay khi 1 trong 2 loài về 0. Công cụ can thiệp
+  // duy nhất ở bản đầu tiên: chỉnh foodSpawnRate trực tiếp (không giới hạn ngân sách) —
+  // xem checkGameOver()/renderGoalPanel(). TARGET_TICK=20000 được chọn vì chạy thụ động
+  // (không can thiệp gì) dưới cơ chế hiện tại (sinh sản hữu tính + mate-sense fix) chỉ
+  // sống được tới ~7534 tick trước khi predator ăn sạch prey — 20000 đòi hỏi người chơi
+  // thực sự can thiệp đúng lúc, không tự nhiên đạt được.
+  GAME: {
+    TARGET_TICK: 20000
+  }
+};
+
+// ============================================================
+// State
+// ============================================================
+let creatures = [];   // PREY — tên biến giữ nguyên từ Phase 0/1 (predator dùng mảng riêng bên dưới)
+let predators = [];   // PHASE 1.2 — loài thứ 2, xem CONFIG.PREDATOR/PREDATOR_GENOME
+let foodCells = new Set();      // key "x,y" — Set để lookup/xoá O(1)
+let obstacleCells = new Set();  // key "x,y" — chướng ngại vật (cây), sinh 1 lần mỗi Reset, xem generateObstacles()
+let tick = 0;
+let running = true;
+let ticksPerFrame = 1;
+
+// PHASE 2 — xem CONFIG.GAME/checkGameOver(): 'playing' -> 'won' (tick chạm TARGET_TICK,
+// cả 2 loài còn sống) hoặc 'lost' (1 trong 2 loài về 0 trước đó). gameOverSpecies chỉ có
+// nghĩa khi gameState === 'lost' — cho biết loài nào tuyệt chủng để hiển thị đúng.
+let gameState = 'playing';
+let gameOverSpecies = null;
+
+// Camera: (camX, camY) là toạ độ world (ô, có thể lẻ để pan mượt) của góc trên-trái
+// viewport. World lớn hơn viewport (xem CONFIG.GRID_WIDTH/HEIGHT vs VIEWPORT_WIDTH/
+// HEIGHT) nên camera luôn bị clamp trong khoảng còn lại — xem clampCamera().
+let camX = 0;
+let camY = 0;
+
+let birthsSinceLog = 0;
+let deathsSinceLog = 0;
+
+let nextCreatureId = 0;       // id ổn định (DÙNG CHUNG cho cả prey lẫn predator) để "theo dõi" 1 con qua nhiều tick dù mảng bị sắp xếp lại
+let selectedCreatureId = null; // id creature đang được click chọn để xem chi tiết (null = chưa chọn ai)
+let selectedSpecies = null;    // 'prey' | 'predator' | null — loài của creature đang chọn, xem selectNearestCreatureAt
+let selectedLastKnown = null;  // snapshot gần nhất của creature đã chọn — dùng để hiển thị "vừa chết"
+let colorMode = 'energy';      // 'energy' | 'lineage' — cách tô màu chấm trên canvas
+
+const history = {
+  ticks: [],
+  population: [],
+  predatorPopulation: [], // PHASE 1.2 — vẽ chung 1 chart với population để thấy dao động kiểu Lotka-Volterra
+  speed: [],
+  senseRange: [],
+  metabolism: [],
+  reproThreshold: [],
+  size: [],
+  reproInvestment: []
+};
+
+// ============================================================
+// Genome helpers
+// ============================================================
+function randomInRange([lo, hi]) {
+  return lo + Math.random() * (hi - lo);
+}
+
+function clamp(value, [lo, hi]) {
+  return Math.min(hi, Math.max(lo, value));
+}
+
+// Gaussian noise via Box-Muller (dùng cho mutation)
+function gaussianNoise(sigma) {
+  const u1 = Math.random() || 1e-9;
+  const u2 = Math.random();
+  const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+  return z * sigma;
+}
+
+// PHASE 1.2 — các hàm gen dưới đây nhận `spec` (CONFIG.PREY_GENOME hoặc
+// CONFIG.PREDATOR_GENOME) làm tham số thay vì đọc thẳng CONFIG toàn cục, để CÙNG
+// 1 bộ hàm dùng chung được cho cả 2 loài mà không chép lại logic mutation/polygenic
+// (xem quyết định kiến trúc ở CONFIG.PREY_GENOME).
+
+// Sinh bộ gen con (mảng geneCount số) cho 1 trait polygenic, dùng cho gen-0.
+function randomPolygene(spec, trait) {
+  const poly = spec.POLYGENIC_TRAITS[trait];
+  const genes = [];
+  for (let i = 0; i < poly.geneCount; i++) {
+    genes.push(randomInRange(poly.initialSubgeneRange));
+  }
+  return genes;
+}
+
+function randomGenome(spec) {
+  return {
+    speed: randomInRange(spec.INITIAL_TRAIT_RANGE.speed),
+    senseRange: randomInRange(spec.INITIAL_TRAIT_RANGE.senseRange),
+    metabolism: randomInRange(spec.INITIAL_TRAIT_RANGE.metabolism),
+    reproThreshold: randomInRange(spec.INITIAL_TRAIT_RANGE.reproThreshold),
+    size: randomInRange(spec.INITIAL_TRAIT_RANGE.size),
+    reproInvestment: randomPolygene(spec, 'reproInvestment')
+  };
+}
+
+// Quy đổi genotype -> phenotype cho MỌI trait, dùng thay vì đọc genome[trait]
+// trực tiếp ở logic/hiển thị. Với trait thường, phenotype = chính giá trị đó.
+// Với trait polygenic (xem spec.POLYGENIC_TRAITS), phenotype = trung bình cộng
+// của cả mảng gen con, rồi clamp vào phenotypeBounds — trung bình hoá là chỗ tạo
+// ra hiệu ứng "biến dị mượt hơn" so với 1 gen đơn lẻ (xem giải thích ở CONFIG).
+function phenotypeOf(spec, genome, trait) {
+  const poly = spec.POLYGENIC_TRAITS[trait];
+  if (!poly) return genome[trait];
+  const genes = genome[trait];
+  const avg = genes.reduce((sum, g) => sum + g, 0) / genes.length;
+  return clamp(avg, poly.phenotypeBounds);
+}
+
+// ĐIỂM MUTATION: mỗi trait độc lập có xác suất MUTATION_RATE bị nhiễu Gaussian (sigma
+// riêng theo trait), sau đó clamp vào TRAIT_BOUNDS. Đây là nguồn biến dị DUY NHẤT ở
+// Phase 0 (vô tính); từ Phase 1.4 (sinh sản hữu tính, xem crossoverGenome/tryMate) đây
+// là nguồn biến dị THỨ HAI, cộng thêm sau khi 2 cha/mẹ đã lai ghép biến dị sẵn có.
+// Phase 1: trait polygenic (mảng gen con) đi theo nhánh riêng — mutate TỪNG gen
+// con độc lập bằng subgeneMutationSigma, KHÔNG clamp từng gen con (chỉ phenotype
+// tổng hợp mới bị clamp, xem phenotypeOf) để 1 gen con có thể trôi ra ngoài
+// phenotypeBounds mà không ảnh hưởng ngay — nó chỉ thật sự "có hại/lợi" khi trung
+// bình cộng với 3 gen con còn lại đẩy phenotype ra ngoài bound.
+function mutateGenome(spec, parentGenome) {
+  const child = {};
+  for (const trait of Object.keys(parentGenome)) {
+    const poly = spec.POLYGENIC_TRAITS[trait];
+    if (poly) {
+      child[trait] = parentGenome[trait].map(gene => {
+        let value = gene;
+        if (Math.random() < CONFIG.MUTATION_RATE) {
+          value += gaussianNoise(poly.subgeneMutationSigma);
+        }
+        return value;
+      });
+    } else {
+      let value = parentGenome[trait];
+      if (Math.random() < CONFIG.MUTATION_RATE) {
+        value += gaussianNoise(spec.MUTATION_SIGMA[trait]);
+      }
+      child[trait] = clamp(value, spec.TRAIT_BOUNDS[trait]);
+    }
+  }
+  return child;
+}
+
+// ============================================================
+// World setup
+// ============================================================
+function foodKey(x, y) { return x + ',' + y; }
+
+// Tách "x,y" -> [x, y] số — dùng chung cho foodCells/obstacleCells thay vì mỗi chỗ
+// tự parse lại (trước đây findNearestFoodInRange/renderWorld mỗi nơi lặp lại logic
+// indexOf/slice giống hệt nhau).
+function parseKey(key) {
+  const commaIdx = key.indexOf(',');
+  return [Number(key.slice(0, commaIdx)), Number(key.slice(commaIdx + 1))];
+}
+
+function isObstacle(x, y) {
+  return obstacleCells.has(foodKey(x, y));
+}
+
+let forestClusters = []; // tâm + bán kính mỗi khu rừng — dùng để thiên vị food spawn vào rừng, xem generateFoodPatches
+
+// Chướng ngại vật (cây) sinh theo CỤM giống food patch, nhưng bên trong mỗi cụm rải
+// theo LƯỚI THƯA (spacing OBSTACLE_TREE_SPACING) thay vì random dày đặc — xem ghi chú
+// ở CONFIG.OBSTACLE_*. Mỗi điểm lưới rung ngẫu nhiên ±nửa ô spacing để rìa rừng không
+// trông cứng nhắc như bàn cờ, và chỉ 1 phần điểm lưới (OBSTACLE_DENSITY) thực sự có
+// cây -> cây cách nhau xa, nhiều khoảng trống = nhiều lối đi giữa các cây.
+function generateObstacles() {
+  obstacleCells = new Set();
+  forestClusters = [];
+  for (let i = 0; i < CONFIG.OBSTACLE_CLUSTER_COUNT; i++) {
+    const cx = Math.floor(Math.random() * CONFIG.GRID_WIDTH);
+    const cy = Math.floor(Math.random() * CONFIG.GRID_HEIGHT);
+    const r = CONFIG.OBSTACLE_CLUSTER_RADIUS;
+    const spacing = CONFIG.OBSTACLE_TREE_SPACING;
+    forestClusters.push({ x: cx, y: cy, radius: r });
+
+    for (let ox = cx - r; ox <= cx + r; ox += spacing) {
+      for (let oy = cy - r; oy <= cy + r; oy += spacing) {
+        const dist = Math.sqrt((ox - cx) ** 2 + (oy - cy) ** 2);
+        if (dist > r || Math.random() >= CONFIG.OBSTACLE_DENSITY) continue;
+        const jx = clamp(Math.round(ox + (Math.random() - 0.5) * spacing * 0.5), [0, CONFIG.GRID_WIDTH - 1]);
+        const jy = clamp(Math.round(oy + (Math.random() - 0.5) * spacing * 0.5), [0, CONFIG.GRID_HEIGHT - 1]);
+        obstacleCells.add(foodKey(jx, jy));
+      }
+    }
+  }
+}
+
+let foodPatches = []; // tâm các "vùng food" — sinh 1 lần mỗi Reset, xem FOOD_PATCH_COUNT/RADIUS
+
+// PHẢI gọi SAU generateObstacles() (cần forestClusters đã có) — xem CONFIG.FOREST_FOOD_WEIGHT.
+function generateFoodPatches() {
+  foodPatches = [];
+  for (let i = 0; i < CONFIG.FOOD_PATCH_COUNT; i++) {
+    foodPatches.push({
+      x: Math.floor(Math.random() * CONFIG.GRID_WIDTH),
+      y: Math.floor(Math.random() * CONFIG.GRID_HEIGHT)
+    });
+  }
+  // Thiên vị food mọc trong rừng: thêm tâm mỗi khu rừng vào danh sách patch nhiều lần
+  // (trọng số FOREST_FOOD_WEIGHT) — spawnFood() chọn ngẫu nhiên ĐỀU trong mảng này,
+  // nên lặp lại 1 entry nhiều lần = tăng xác suất được chọn, một "vé số trọng số" đơn
+  // giản không cần logic chọn có trọng số riêng. FOREST_FOOD_WEIGHT có thể LẺ (VD 0.5)
+  // — phần nguyên luôn thêm, phần thập phân thêm thêm 1 vé theo xác suất tương ứng
+  // (VD 0.5 -> 50% cơ hội có thêm 1 vé nữa), để trọng số trung bình đúng bằng số cấu hình.
+  for (const forest of forestClusters) {
+    const wholeCopies = Math.floor(CONFIG.FOREST_FOOD_WEIGHT);
+    const extraChance = CONFIG.FOREST_FOOD_WEIGHT - wholeCopies;
+    const copies = wholeCopies + (Math.random() < extraChance ? 1 : 0);
+    for (let w = 0; w < copies; w++) {
+      foodPatches.push({ x: forest.x, y: forest.y });
+    }
+  }
+}
+
+// Food mọc quanh 1 patch ngẫu nhiên (trong hình tròn bán kính FOOD_PATCH_RADIUS) thay vì
+// rải đều toàn bản đồ — xem giải thích ở CONFIG.FOOD_PATCH_COUNT.
+function spawnFood(count) {
+  let spawned = 0;
+  let attempts = 0;
+  const maxAttempts = count * 20;
+  while (spawned < count && foodCells.size < CONFIG.MAX_FOOD_CELLS && attempts < maxAttempts) {
+    attempts++;
+    const patch = foodPatches[Math.floor(Math.random() * foodPatches.length)];
+    const angle = Math.random() * Math.PI * 2;
+    const radius = Math.random() * CONFIG.FOOD_PATCH_RADIUS;
+    const x = clamp(Math.round(patch.x + Math.cos(angle) * radius), [0, CONFIG.GRID_WIDTH - 1]);
+    const y = clamp(Math.round(patch.y + Math.sin(angle) * radius), [0, CONFIG.GRID_HEIGHT - 1]);
+    const key = foodKey(x, y);
+    if (!foodCells.has(key) && !obstacleCells.has(key)) {
+      foodCells.add(key);
+      spawned++;
+    }
+  }
+}
+
+// Tìm 1 ô trống (không phải obstacle) ngẫu nhiên trên toàn world — dùng khi đặt
+// creature (gen-0 lẫn không có, vì newborn kế thừa vị trí cha/mẹ vốn đã hợp lệ).
+// Với mật độ obstacle ~2% diện tích, 50 lần thử gần như chắc chắn ra ô trống; nếu
+// xui tới maxAttempts thì chấp nhận đặt lên obstacle luôn (edge case cực hiếm,
+// không đáng thêm phức tạp để loại trừ tuyệt đối).
+function randomFreeCell() {
+  let x, y;
+  let attempts = 0;
+  do {
+    x = Math.floor(Math.random() * CONFIG.GRID_WIDTH);
+    y = Math.floor(Math.random() * CONFIG.GRID_HEIGHT);
+    attempts++;
+  } while (isObstacle(x, y) && attempts < 50);
+  return { x, y };
+}
+
+// Dùng chung cho gen-0 của CẢ prey lẫn predator — chỉ khác spec gen + năng lượng
+// khởi tạo truyền vào (xem createInitialPopulation/createInitialPredators).
+function createInitialIndividuals(count, spec, startEnergy) {
+  const list = [];
+  for (let i = 0; i < count; i++) {
+    const id = nextCreatureId++;
+    const pos = randomFreeCell();
+    list.push({
+      id,
+      lineageId: id,  // mỗi cá thể gen-0 là tổ tiên sáng lập 1 dòng họ riêng — xem mutateGenome/simulationTick
+      generation: 0,
+      genome: randomGenome(spec),
+      energy: startEnergy,
+      x: pos.x,
+      y: pos.y,
+      facingX: 1, facingY: 0, // hướng nhìn mặc định — chỉ để vẽ mũi tên hướng, xem drawCreature
+      age: 0,
+      lastTarget: null, // ô food/prey gần nhất mà nó đang nhắm tới ở tick vừa rồi (chỉ để vẽ, không ảnh hưởng logic)
+      digestCooldown: 0 // chỉ predator dùng (xem CONFIG.PREDATOR.HANDLING_TIME) — prey mang field này nhưng không bao giờ đọc/dùng tới, vô hại
+    });
+  }
+  return list;
+}
+
+function createInitialPopulation() {
+  creatures = createInitialIndividuals(CONFIG.INITIAL_POPULATION, CONFIG.PREY_GENOME, CONFIG.START_ENERGY);
+}
+
+function createInitialPredators() {
+  predators = createInitialIndividuals(CONFIG.PREDATOR.INITIAL_POPULATION, CONFIG.PREDATOR_GENOME, CONFIG.PREDATOR.START_ENERGY);
+}
+
+function resetSimulation() {
+  tick = 0;
+  gameState = 'playing';
+  gameOverSpecies = null;
+  birthsSinceLog = 0;
+  deathsSinceLog = 0;
+  nextCreatureId = 0;
+  selectedCreatureId = null;
+  selectedLastKnown = null;
+  camX = (CONFIG.GRID_WIDTH - CONFIG.VIEWPORT_WIDTH) / 2;
+  camY = (CONFIG.GRID_HEIGHT - CONFIG.VIEWPORT_HEIGHT) / 2;
+  generateObstacles();
+  foodCells = new Set();
+  generateFoodPatches();
+  spawnFood(CONFIG.INITIAL_FOOD);
+  createInitialPopulation();
+  createInitialPredators();
+  selectedSpecies = null;
+  history.ticks.length = 0;
+  history.population.length = 0;
+  history.predatorPopulation.length = 0;
+  history.speed.length = 0;
+  history.senseRange.length = 0;
+  history.metabolism.length = 0;
+  history.reproThreshold.length = 0;
+  history.size.length = 0;
+  history.reproInvestment.length = 0;
+}
+
+// ============================================================
+// Per-tick creature logic
+// ============================================================
+// Bresenham line: kiểm tra có ô obstacle nào NẰM GIỮA (x0,y0) và (x1,y1) không (2 đầu
+// mút không tính — creature đứng ở x0,y0 không phải obstacle, food ở x1,y1 cũng vậy).
+// Dùng cho line-of-sight: chướng ngại vật giờ chặn CẢ tầm nhìn, không chỉ di chuyển
+// (xem CONFIG.OBSTACLE_* — quyết định thiết kế: thực tế hơn so với chỉ "chặn đường đi",
+// đổi lại tốn thêm 1 lượt Bresenham cho mỗi ứng viên food còn lại sau khi lọc khoảng cách).
+function hasLineOfSight(x0, y0, x1, y1) {
+  let x = x0, y = y0;
+  const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+  while (!(x === x1 && y === y1)) {
+    const e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x += sx; }
+    if (e2 < dx) { err += dx; y += sy; }
+    if (x === x1 && y === y1) break;
+    if (isObstacle(x, y)) return false;
+  }
+  return true;
+}
+
+function findNearestFoodInRange(creature) {
+  const range = creature.genome.senseRange;
+  const candidates = [];
+  // Naive O(food) scan — Phase 0 chấp nhận, tối ưu (spatial grid) chỉ khi đo thấy nghẽn thật.
+  for (const key of foodCells) {
+    const [fx, fy] = parseKey(key);
+    const dx = fx - creature.x;
+    const dy = fy - creature.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist <= range) candidates.push({ x: fx, y: fy, dist });
+  }
+  // Sắp theo khoảng cách tăng dần rồi trả về ứng viên GẦN NHẤT mà còn NHÌN THẤY được
+  // (line-of-sight rõ) — food gần hơn nhưng bị cây che khuất bị bỏ qua, creature nhắm
+  // tới food xa hơn nhưng thấy được thay vì "nhìn xuyên núi" tới food gần hơn.
+  candidates.sort((a, b) => a.dist - b.dist);
+  for (const c of candidates) {
+    if (hasLineOfSight(creature.x, creature.y, c.x, c.y)) return { x: c.x, y: c.y };
+  }
+  return null;
+}
+
+// PHASE 1.2 — bản tổng quát của findNearestFoodInRange, dùng cho việc "tìm cá thể
+// sống gần nhất còn thấy được" — dùng chung cho predator tìm prey VÀ prey phát hiện
+// predator để chạy trốn (xem findNearestPreyInRange/findNearestPredatorInRange).
+function findNearestIndividualInRange(x, y, range, list) {
+  const candidates = [];
+  for (const other of list) {
+    const dx = other.x - x, dy = other.y - y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist <= range) candidates.push({ x: other.x, y: other.y, dist });
+  }
+  candidates.sort((a, b) => a.dist - b.dist);
+  for (const c of candidates) {
+    if (hasLineOfSight(x, y, c.x, c.y)) return { x: c.x, y: c.y };
+  }
+  return null;
+}
+
+function findNearestPreyInRange(predator) {
+  return findNearestIndividualInRange(predator.x, predator.y, predator.genome.senseRange, creatures);
+}
+
+function findNearestPredatorInRange(prey) {
+  return findNearestIndividualInRange(prey.x, prey.y, prey.genome.senseRange, predators);
+}
+
+// Thử đi 1 ô theo hướng (dx,dy). Né chướng ngại vật theo thứ tự ưu tiên: hướng chéo
+// gốc -> chỉ trục ngang -> chỉ trục dọc -> đứng yên (bị chặn cả 3 hướng, hiếm khi xảy
+// ra với mật độ obstacle ~2%). Trả về true nếu thực sự di chuyển được (để cập nhật
+// facingX/facingY — hướng cuối cùng creature THỰC SỰ đi được, dùng để vẽ mũi tên
+// hướng ở drawCreature, không phải hướng nó "muốn" đi).
+function tryStep(creature, dx, dy) {
+  const attempts = [[dx, dy], [dx, 0], [0, dy]];
+  for (const [adx, ady] of attempts) {
+    if (adx === 0 && ady === 0) continue;
+    const nx = clamp(creature.x + adx, [0, CONFIG.GRID_WIDTH - 1]);
+    const ny = clamp(creature.y + ady, [0, CONFIG.GRID_HEIGHT - 1]);
+    if ((nx !== creature.x || ny !== creature.y) && !isObstacle(nx, ny)) {
+      creature.x = nx;
+      creature.y = ny;
+      creature.facingX = adx;
+      creature.facingY = ady;
+      return true;
+    }
+  }
+  return false;
+}
+
+// PHASE 1.5 — size làm CHẬM di chuyển: số ô/tick thực đi = speed CHIA cho size, không
+// phải genome.speed thẳng. Ở size=1.0 (baseline khởi tạo), hành vi giống hệt Phase
+// 0-1.4 (steps = speed). Size=2 -> chậm bằng nửa cùng 1 giá trị speed; size=0.5 ->
+// nhanh gấp đôi. Đây là cái GIÁ THỨ 2 của size (giá thứ 1: SIZE_ENERGY_COST/tick) —
+// đổi lại size cho trần năng lượng cao hơn (xem *_MAX_ENERGY_PER_SIZE) và (prey) khó
+// bị bắt hơn (xem CATCH_SIZE_DEFENSE).
+function effectiveSteps(individual) {
+  return Math.max(1, Math.round(individual.genome.speed / individual.genome.size));
+}
+
+function moveCreature(creature, target) {
+  const steps = effectiveSteps(creature);
+
+  if (target) {
+    // Di chuyển từng bước (8 hướng) về phía food, tối đa `steps` ô/tick, né chướng
+    // ngại vật (xem tryStep) — hướng được tính lại mỗi bước vì vị trí đã đổi.
+    for (let i = 0; i < steps; i++) {
+      if (creature.x === target.x && creature.y === target.y) break;
+      const dx = Math.sign(target.x - creature.x);
+      const dy = Math.sign(target.y - creature.y);
+      tryStep(creature, dx, dy);
+    }
+  } else {
+    // Không cảm nhận được food nào trong senseRange -> random walk theo 1 hướng cố
+    // định cho cả `steps` bước (chọn 1 lần/tick), mỗi bước vẫn né chướng ngại vật.
+    // (Quyết định: cho cơ hội tình cờ gặp food, tạo áp lực chọn lọc mượt hơn lên senseRange
+    // thay vì đóng băng tại chỗ khi food thưa.)
+    const dirX = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
+    const dirY = Math.floor(Math.random() * 3) - 1;
+    if (dirX !== 0 || dirY !== 0) {
+      for (let i = 0; i < steps; i++) {
+        tryStep(creature, dirX, dirY);
+      }
+    }
+  }
+}
+
+// PHASE 1.2 — chạy trốn: hướng NGƯỢC với threat (dấu trừ so với hướng "tới" trong
+// moveCreature), tái dùng tryStep để vẫn né được chướng ngại vật trong lúc chạy.
+// Nếu threat đứng ĐÚNG ô của creature (dx=dy=0, cực hiếm — chỉ xảy ra khoảnh khắc
+// ngay trước khi bị bắt), chạy random thay vì đứng yên chịu trận.
+function fleeFrom(creature, threat) {
+  const steps = effectiveSteps(creature);
+  let dx = Math.sign(creature.x - threat.x);
+  let dy = Math.sign(creature.y - threat.y);
+  if (dx === 0 && dy === 0) {
+    dx = Math.floor(Math.random() * 3) - 1;
+    dy = Math.floor(Math.random() * 3) - 1;
+  }
+  if (dx !== 0 || dy !== 0) {
+    for (let i = 0; i < steps; i++) tryStep(creature, dx, dy);
+  }
+}
+
+// Sinh sản dùng CHUNG cho cả prey lẫn predator: đủ ngưỡng reproThreshold -> chia
+// năng lượng với con theo tỉ lệ reproInvestment (gen polygenic) thay vì chia đôi
+// 50/50 cố định như Phase 0. Trả về newborn (chưa push vào mảng nào — do caller
+// quyết định push vào creatures hay predators) hoặc null nếu chưa đủ năng lượng.
+// PHASE 1.4 — SINH SẢN HỮU TÍNH: thay tryReproduce (vô tính, 1 cha/mẹ) bằng
+// crossoverGenome + tryMate (2 cha/mẹ ghép gen). Dùng CHUNG cho cả prey lẫn predator
+// (spec quyết định TRAIT_BOUNDS/POLYGENIC_TRAITS như trước).
+//
+// crossoverGenome: với MỖI trait monogenic, chọn NGẪU NHIÊN 50/50 giá trị của cha
+// HAY mẹ (không lấy trung bình — trung bình sẽ làm PHƯƠNG SAI co lại dần qua các đời,
+// triệt tiêu chính lợi ích của việc lai ghép; chọn rời rạc kiểu Mendel mới thực sự tạo
+// ra TỔ HỢP MỚI của biến dị sẵn có). Trait polygenic (reproInvestment) crossover theo
+// TỪNG GEN CON độc lập (độc lập assortment từng locus) thay vì cả khối 4 gen đi cùng
+// 1 cha/mẹ. Sau crossover mới áp dụng mutateGenome như cũ (đột biến vẫn là nguồn biến
+// dị MỚI hoàn toàn, độc lập với việc lai ghép biến dị sẵn có).
+function crossoverGenome(spec, genomeA, genomeB) {
+  const child = {};
+  for (const trait of Object.keys(genomeA)) {
+    const poly = spec.POLYGENIC_TRAITS[trait];
+    if (poly) {
+      child[trait] = genomeA[trait].map((geneA, i) => Math.random() < 0.5 ? geneA : genomeB[trait][i]);
+    } else {
+      child[trait] = Math.random() < 0.5 ? genomeA[trait] : genomeB[trait];
+    }
+  }
+  return child;
+}
+
+// Tìm 1 "bạn tình" GẦN NHẤT còn thấy được: cùng loài, KHÁC chính nó, ĐỦ năng lượng
+// (>= reproThreshold của chính con đó), CHƯA ghép đôi ở tick này (matedIds), trong
+// tầm tìm-bạn-tình. Tầm này = senseRange * spec.MATE_SENSE_MULTIPLIER (PHASE 1.4 round
+// 2) — prey dùng multiplier=1 (senseRange thường, mật độ đã đủ dày), predator dùng
+// multiplier=4 (tầm rộng hơn hẳn tầm săn mồi, xem GHI CHÚ ở PREDATOR_GENOME) để tránh
+// Allee effect ở mật độ thấp mà KHÔNG cần tăng số lượng cá thể (tránh làm predator ăn
+// prey mạnh hơn ngay từ đầu).
+function findNearestMateInRange(individual, spec, sameSpeciesList, matedIds) {
+  const range = individual.genome.senseRange * (spec.MATE_SENSE_MULTIPLIER || 1);
+  const candidates = [];
+  for (const other of sameSpeciesList) {
+    if (other.id === individual.id || matedIds.has(other.id)) continue;
+    if (other.energy < other.genome.reproThreshold) continue;
+    const dist = Math.hypot(other.x - individual.x, other.y - individual.y);
+    if (dist <= range) candidates.push({ other, dist });
+  }
+  candidates.sort((a, b) => a.dist - b.dist);
+  for (const c of candidates) {
+    if (hasLineOfSight(individual.x, individual.y, c.other.x, c.other.y)) return c.other;
+  }
+  return null;
+}
+
+// Ghép đôi (nếu tìm được bạn tình đủ điều kiện): MỖI bên tự đóng góp năng lượng theo
+// reproInvestment CỦA CHÍNH MÌNH (2 cá thể có thể có reproInvestment khác nhau — mỗi
+// bên "quyết định" mức đầu tư riêng, không phải chia đôi 1 khoản chung) — bảo toàn
+// năng lượng: tổng 2 cha/mẹ mất đúng bằng năng lượng con nhận được.
+function tryMate(individual, spec, sameSpeciesList, matedIds) {
+  if (individual.energy < individual.genome.reproThreshold) return null;
+  if (matedIds.has(individual.id)) return null;
+  const mate = findNearestMateInRange(individual, spec, sameSpeciesList, matedIds);
+  if (!mate) return null;
+
+  matedIds.add(individual.id);
+  matedIds.add(mate.id);
+
+  const investmentSelf = phenotypeOf(spec, individual.genome, 'reproInvestment');
+  const investmentMate = phenotypeOf(spec, mate.genome, 'reproInvestment');
+  const contribSelf = individual.energy * investmentSelf;
+  const contribMate = mate.energy * investmentMate;
+  individual.energy -= contribSelf;
+  mate.energy -= contribMate;
+
+  return {
+    id: nextCreatureId++,
+    // Hữu tính -> KHÔNG còn 1 "họ" duy nhất kế thừa nguyên vẹn như vô tính — chọn ngẫu
+    // nhiên 50/50 lineageId của 1 trong 2 cha/mẹ (giống cách theo dõi dòng mẹ/ty thể
+    // đơn giản hoá trong di truyền học thật). Hệ quả: chế độ "Màu: dòng họ" sẽ dần pha
+    // trộn qua nhiều thế hệ thay vì giữ nguyên cụm màu tách biệt mãi như ở Phase 0/1.
+    lineageId: Math.random() < 0.5 ? individual.lineageId : mate.lineageId,
+    generation: Math.max(individual.generation, mate.generation) + 1,
+    genome: mutateGenome(spec, crossoverGenome(spec, individual.genome, mate.genome)),
+    energy: contribSelf + contribMate,
+    x: individual.x,
+    y: individual.y,
+    facingX: individual.facingX, facingY: individual.facingY,
+    age: 0,
+    lastTarget: null,
+    digestCooldown: 0 // con sinh ra chưa từng bắt mồi -> sẵn sàng săn ngay, không kế thừa cooldown của cha/mẹ
+  };
+}
+
+// PREY: tìm food + ăn + sinh sản NHƯ CŨ, cộng thêm (Phase 1.2) ưu tiên CHẠY TRỐN nếu
+// phát hiện predator trong senseRange (dùng chung sensor với tìm food — không thêm
+// trait riêng, xem quyết định thiết kế đã trao đổi) thay vì tìm food tick đó.
+// `matedIds` (Phase 1.4, xem tryMate) — dùng chung 1 Set với tickPredator vì id là
+// duy nhất toàn cục nên không lo đụng nhau, dù prey/predator không bao giờ ghép đôi
+// chéo loài (sameSpeciesList mỗi bên đã tách riêng).
+function tickPrey(matedIds) {
+  const newborns = [];
+  const activeCount = creatures.length; // snapshot — con sinh ra trong tick này không hành động luôn trong cùng tick
+
+  for (let i = 0; i < activeCount; i++) {
+    const creature = creatures[i];
+    creature.age++;
+
+    // ĐIỂM CHỌN LỌC TỰ NHIÊN (phần 1) + ĐIỂM TRADE-OFF: tổng chi phí năng lượng mỗi tick
+    // = metabolism (duy trì cơ bản) + speed × SPEED_ENERGY_COST + senseRange ×
+    // SENSE_ENERGY_COST. Phí tính bất kể có di chuyển/ăn được hay không (giống cơ bắp/
+    // giác quan tốn năng lượng để "duy trì" dù không dùng tới). Vì cả 3 trait cùng trừ
+    // vào 1 ngân sách năng lượng chung, một con không thể tối đa cả 3 cùng lúc — đây là
+    // cơ chế tạo ra "được cái này mất cái kia" thay vì speed/senseRange là lợi ích miễn phí.
+    creature.energy -= creature.genome.metabolism
+      + creature.genome.speed * CONFIG.SPEED_ENERGY_COST
+      + creature.genome.senseRange * CONFIG.SENSE_ENERGY_COST
+      + creature.genome.size * CONFIG.SIZE_ENERGY_COST;
+
+    // PHASE 1.2 — ưu tiên số 1: có predator trong tầm nhìn thì CHẠY, bỏ qua tìm food
+    // tick này. senseRange giờ có 2 lý do để tiến hoá tăng: tìm food VÀ phát hiện nguy
+    // hiểm sớm — 2 áp lực chọn lọc cộng dồn lên cùng 1 trait.
+    const threat = findNearestPredatorInRange(creature);
+    if (threat) {
+      creature.lastTarget = null;
+      fleeFrom(creature, threat);
+    } else {
+      const target = findNearestFoodInRange(creature);
+      creature.lastTarget = target; // chỉ để render (vẽ đường nhắm tới khi được chọn), không dùng lại trong logic
+      moveCreature(creature, target);
+    }
+
+    // Ăn nếu đang đứng đúng ô có food. ĐIỂM TRADE-OFF cho metabolism: năng lượng thật
+    // nhận được tỉ lệ thuận với metabolism (xem METABOLISM_EFFICIENCY_BONUS) — trao đổi
+    // chất nhanh hơn thì "hấp thụ" mỗi miếng food hiệu quả hơn, bù lại việc tốn nhanh hơn.
+    // "NO BỤNG" (xem CONFIG.PREY_MAX_ENERGY_PER_SIZE): kẹp ở mức trần THEO SIZE của
+    // chính con đó (Phase 1.5 — trước là 1 hằng số chung), phần dư bị lãng phí — ngăn
+    // 1 con vô tình ở khu food dày đặc tích luỹ năng lượng vô hạn.
+    const key = foodKey(creature.x, creature.y);
+    if (foodCells.has(key)) {
+      foodCells.delete(key);
+      const gain = CONFIG.FOOD_ENERGY_VALUE * (1 + creature.genome.metabolism * CONFIG.METABOLISM_EFFICIENCY_BONUS);
+      const maxEnergy = CONFIG.PREY_MAX_ENERGY_PER_SIZE * creature.genome.size;
+      creature.energy = Math.min(creature.energy + gain, maxEnergy);
+    }
+
+    const child = tryMate(creature, CONFIG.PREY_GENOME, creatures, matedIds);
+    if (child) newborns.push(child);
+  }
+
+  birthsSinceLog += newborns.length;
+  creatures.push(...newborns);
+}
+
+// PREDATOR (Phase 1.2): săn thay vì tìm food — di chuyển tới prey gần nhất còn thấy
+// được (tái dùng y hệt moveCreature/tryStep, không có gì đặc thù ở bước di chuyển).
+// Bắt mồi KHÔNG chắc chắn khi cùng ô — xác suất phụ thuộc chênh lệch speed (xem
+// CONFIG.CATCH_*). `caughtPreyIds` được caller (simulationTick) dùng để lọc prey đã
+// bị bắt ra khỏi `creatures` sau khi CẢ predator lẫn prey đã xử lý xong tick này —
+// tránh 2 predator cùng "bắt" 1 prey trong cùng 1 tick.
+function tickPredator(caughtPreyIds, matedIds) {
+  const newborns = [];
+  const activeCount = predators.length;
+
+  for (let i = 0; i < activeCount; i++) {
+    const predator = predators[i];
+    predator.age++;
+
+    predator.energy -= predator.genome.metabolism
+      + predator.genome.speed * CONFIG.PREDATOR.SPEED_ENERGY_COST
+      + predator.genome.senseRange * CONFIG.PREDATOR.SENSE_ENERGY_COST
+      + predator.genome.size * CONFIG.PREDATOR.SIZE_ENERGY_COST;
+
+    const target = findNearestPreyInRange(predator);
+    predator.lastTarget = target;
+    moveCreature(predator, target);
+
+    // HANDLING_TIME (xem CONFIG.PREDATOR) — đang "tiêu hoá" thì KHÔNG thử bắt được,
+    // dù vẫn di chuyển/rình bình thường (chỉ chặn bước bắt mồi, không chặn di chuyển).
+    // Đây là chỗ chặn ĐÚNG GỐC hiện tượng 1 predator "quét sạch" cả ổ prey tụ tập đông
+    // (VD trong rừng food đậm đặc) chỉ trong vài tick — MAX_ENERGY (trần dự trữ) không
+    // chặn được việc này vì mỗi lần bắt vẫn hợp lệ miễn năng lượng chưa đầy.
+    if (predator.digestCooldown > 0) {
+      predator.digestCooldown--;
+    } else {
+      const preyHere = creatures.find(c => c.x === predator.x && c.y === predator.y && !caughtPreyIds.has(c.id));
+      if (preyHere) {
+        // PHASE 1.5 — size của PREY trừ thêm vào xác suất bắt (xem CATCH_SIZE_DEFENSE):
+        // con mồi to hơn khó khống chế hơn, độc lập với chênh lệch speed.
+        const catchProb = clamp(
+          CONFIG.CATCH_BASE_PROB
+            + (predator.genome.speed - preyHere.genome.speed) * CONFIG.CATCH_SPEED_SENSITIVITY
+            - preyHere.genome.size * CONFIG.CATCH_SIZE_DEFENSE,
+          CONFIG.CATCH_PROB_BOUNDS
+        );
+        if (Math.random() < catchProb) {
+          caughtPreyIds.add(preyHere.id);
+          predator.digestCooldown = CONFIG.PREDATOR.HANDLING_TIME;
+          // "NO BỤNG" theo SỨC CHỨA (xem PREDATOR.MAX_ENERGY_PER_SIZE) — cùng cơ chế với prey.
+          const gain = CONFIG.PREDATOR.MEAT_ENERGY_VALUE * (1 + predator.genome.metabolism * CONFIG.PREDATOR.METABOLISM_EFFICIENCY_BONUS);
+          const maxEnergy = CONFIG.PREDATOR.MAX_ENERGY_PER_SIZE * predator.genome.size;
+          predator.energy = Math.min(predator.energy + gain, maxEnergy);
+        }
+      }
+    }
+
+    const child = tryMate(predator, CONFIG.PREDATOR_GENOME, predators, matedIds);
+    if (child) newborns.push(child);
+  }
+
+  predators.push(...newborns);
+}
+
+function simulationTick() {
+  tick++;
+
+  spawnFood(CONFIG.FOOD_SPAWN_RATE);
+
+  const matedIds = new Set(); // Phase 1.4 — chặn 1 cá thể ghép đôi >1 lần trong cùng tick, xem tryMate
+  tickPrey(matedIds);
+
+  const caughtPreyIds = new Set();
+  tickPredator(caughtPreyIds, matedIds);
+
+  // ĐIỂM CHỌN LỌC TỰ NHIÊN (phần 2): loại prey hết năng lượng HOẶC bị predator bắt
+  // trong tick này (Phase 0 chỉ có đói; Phase 1.2 thêm áp lực bị săn).
+  const beforeCount = creatures.length;
+  creatures = creatures.filter(c => c.energy > 0 && !caughtPreyIds.has(c.id));
+  deathsSinceLog += beforeCount - creatures.length;
+
+  // Predator cũng chết đói nếu không săn được đủ — áp lực chọn lọc duy nhất lên predator.
+  predators = predators.filter(p => p.energy > 0);
+
+  if (tick % CONFIG.LOG_INTERVAL === 0) {
+    logAndSample();
+  }
+}
+
+function average(arr, selector) {
+  if (arr.length === 0) return 0;
+  let sum = 0;
+  for (const item of arr) sum += selector(item);
+  return sum / arr.length;
+}
+
+function logAndSample() {
+  const avgSpeed = average(creatures, c => c.genome.speed);
+  const avgSense = average(creatures, c => c.genome.senseRange);
+  const avgMetab = average(creatures, c => c.genome.metabolism);
+  const avgRepro = average(creatures, c => c.genome.reproThreshold);
+  const avgSize = average(creatures, c => c.genome.size);
+  const avgReproInvest = average(creatures, c => phenotypeOf(CONFIG.PREY_GENOME, c.genome, 'reproInvestment'));
+
+  console.log(
+    `[tick ${tick}] prey=${creatures.length} predators=${predators.length} food=${foodCells.size} ` +
+    `births=${birthsSinceLog} deaths=${deathsSinceLog} | ` +
+    `avgSpeed=${avgSpeed.toFixed(2)} avgSense=${avgSense.toFixed(2)} ` +
+    `avgMetab=${avgMetab.toFixed(3)} avgRepro=${avgRepro.toFixed(1)} avgSize=${avgSize.toFixed(2)} ` +
+    `avgReproInvest=${avgReproInvest.toFixed(3)}`
+  );
+
+  history.ticks.push(tick);
+  history.population.push(creatures.length);
+  history.predatorPopulation.push(predators.length);
+  history.speed.push(avgSpeed);
+  history.senseRange.push(avgSense);
+  history.metabolism.push(avgMetab);
+  history.reproThreshold.push(avgRepro);
+  history.size.push(avgSize);
+  history.reproInvestment.push(avgReproInvest);
+
+  if (history.ticks.length > CONFIG.CHART_HISTORY_LENGTH) {
+    history.ticks.shift();
+    history.population.shift();
+    history.predatorPopulation.shift();
+    history.speed.shift();
+    history.senseRange.shift();
+    history.metabolism.shift();
+    history.reproThreshold.shift();
+    history.size.shift();
+    history.reproInvestment.shift();
+  }
+
+  birthsSinceLog = 0;
+  deathsSinceLog = 0;
+}
+
+// ============================================================
+// Rendering — world canvas
+// ============================================================
+const simCanvas = document.getElementById('simCanvas');
+simCanvas.width = CONFIG.VIEWPORT_WIDTH * CONFIG.CELL_SIZE;
+simCanvas.height = CONFIG.VIEWPORT_HEIGHT * CONFIG.CELL_SIZE;
+const simCtx = simCanvas.getContext('2d');
+
+// Giữ camera trong world (không cho thấy ngoài rìa map) — gọi sau MỌI thay đổi
+// camX/camY (kéo chuột, phím, click minimap).
+function clampCamera() {
+  camX = clamp(camX, [0, CONFIG.GRID_WIDTH - CONFIG.VIEWPORT_WIDTH]);
+  camY = clamp(camY, [0, CONFIG.GRID_HEIGHT - CONFIG.VIEWPORT_HEIGHT]);
+}
+
+// Quy đổi toạ độ world (ô) -> pixel trên canvas viewport, theo camera hiện tại.
+function worldToPx(wx, wy) {
+  return [(wx - camX) * CONFIG.CELL_SIZE, (wy - camY) * CONFIG.CELL_SIZE];
+}
+
+// Minimap: bản đồ thu nhỏ toàn world ở góc canvas chính, kèm khung chữ nhật thể
+// hiện viewport hiện tại đang xem vùng nào — click/kéo để camera nhảy thẳng tới đó.
+const minimapCanvas = document.getElementById('minimapCanvas');
+minimapCanvas.width = Math.round(CONFIG.GRID_WIDTH * CONFIG.MINIMAP_SCALE);
+minimapCanvas.height = Math.round(CONFIG.GRID_HEIGHT * CONFIG.MINIMAP_SCALE);
+const minimapCtx = minimapCanvas.getContext('2d');
+
+function jumpCameraToMinimapEvent(e) {
+  const rect = minimapCanvas.getBoundingClientRect();
+  const scaleX = minimapCanvas.width / rect.width;
+  const scaleY = minimapCanvas.height / rect.height;
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top) * scaleY;
+  camX = mx / CONFIG.MINIMAP_SCALE - CONFIG.VIEWPORT_WIDTH / 2;
+  camY = my / CONFIG.MINIMAP_SCALE - CONFIG.VIEWPORT_HEIGHT / 2;
+  clampCamera();
+}
+
+let isDraggingMinimap = false;
+minimapCanvas.addEventListener('mousedown', (e) => {
+  isDraggingMinimap = true;
+  jumpCameraToMinimapEvent(e);
+});
+window.addEventListener('mousemove', (e) => {
+  if (isDraggingMinimap) jumpCameraToMinimapEvent(e);
+});
+window.addEventListener('mouseup', () => {
+  isDraggingMinimap = false;
+});
+
+// Màu creature phản ánh mức năng lượng so với reproThreshold của chính nó:
+// đỏ = gần hết năng lượng (sắp chết đói), xanh lá = gần/đủ ngưỡng sinh sản.
+// Đây thuần là hiển thị — không ảnh hưởng logic mô phỏng.
+function energyToColor(creature) {
+  const ratio = clamp(creature.energy / creature.genome.reproThreshold, [0, 1.3]);
+  const hue = (ratio / 1.3) * 130; // 0 = đỏ, 130 = xanh lá
+  return `hsl(${hue}, 75%, 55%)`;
+}
+
+// Màu theo dòng họ: mỗi lineageId (= id của 1 tổ tiên gen-0) được gán 1 hue cố định.
+// Nhân với góc vàng (137.508°) để các id liên tiếp ra màu cách xa nhau, tránh cả dải
+// bị dồn vào 1 vùng màu giống nhau. Ở Phase 0/1 (vô tính) con giữ NGUYÊN hue của tổ
+// tiên mãi mãi -> 1 cụm màu = 1 dòng họ rõ ràng. Từ Phase 1.4 (hữu tính, xem tryMate)
+// mỗi con chỉ kế thừa lineageId của 1 TRONG 2 cha/mẹ (chọn ngẫu nhiên) -> màu vẫn có
+// ý nghĩa (dòng nào đang áp đảo) nhưng các cụm sẽ dần PHA TRỘN qua nhiều thế hệ thay
+// vì giữ ranh giới sắc nét như trước — đúng bản chất sinh sản hữu tính (phả hệ là 1
+// cây, không phải 1 đường thẳng).
+function lineageToColor(creature) {
+  const hue = (creature.lineageId * 137.508) % 360;
+  return `hsl(${hue}, 70%, 55%)`;
+}
+
+function colorForCreature(creature) {
+  return colorMode === 'lineage' ? lineageToColor(creature) : energyToColor(creature);
+}
+
+// 1 ô nằm ngoài viewport (pixel âm hoặc vượt quá canvas) thì bỏ qua vẽ — culling
+// đơn giản theo pixel, tự động đúng dù camX/camY lẻ (đang pan mượt bằng chuột/phím).
+function inView(px, py, cs) {
+  return px + cs >= 0 && px <= simCanvas.width && py + cs >= 0 && py <= simCanvas.height;
+}
+
+// Cây: thân nâu + tán tròn xanh đậm hơn food (food là ô vuông xanh nhạt) để phân biệt
+// rõ 2 loại tại kích thước nhỏ trên canvas.
+function drawTree(px, py, cs) {
+  simCtx.fillStyle = '#6b4a34';
+  simCtx.fillRect(px + cs * 0.42, py + cs * 0.55, cs * 0.16, cs * 0.4);
+  simCtx.fillStyle = '#2f6b3a';
+  simCtx.beginPath();
+  simCtx.arc(px + cs * 0.5, py + cs * 0.4, cs * 0.42, 0, Math.PI * 2);
+  simCtx.fill();
+}
+
+// PHASE 1.1 — đầu tư thêm UI cho từng cá thể: ngoài chấm màu (energy/lineage, giữ
+// nguyên từ Phase 0), thêm (1) mũi tên nhỏ chỉ hướng di chuyển GẦN NHẤT thực sự đi
+// được (facingX/facingY, xem tryStep) để nhìn là biết nó đang định hướng đi đâu thay
+// vì chỉ là chấm tròn vô hồn, và (2) thanh năng lượng mini dưới mỗi con (giống health
+// bar RTS) để thấy trạng thái sống/sắp chết đói mà không cần click chọn từng con.
+// PHASE 1.5 — bán kính vẽ tỉ lệ theo size THẬT của gen, kẹp trong 1 khoảng hẹp hơn
+// TRAIT_BOUNDS.size ([0.3,3.0]) để con cực nhỏ không biến mất hẳn và con cực to
+// không nuốt chửng cả màn hình/đè lên nhau đến mức không đọc được — mục đích là
+// "nhìn thấy sự khác biệt", không phải tỉ lệ chính xác tuyệt đối.
+function visualSizeScale(individual) {
+  return clamp(individual.genome.size, [0.5, 2.0]);
+}
+
+function drawCreature(creature, px, py, cs) {
+  const cx = px + cs / 2, cy = py + cs / 2;
+  const r = cs * 0.4 * visualSizeScale(creature);
+
+  simCtx.fillStyle = colorForCreature(creature);
+  simCtx.beginPath();
+  simCtx.arc(cx, cy, r, 0, Math.PI * 2);
+  simCtx.fill();
+
+  if (creature.facingX !== 0 || creature.facingY !== 0) {
+    const angle = Math.atan2(creature.facingY, creature.facingX);
+    const tipX = cx + Math.cos(angle) * r * 1.7;
+    const tipY = cy + Math.sin(angle) * r * 1.7;
+    const baseA = angle + Math.PI * 0.75;
+    const baseB = angle - Math.PI * 0.75;
+    simCtx.fillStyle = '#ffffff';
+    simCtx.beginPath();
+    simCtx.moveTo(tipX, tipY);
+    simCtx.lineTo(cx + Math.cos(baseA) * r * 0.6, cy + Math.sin(baseA) * r * 0.6);
+    simCtx.lineTo(cx + Math.cos(baseB) * r * 0.6, cy + Math.sin(baseB) * r * 0.6);
+    simCtx.closePath();
+    simCtx.fill();
+  }
+
+  const barW = cs * 0.9, barH = Math.max(1, cs * 0.15);
+  const barX = cx - barW / 2, barY = py + cs + 1;
+  const ratio = clamp(creature.energy / creature.genome.reproThreshold, [0, 1]);
+  simCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+  simCtx.fillRect(barX, barY, barW, barH);
+  simCtx.fillStyle = ratio > 0.5 ? '#81c784' : (ratio > 0.25 ? '#ffb74d' : '#e57373');
+  simCtx.fillRect(barX, barY, barW * ratio, barH);
+}
+
+// Màu predator: hue ĐỎ-CAM CỐ ĐỊNH (8°), chỉ độ sáng đổi theo năng lượng (đói = tối,
+// no = sáng). CỐ TÌNH KHÔNG đổi theo colorMode/lineage (khác energyToColor/
+// lineageToColor của prey) — nhìn phát biết ngay "con nào là kẻ săn mồi" mà không cần
+// để ý đang ở chế độ màu nào, thay vì trước đây predator ở chế độ "Màu: dòng họ" tô
+// giống hệt bảng màu dòng họ của prey, dễ lẫn.
+function predatorColor(predator) {
+  const ratio = clamp(predator.energy / predator.genome.reproThreshold, [0, 1.3]);
+  const lightness = 35 + (ratio / 1.3) * 25; // đói ~35% (tối) -> no ~60% (sáng)
+  return `hsl(8, 90%, ${lightness}%)`;
+}
+
+// PHASE 1.2 — predator vẽ HÌNH TAM GIÁC xoay theo facing, TO HƠN prey (r 0.5 -> 0.65)
+// và luôn có viền đen để nổi bật trên nền + tách khỏi cả food (ô vuông xanh) lẫn cây
+// (tán tròn xanh đậm) — 3 tín hiệu cộng dồn (hình dạng + màu cố định + kích thước)
+// thay vì chỉ dựa 1 tín hiệu duy nhất, để nhận ra predator "nhìn phát biết ngay".
+function drawPredator(predator, px, py, cs) {
+  const cx = px + cs / 2, cy = py + cs / 2;
+  const r = cs * 0.65 * visualSizeScale(predator);
+  const angle = Math.atan2(predator.facingY, predator.facingX);
+
+  simCtx.beginPath();
+  simCtx.moveTo(cx + Math.cos(angle) * r * 1.4, cy + Math.sin(angle) * r * 1.4);
+  simCtx.lineTo(cx + Math.cos(angle + Math.PI * 0.8) * r, cy + Math.sin(angle + Math.PI * 0.8) * r);
+  simCtx.lineTo(cx + Math.cos(angle - Math.PI * 0.8) * r, cy + Math.sin(angle - Math.PI * 0.8) * r);
+  simCtx.closePath();
+  simCtx.fillStyle = predatorColor(predator);
+  simCtx.fill();
+  simCtx.strokeStyle = '#1b0000';
+  simCtx.lineWidth = 1;
+  simCtx.stroke();
+
+  const barW = cs * 1.1, barH = Math.max(1, cs * 0.15);
+  const barX = cx - barW / 2, barY = py + cs + 1;
+  const ratio = clamp(predator.energy / predator.genome.reproThreshold, [0, 1]);
+  simCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+  simCtx.fillRect(barX, barY, barW, barH);
+  simCtx.fillStyle = ratio > 0.5 ? '#ff6659' : (ratio > 0.25 ? '#ff8a65' : '#8d0000');
+  simCtx.fillRect(barX, barY, barW * ratio, barH);
+}
+
+function renderWorld() {
+  const cs = CONFIG.CELL_SIZE;
+  simCtx.fillStyle = '#1b2027';
+  simCtx.fillRect(0, 0, simCanvas.width, simCanvas.height);
+
+  // Vẽ cây trước (nằm dưới) rồi tới food rồi tới creature — thứ tự layer từ tĩnh
+  // nhất đến động nhất.
+  for (const key of obstacleCells) {
+    const [ox, oy] = parseKey(key);
+    const [px, py] = worldToPx(ox, oy);
+    if (!inView(px, py, cs)) continue;
+    drawTree(px, py, cs);
+  }
+
+  simCtx.fillStyle = '#4caf50';
+  for (const key of foodCells) {
+    const [fx, fy] = parseKey(key);
+    const [px, py] = worldToPx(fx, fy);
+    if (!inView(px, py, cs)) continue;
+    simCtx.fillRect(px + cs * 0.3, py + cs * 0.3, cs * 0.4, cs * 0.4);
+  }
+
+  let selected = null;
+  for (const creature of creatures) {
+    if (selectedSpecies === 'prey' && creature.id === selectedCreatureId) selected = creature;
+    const [px, py] = worldToPx(creature.x, creature.y);
+    if (!inView(px, py, cs)) continue;
+    drawCreature(creature, px, py, cs);
+  }
+
+  // Predator vẽ SAU (nằm trên) prey/food — "kẻ săn mồi" nổi bật hơn khi đứng chồng vị trí.
+  for (const predator of predators) {
+    if (selectedSpecies === 'predator' && predator.id === selectedCreatureId) selected = predator;
+    const [px, py] = worldToPx(predator.x, predator.y);
+    if (!inView(px, py, cs)) continue;
+    drawPredator(predator, px, py, cs);
+  }
+
+  // Highlight creature đang chọn (prey hoặc predator, xem selectedSpecies): vòng senseRange (nó "nhìn" xa tới đâu) + đường
+  // nét đứt tới food nó đang nhắm (nếu có) + viền vàng quanh chính nó. Vẫn vẽ được
+  // dù creature đã pan ra ngoài viewport một phần (không check inView ở đây vì đây
+  // chỉ vẽ khi có selection, tần suất thấp, không đáng lo hiệu năng).
+  if (selected) {
+    const [scx, scy] = worldToPx(selected.x, selected.y);
+    const cx = scx + cs / 2;
+    const cy = scy + cs / 2;
+
+    simCtx.strokeStyle = 'rgba(255, 235, 59, 0.35)';
+    simCtx.lineWidth = 1;
+    simCtx.beginPath();
+    simCtx.arc(cx, cy, selected.genome.senseRange * cs, 0, Math.PI * 2);
+    simCtx.stroke();
+
+    if (selected.lastTarget) {
+      const [tpx, tpy] = worldToPx(selected.lastTarget.x, selected.lastTarget.y);
+      simCtx.strokeStyle = 'rgba(255, 235, 59, 0.8)';
+      simCtx.setLineDash([4, 3]);
+      simCtx.beginPath();
+      simCtx.moveTo(cx, cy);
+      simCtx.lineTo(tpx + cs / 2, tpy + cs / 2);
+      simCtx.stroke();
+      simCtx.setLineDash([]);
+    }
+
+    simCtx.strokeStyle = '#ffeb3b';
+    simCtx.lineWidth = 2;
+    simCtx.beginPath();
+    simCtx.arc(cx, cy, cs * 0.7, 0, Math.PI * 2);
+    simCtx.stroke();
+  }
+}
+
+// Minimap: toàn world thu nhỏ + khung viewport hiện tại, xem jumpCameraToMinimapEvent.
+function renderMinimap() {
+  const s = CONFIG.MINIMAP_SCALE;
+  minimapCtx.fillStyle = '#1b2027';
+  minimapCtx.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+
+  minimapCtx.fillStyle = '#2f6b3a';
+  for (const key of obstacleCells) {
+    const [ox, oy] = parseKey(key);
+    minimapCtx.fillRect(ox * s, oy * s, Math.max(1, s), Math.max(1, s));
+  }
+
+  minimapCtx.fillStyle = '#4caf50';
+  for (const key of foodCells) {
+    const [fx, fy] = parseKey(key);
+    minimapCtx.fillRect(fx * s, fy * s, Math.max(1, s), Math.max(1, s));
+  }
+
+  minimapCtx.fillStyle = '#e0e0e0';
+  for (const creature of creatures) {
+    minimapCtx.fillRect(creature.x * s, creature.y * s, Math.max(1, s), Math.max(1, s));
+  }
+
+  minimapCtx.fillStyle = '#ff5252';
+  for (const predator of predators) {
+    minimapCtx.fillRect(predator.x * s, predator.y * s, Math.max(2, s * 1.5), Math.max(2, s * 1.5));
+  }
+
+  minimapCtx.strokeStyle = '#ffeb3b';
+  minimapCtx.lineWidth = 1;
+  minimapCtx.strokeRect(camX * s, camY * s, CONFIG.VIEWPORT_WIDTH * s, CONFIG.VIEWPORT_HEIGHT * s);
+}
+
+// ============================================================
+// Rendering — trait charts (mini line charts, auto-scale theo min/max lịch sử)
+// ============================================================
+function setupChartCanvas(canvas) {
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(1, Math.round((rect.width || canvas.clientWidth || 280) * dpr));
+  canvas.height = Math.max(1, Math.round(60 * dpr));
+  return { ctx: canvas.getContext('2d'), dpr };
+}
+
+// `series`: mảng {values, color}. Mỗi series được chuẩn hoá RIÊNG theo min/max của
+// chính nó (không dùng chung 1 trục y) — cố tình, để 2 đường có biên độ tuyệt đối
+// rất khác nhau (VD prey ~1000 vs predator ~20-100, xem chartPop) vẫn cùng hiện rõ
+// dao động lên xuống của MỖI đường, phục vụ mục đích so sánh PHA dao động (predator
+// đạt đỉnh trễ hơn prey bao lâu) chứ không phải so sánh biên độ tuyệt đối giữa 2 loài.
+function drawLineChart(canvas, series) {
+  const rect = canvas.getBoundingClientRect();
+  const width = rect.width || canvas.clientWidth || 280;
+  const dpr = window.devicePixelRatio || 1;
+  if (canvas.width !== Math.round(width * dpr)) {
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(60 * dpr);
+  }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = width, h = 60;
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#1b2027';
+  ctx.fillRect(0, 0, w, h);
+
+  const pad = 4;
+  for (const { values, color } of series) {
+    if (values.length < 2) continue;
+    let min = Math.min(...values);
+    let max = Math.max(...values);
+    if (min === max) { min -= 1; max += 1; }
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    values.forEach((v, i) => {
+      const px = pad + (i / (values.length - 1)) * (w - pad * 2);
+      const py = h - pad - ((v - min) / (max - min)) * (h - pad * 2);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    });
+    ctx.stroke();
+  }
+}
+
+const chartEls = {
+  speed: document.getElementById('chartSpeed'),
+  senseRange: document.getElementById('chartSense'),
+  metabolism: document.getElementById('chartMetab'),
+  reproThreshold: document.getElementById('chartRepro'),
+  size: document.getElementById('chartSize'),
+  reproInvestment: document.getElementById('chartReproInvest'),
+  population: document.getElementById('chartPop')
+};
+const chartColors = {
+  speed: '#5bc0ff',
+  senseRange: '#ffb74d',
+  metabolism: '#e57373',
+  reproThreshold: '#ba68c8',
+  size: '#a1887f',
+  reproInvestment: '#4dd0e1',
+  population: '#81c784',
+  predatorPopulation: '#ff5252'
+};
+
+function renderCharts() {
+  drawLineChart(chartEls.speed, [{ values: history.speed, color: chartColors.speed }]);
+  drawLineChart(chartEls.senseRange, [{ values: history.senseRange, color: chartColors.senseRange }]);
+  drawLineChart(chartEls.metabolism, [{ values: history.metabolism, color: chartColors.metabolism }]);
+  drawLineChart(chartEls.reproThreshold, [{ values: history.reproThreshold, color: chartColors.reproThreshold }]);
+  drawLineChart(chartEls.size, [{ values: history.size, color: chartColors.size }]);
+  drawLineChart(chartEls.reproInvestment, [{ values: history.reproInvestment, color: chartColors.reproInvestment }]);
+  // PHASE 1.2 — 2 đường chồng lên nhau: prey (xanh) vs predator (hồng), xem chú thích
+  // ở drawLineChart. Đây là hình ảnh trực tiếp cho dao động kiểu Lotka-Volterra.
+  drawLineChart(chartEls.population, [
+    { values: history.population, color: chartColors.population },
+    { values: history.predatorPopulation, color: chartColors.predatorPopulation }
+  ]);
+
+  const last = (arr) => arr.length ? arr[arr.length - 1] : 0;
+  document.getElementById('labelSpeed').textContent = last(history.speed).toFixed(2);
+  document.getElementById('labelSense').textContent = last(history.senseRange).toFixed(2);
+  document.getElementById('labelMetab').textContent = last(history.metabolism).toFixed(3);
+  document.getElementById('labelRepro').textContent = last(history.reproThreshold).toFixed(1);
+  document.getElementById('labelSize').textContent = last(history.size).toFixed(2);
+  document.getElementById('labelReproInvest').textContent = last(history.reproInvestment).toFixed(3);
+  document.getElementById('labelPop').textContent = `${last(history.population)} / ${last(history.predatorPopulation)}`;
+}
+
+const goalPanelEl = document.getElementById('goalPanel');
+const goalProgressFillEl = document.getElementById('goalProgressFill');
+const goalStatusEl = document.getElementById('goalStatus');
+
+function renderGoalPanel() {
+  const pct = Math.min(100, (tick / CONFIG.GAME.TARGET_TICK) * 100);
+  goalProgressFillEl.style.width = pct + '%';
+  goalPanelEl.classList.remove('goal-won', 'goal-lost');
+  goalStatusEl.classList.remove('won', 'lost');
+
+  if (gameState === 'won') {
+    goalPanelEl.classList.add('goal-won');
+    goalStatusEl.classList.add('won');
+    goalStatusEl.textContent = `Chiến thắng! Cả 2 loài còn sống tới tick ${tick}.`;
+  } else if (gameState === 'lost') {
+    goalPanelEl.classList.add('goal-lost');
+    goalStatusEl.classList.add('lost');
+    const label = gameOverSpecies === 'prey' ? 'Prey' : 'Predator';
+    goalStatusEl.textContent = `Thất bại — ${label} tuyệt chủng ở tick ${tick}. Bấm Reset để chơi lại.`;
+  } else {
+    goalStatusEl.textContent = `Tick ${tick} / ${CONFIG.GAME.TARGET_TICK}`;
+  }
+}
+
+function renderStatsPanel() {
+  document.getElementById('statTick').textContent = tick;
+  document.getElementById('statPop').textContent = creatures.length;
+  document.getElementById('statPredatorPop').textContent = predators.length;
+  document.getElementById('statFood').textContent = foodCells.size;
+  document.getElementById('statBirths').textContent = birthsSinceLog;
+  document.getElementById('statDeaths').textContent = deathsSinceLog;
+}
+
+const selectedHintEl = document.getElementById('selectedHint');
+const selectedDetailsEl = document.getElementById('selectedDetails');
+const selectedStatusEl = document.getElementById('selectedStatus');
+
+function renderSelectedInfo() {
+  if (selectedCreatureId === null) {
+    selectedHintEl.style.display = '';
+    selectedDetailsEl.style.display = 'none';
+    return;
+  }
+
+  // PHASE 1.2 — loài đã chọn quyết định mảng để tìm/đếm lineage VÀ spec gen (bounds/
+  // polygenic) dùng để tính phenotype — 2 loài có spec khác nhau dù cùng tên trait.
+  const isPredator = selectedSpecies === 'predator';
+  const list = isPredator ? predators : creatures;
+  const spec = isPredator ? CONFIG.PREDATOR_GENOME : CONFIG.PREY_GENOME;
+
+  const found = list.find(c => c.id === selectedCreatureId);
+  if (found) selectedLastKnown = found; // cập nhật snapshot mới nhất trong khi nó còn sống
+
+  selectedHintEl.style.display = 'none';
+  selectedDetailsEl.style.display = '';
+
+  const c = found || selectedLastKnown;
+  if (!c) return;
+
+  document.getElementById('selSpecies').textContent = isPredator ? 'Predator' : 'Prey';
+  selectedStatusEl.textContent = found ? '● đang sống' : '✝ vừa chết (hết năng lượng / bị săn)';
+  selectedStatusEl.className = found ? 'alive' : 'dead';
+
+  document.getElementById('selEnergy').textContent =
+    `${c.energy.toFixed(1)} / ${c.genome.reproThreshold.toFixed(0)} (ngưỡng đẻ)`;
+  document.getElementById('selAge').textContent = c.age;
+  document.getElementById('selGen').textContent = c.generation;
+  // Đếm toàn bộ cá thể đang sống CÙNG LOÀI VÀ cùng lineageId (cùng tổ tiên gen-0).
+  // Số này tăng/giảm qua thời gian cho thấy trực tiếp "dòng họ này đang thắng hay thua"
+  // trong chọn lọc tự nhiên, không cần suy luận gián tiếp từ chart trait trung bình.
+  const lineageCount = list.filter(x => x.lineageId === c.lineageId).length;
+  document.getElementById('selLineageCount').textContent = lineageCount;
+  document.getElementById('selSpeed').textContent = c.genome.speed.toFixed(2);
+  document.getElementById('selSense').textContent = c.genome.senseRange.toFixed(2);
+  document.getElementById('selMetab').textContent = c.genome.metabolism.toFixed(3);
+  document.getElementById('selRepro').textContent = c.genome.reproThreshold.toFixed(1);
+  document.getElementById('selSize').textContent = c.genome.size.toFixed(2);
+
+  // reproInvestment là trait polygenic -> hiện cả phenotype (trung bình, cái thật
+  // sự dùng trong logic) LẪN từng gen con riêng lẻ, để thấy trực tiếp việc trung
+  // bình hoá "làm mượt" biến dị giữa các gen con thế nào (xem CONFIG.POLYGENIC_TRAITS).
+  const investment = phenotypeOf(spec, c.genome, 'reproInvestment');
+  document.getElementById('selReproInvest').textContent = investment.toFixed(3);
+  document.getElementById('selReproInvestGenes').textContent =
+    c.genome.reproInvestment.map(g => g.toFixed(2)).join(', ');
+}
+
+// Chọn creature gần 1 điểm WORLD nhất (trong bán kính ~2 ô) — tách riêng để dùng
+// chung cho canvas chính (sau khi xác định không phải kéo pan, xem mousedown/up bên dưới).
+// PHASE 1.2 — tìm trong CẢ 2 mảng (prey lẫn predator), chọn con gần điểm click nhất
+// bất kể loài; selectedSpecies lưu lại loài đã chọn để renderSelectedInfo biết dùng
+// spec gen nào (CONFIG.PREY_GENOME hay PREDATOR_GENOME) và đếm lineage ở mảng nào.
+function selectNearestCreatureAt(gx, gy) {
+  let nearest = null;
+  let nearestSpecies = null;
+  let nearestDist = Infinity;
+  for (const c of creatures) {
+    const dist = Math.hypot(c.x + 0.5 - gx, c.y + 0.5 - gy);
+    if (dist < nearestDist) { nearestDist = dist; nearest = c; nearestSpecies = 'prey'; }
+  }
+  for (const p of predators) {
+    const dist = Math.hypot(p.x + 0.5 - gx, p.y + 0.5 - gy);
+    if (dist < nearestDist) { nearestDist = dist; nearest = p; nearestSpecies = 'predator'; }
+  }
+  if (nearest && nearestDist <= 2) {
+    selectedCreatureId = nearest.id;
+    selectedSpecies = nearestSpecies;
+    selectedLastKnown = nearest;
+  } else {
+    selectedCreatureId = null;
+    selectedSpecies = null;
+    selectedLastKnown = null;
+  }
+}
+
+// Kéo chuột trên canvas chính = pan camera (giống game chiến thuật); nhả chuột mà
+// KHÔNG kéo (di chuyển <=3px) = coi là click chọn creature như cũ. Dùng window cho
+// mousemove/mouseup (không chỉ canvas) để pan không bị "đứt" khi chuột lỡ ra ngoài
+// canvas giữa chừng khi đang kéo.
+let isDraggingCanvas = false;
+let dragStartPx = null;
+let dragStartCam = null;
+let dragMoved = false;
+
+simCanvas.addEventListener('mousedown', (e) => {
+  const rect = simCanvas.getBoundingClientRect();
+  dragStartPx = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  dragStartCam = { x: camX, y: camY };
+  dragMoved = false;
+  isDraggingCanvas = true;
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (!isDraggingCanvas) return;
+  const rect = simCanvas.getBoundingClientRect();
+  const scaleX = simCanvas.width / rect.width;
+  const scaleY = simCanvas.height / rect.height;
+  const curPx = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  const dxPx = (curPx.x - dragStartPx.x) * scaleX;
+  const dyPx = (curPx.y - dragStartPx.y) * scaleY;
+  if (Math.abs(dxPx) > 6 || Math.abs(dyPx) > 6) dragMoved = true;
+  if (dragMoved) {
+    camX = dragStartCam.x - dxPx / CONFIG.CELL_SIZE;
+    camY = dragStartCam.y - dyPx / CONFIG.CELL_SIZE;
+    clampCamera();
+  }
+});
+
+window.addEventListener('mouseup', (e) => {
+  if (!isDraggingCanvas) return;
+  isDraggingCanvas = false;
+  if (!dragMoved) {
+    const rect = simCanvas.getBoundingClientRect();
+    const scaleX = simCanvas.width / rect.width;
+    const scaleY = simCanvas.height / rect.height;
+    const gx = camX + ((e.clientX - rect.left) * scaleX) / CONFIG.CELL_SIZE;
+    const gy = camY + ((e.clientY - rect.top) * scaleY) / CONFIG.CELL_SIZE;
+    selectNearestCreatureAt(gx, gy);
+  }
+  dragStartPx = null;
+  dragStartCam = null;
+});
+
+// Pan bằng phím mũi tên/WASD — độc lập với simulationTick/running (pan là thao tác
+// UI xem map, không phải hành vi mô phỏng), cập nhật mỗi frame render (xem frame()).
+const pressedPanKeys = new Set();
+const PAN_KEYS = ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'];
+window.addEventListener('keydown', (e) => {
+  const k = e.key.toLowerCase();
+  if (PAN_KEYS.includes(k)) {
+    pressedPanKeys.add(k);
+    e.preventDefault(); // tránh cuộn trang bằng phím mũi tên
+  }
+});
+window.addEventListener('keyup', (e) => {
+  pressedPanKeys.delete(e.key.toLowerCase());
+});
+
+function updateCameraFromKeys() {
+  let dx = 0, dy = 0;
+  if (pressedPanKeys.has('arrowleft') || pressedPanKeys.has('a')) dx -= 1;
+  if (pressedPanKeys.has('arrowright') || pressedPanKeys.has('d')) dx += 1;
+  if (pressedPanKeys.has('arrowup') || pressedPanKeys.has('w')) dy -= 1;
+  if (pressedPanKeys.has('arrowdown') || pressedPanKeys.has('s')) dy += 1;
+  if (dx !== 0 || dy !== 0) {
+    camX += dx * CONFIG.CAMERA_PAN_SPEED;
+    camY += dy * CONFIG.CAMERA_PAN_SPEED;
+    clampCamera();
+  }
+}
+
+// PHASE 2 — kiểm tra thắng/thua sau MỖI simulationTick(). Tách riêng khỏi frame() vì có
+// 2 nơi gọi simulationTick() (vòng lặp rAF bình thường VÀ nút Step +1 tick) — cả 2 phải
+// check giống hệt nhau, không lặp logic.
+function checkGameOver() {
+  if (gameState !== 'playing') return;
+  if (creatures.length === 0 || predators.length === 0) {
+    gameState = 'lost';
+    gameOverSpecies = creatures.length === 0 ? 'prey' : 'predator';
+    running = false;
+  } else if (tick >= CONFIG.GAME.TARGET_TICK) {
+    gameState = 'won';
+    running = false;
+  }
+}
+
+// ============================================================
+// Main loop
+// ============================================================
+function frame() {
+  updateCameraFromKeys(); // pan luôn chạy mỗi frame, kể cả lúc Pause — xem CONFIG.CAMERA_PAN_SPEED
+  if (running) {
+    for (let i = 0; i < ticksPerFrame; i++) {
+      simulationTick();
+      checkGameOver();
+      if (gameState !== 'playing') break;
+    }
+  }
+  renderWorld();
+  renderMinimap();
+  renderStatsPanel();
+  renderSelectedInfo();
+  renderCharts();
+  renderGoalPanel();
+  requestAnimationFrame(frame);
+}
+
+// ============================================================
+// UI wiring
+// ============================================================
+const btnPause = document.getElementById('btnPause');
+btnPause.addEventListener('click', () => {
+  if (gameState !== 'playing') return; // đã thắng/thua — chỉ Reset mới chơi lại được
+  running = !running;
+  btnPause.textContent = running ? 'Pause' : 'Resume';
+});
+
+document.getElementById('btnReset').addEventListener('click', () => {
+  resetSimulation();
+  running = true;
+  btnPause.textContent = 'Pause';
+});
+
+document.getElementById('speedSelect').addEventListener('change', (e) => {
+  ticksPerFrame = Number(e.target.value);
+});
+
+// Chạy đúng 1 tick bất kể đang pause hay không — để soi từng bước một thay vì
+// chờ theo nhịp rAF (hữu ích khi population nhỏ và muốn theo dõi từng quyết định).
+document.getElementById('btnStep').addEventListener('click', () => {
+  if (gameState === 'playing' && creatures.length > 0 && predators.length > 0) {
+    simulationTick();
+    checkGameOver();
+  }
+});
+
+const legendEnergyEl = document.getElementById('legendEnergy');
+const legendLineageEl = document.getElementById('legendLineage');
+document.getElementById('colorModeSelect').addEventListener('change', (e) => {
+  colorMode = e.target.value;
+  legendEnergyEl.style.display = colorMode === 'energy' ? '' : 'none';
+  legendLineageEl.style.display = colorMode === 'lineage' ? '' : 'none';
+});
+
+const tuneFoodSpawnRate = document.getElementById('tuneFoodSpawnRate');
+const tuneMaxFood = document.getElementById('tuneMaxFood');
+const tuneMutationRate = document.getElementById('tuneMutationRate');
+const tuneInitialPopulation = document.getElementById('tuneInitialPopulation');
+
+const tuneSpeedCost = document.getElementById('tuneSpeedCost');
+const tuneSenseCost = document.getElementById('tuneSenseCost');
+const tuneMetabBonus = document.getElementById('tuneMetabBonus');
+
+document.getElementById('goalTarget').textContent = CONFIG.GAME.TARGET_TICK;
+tuneFoodSpawnRate.value = CONFIG.FOOD_SPAWN_RATE;
+tuneMaxFood.value = CONFIG.MAX_FOOD_CELLS;
+tuneMutationRate.value = CONFIG.MUTATION_RATE;
+tuneInitialPopulation.value = CONFIG.INITIAL_POPULATION;
+tuneSpeedCost.value = CONFIG.SPEED_ENERGY_COST;
+tuneSenseCost.value = CONFIG.SENSE_ENERGY_COST;
+tuneMetabBonus.value = CONFIG.METABOLISM_EFFICIENCY_BONUS;
+
+tuneFoodSpawnRate.addEventListener('input', (e) => {
+  const v = Number(e.target.value);
+  if (!Number.isNaN(v) && v >= 0) CONFIG.FOOD_SPAWN_RATE = v;
+});
+tuneMaxFood.addEventListener('input', (e) => {
+  const v = Number(e.target.value);
+  if (!Number.isNaN(v) && v >= 0) CONFIG.MAX_FOOD_CELLS = v;
+});
+tuneMutationRate.addEventListener('input', (e) => {
+  const v = Number(e.target.value);
+  if (!Number.isNaN(v) && v >= 0 && v <= 1) CONFIG.MUTATION_RATE = v;
+});
+// Chỉ có hiệu lực ở lần Reset tiếp theo (population khởi tạo chỉ được đọc lúc spawn).
+tuneInitialPopulation.addEventListener('input', (e) => {
+  const v = Number(e.target.value);
+  if (!Number.isNaN(v) && v >= 1) CONFIG.INITIAL_POPULATION = v;
+});
+tuneSpeedCost.addEventListener('input', (e) => {
+  const v = Number(e.target.value);
+  if (!Number.isNaN(v) && v >= 0) CONFIG.SPEED_ENERGY_COST = v;
+});
+tuneSenseCost.addEventListener('input', (e) => {
+  const v = Number(e.target.value);
+  if (!Number.isNaN(v) && v >= 0) CONFIG.SENSE_ENERGY_COST = v;
+});
+tuneMetabBonus.addEventListener('input', (e) => {
+  const v = Number(e.target.value);
+  if (!Number.isNaN(v) && v >= 0) CONFIG.METABOLISM_EFFICIENCY_BONUS = v;
+});
+
+// ============================================================
+// Boot
+// ============================================================
+resetSimulation();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

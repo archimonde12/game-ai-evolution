@@ -1136,7 +1136,10 @@ function tickDefender(b, tribe) {
   // công thành là một chiến dịch chứ không phải vài người lính gõ cửa (xem chú
   // thích đầu hàm này). Hạ cả hai thì cái vế đó cũng đổ theo, mà nó không nằm
   // trong điều đang cần sửa.
-  const ageAtk = b.type === 'tower' ? CONFIG.AGE.TOWER_ATK[clamp(tribe.age || 1, 1, CONFIG.AGE.TOWER_ATK.length - 1)] : 1;
+  // `towerAgeMult` — CÙNG hàm mà bảng giá đọc (xem buildCost). Đó là ràng buộc của
+  // cả cơ chế: giá một cái tháp luôn đúng bằng tỉ lệ sức mạnh nó đang có, và cách
+  // duy nhất giữ được điều đó là hai chỗ gọi chung một hàm.
+  const ageAtk = b.type === 'tower' ? towerAgeMult(tribe.age) : 1;
   const raw = spec.attack * stack * ageAtk * CONFIG.AGE.BONUS[tribe.age].atk;
   enemy.hp -= Math.max(raw * CONFIG.UNIT.ARMOR_FLOOR, raw - effDefense(enemy));
   // AI VỪA CHẠM VÀO NÓ. Dòng này tồn tại vì tháp canh là đường sát thương DUY

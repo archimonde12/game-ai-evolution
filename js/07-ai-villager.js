@@ -141,7 +141,11 @@ function pickJob(tribe) {
     : 0;
   const towerQuota = CONFIG.AGE.NEED_TOWERS[tribe.age + 1] || 0;
   const towerStone = towerQuota > 0
-    ? Math.max(0, towerQuota + 1 - ((tribe.stats && tribe.stats.towersDone) || 0)) * (CONFIG.BUILD.tower.cost.stone || 0)
+    // Đọc GIÁ THẬT qua `buildCost`, không đọc bảng gốc: từ vòng 2 của Phase 3.35 giá
+    // tháp đổi theo thời đại, và một đích tích trữ tính bằng bảng gốc sẽ bắt thợ đá
+    // gom dư 67% ở Đồ Đá — đúng chiều ngược của cái lỗi mà cả khối chú thích trên
+    // vừa mô tả, và cũng đúng hình dạng `foodTarget` vs `wealth` của Phase 3.27.
+    ? Math.max(0, towerQuota + 1 - ((tribe.stats && tribe.stats.towersDone) || 0)) * (buildCost(tribe, 'tower').stone || 0)
     : 0;
   // QUỸ VÁ TƯỜNG (Phase 3.30). Từ bản này tường thành tự sửa bằng ĐÁ, và dưới
   // WALL.REGEN_RESERVE thì nó chỉ vá bằng một phần tư tốc độ. Đó là một khoản chi

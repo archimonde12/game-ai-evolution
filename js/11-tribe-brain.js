@@ -471,14 +471,20 @@ function freeBuilders(tribe) {
 function queueBuild(tribe, type, biasX, biasY, forceR) {
   const spec = CONFIG.BUILD[type];
   if (!unlockedBuild(tribe, type)) return false;
-  if (!canAfford(tribe, spec.cost)) return false;
+  // GIÁ THẬT của bộ lạc NÀY ở thời đại NÀY — xem buildCost. Tính đúng một lần rồi
+  // dùng cho cả ba việc (hỏi đủ tiền · trả tiền · ghi sổ để hoàn): tra lại bảng giá
+  // ở mỗi chỗ là mở đường cho ba con số lệch nhau, và với tháp canh thì chúng lệch
+  // thật ngay khi bộ lạc lên đời.
+  const cost = buildCost(tribe, type);
+  if (!canAfford(tribe, cost)) return false;
   // Không có ai rảnh để đi xây thì KHÔNG đặt móng và KHÔNG trả tiền. Hỏi trước cả
   // findBuildSpot vì đây là câu rẻ hơn nhiều và nó phủ định cả hai câu còn lại.
   if (freeBuilders(tribe) === 0) return false;
   const spot = findBuildSpot(tribe, type, biasX, biasY, forceR);
   if (!spot) return false;
-  pay(tribe, spec.cost);
+  pay(tribe, cost);
   const b = spawnBuilding(tribe, type, spot.x, spot.y, false);
+  b.paid = cost;                  // hoàn đúng số đã trả, không tra lại bảng giá
   // Tick mà công trường này lần cuối có người đứng xây. Khởi tạo bằng `tick` chứ
   // không phải 0: khai bằng 0 thì mọi móng vừa đặt đều đã "bỏ hoang 420 tick" ngay
   // ở giây đầu — cùng một cái bẫy mà `hitTick: -99999` đã phải tránh ở spawnBuilding.
@@ -580,11 +586,17 @@ function abandonDeadSites(tribe, sites) {
       b.progress = b.buildTicks;
       b.buildTicks = CONFIG.BUILD.tower.buildTicks;
       b.hp = Math.min(b.maxHp, Math.max(b.hp, b.maxHp * 0.5));
-      refund(tribe, towerStackCost(b.level || 1));
+      refund(tribe, b.paid || towerStackCost(b.level || 1, tribe));
       logEvent(`🏯 ${tribe.name} bỏ dở tầng tháp — tháp cũ trở lại canh gác`, tribe.color);
       continue;
     }
-    refund(tribe, CONFIG.BUILD[b.type].cost);
+    // HOÀN ĐÚNG SỐ ĐÃ TRẢ (`b.paid`), không tra lại bảng giá. Với mười hai loại
+    // công trình còn lại thì hai cách cho cùng kết quả, nhưng giá tháp canh nay đổi
+    // theo thời đại: một bộ lạc lên đời trong lúc cái móng nằm bỏ hoang sẽ được hoàn
+    // NHIỀU HƠN số nó bỏ ra — một cỗ máy in tài nguyên nhỏ, chạy im lặng, và chỉ lộ
+    // ra khi ai đó đi đếm kho. `|| cost` để những móng đặt trước bản này (không có
+    // trường `paid`) vẫn hoàn được.
+    refund(tribe, b.paid || buildCost(tribe, b.type));
     // GỌI destroyBuilding TRƯỚC khi hạ máu, và thứ tự đó làm đúng hai việc cùng lúc:
     //   · Nó dọn những thứ chỉ hàm này biết — quan trọng nhất là `wonderStarted`.
     //     Bỏ qua thì một móng Kỳ quan bị dỡ sẽ khoá bộ lạc đó khỏi Kỳ quan tới hết

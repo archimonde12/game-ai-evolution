@@ -1116,9 +1116,10 @@ function renderSelected() {
       const lv = sel.level || 1;
       html += `<span class="label">Tầng</span><span class="value" style="color:var(--gold)">${lv} / ${CONFIG.BUILD.TOWER_STACK.MAX}${sel.stacking ? ' — đang xây tầng trên, NGỪNG BẮN' : ''}</span>
       <span class="label">Tầm bắn</span><span class="value">${(spec.range * st).toFixed(1)} ô${lv > 1 ? ` <span style="color:var(--bone-3)">(gốc ${spec.range})</span>` : ''}</span>
-      <span class="label">Sức đánh</span><span class="value">${(spec.attack * st * CONFIG.AGE.BONUS[t.age].atk).toFixed(1)} mỗi ${spec.cooldown} tick</span>`;
+      <span class="label" title="Tháp chỉ đạt ${Math.round(CONFIG.AGE.TOWER_ATK[1] * 100)}% sức đánh ở Đồ Đá và bò lên 100% ở Thiên Triều — GIÁ của nó đi theo đúng đường cong này.">Sức đánh</span><span class="value">${(spec.attack * st * towerAgeMult(t.age) * CONFIG.AGE.BONUS[t.age].atk).toFixed(1)} mỗi ${spec.cooldown} tick <span style="color:var(--bone-3)">(${Math.round(towerAgeMult(t.age) * 100)}% bậc thời đại)</span></span>
+      <span class="label" title="Giá luôn đúng bằng tỉ lệ sức mạnh tháp đang có: rẻ khi còn yếu, đắt dần khi mạnh lên.">Giá dựng lúc này</span><span class="value">${Object.entries(buildCost(t, 'tower')).map(([k, v]) => `${v} ${k}`).join(' · ')}</span>`;
       if (lv < CONFIG.BUILD.TOWER_STACK.MAX && sel.done) {
-        const c = towerStackCost(lv);
+        const c = towerStackCost(lv, t);
         html += `<span class="label">Chồng tầng ${lv + 1}</span><span class="value">${Object.keys(c).map(k => `${c[k]} ${k}`).join(' · ')} · ×${CONFIG.BUILD.TOWER_STACK.MULT} sức mạnh</span>`;
       }
       // Tháp canh giờ là ĐIỀU KIỆN lên đời, nên cái thẻ của nó phải nói ra hạn ngạch

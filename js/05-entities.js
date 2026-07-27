@@ -734,8 +734,48 @@ function refreshBuildingHp(tribe) {
 // KHÔNG hạ máu về 25% như một móng nhà mới. Móng nhà mới mong manh vì nó chưa
 // tồn tại; cái tháp này thì đang đứng đó với đầy đủ máu, và làm nó mềm đi trong
 // lúc nó vừa ngừng bắn là cộng hai hình phạt cho một quyết định.
-function towerStackCost(level) {
-  const step = Math.pow(CONFIG.BUILD.TOWER_STACK.COST_STEP, level);
+// ============================================================
+// GIÁ THÁP CANH ĐI THEO ĐÚNG ĐƯỜNG CONG SỨC MẠNH (Phase 3.35, vòng 2)
+// ============================================================
+// MỘT mảng nuôi cả hai — `AGE.TOWER_ATK`. Không tạo bảng giá thứ hai, và đó là một
+// quyết định chứ không phải sự lười: hai mảng cùng tả một đường cong thì chúng SẼ
+// lệch nhau, và bài học đó đã phải trả giá hai lần trong cùng MỘT hình vẽ ở Phase
+// 3.32 (gai lưng và xương ngón cánh của phi long). Ở đây hậu quả còn lặng lẽ hơn:
+// một lần chỉnh cân bằng sức đánh tháp mà quên bảng giá sẽ tạo ra đúng cái nghịch
+// lý mà vòng này sinh ra để xoá — một công trình yếu mà đắt.
+//
+// Ràng buộc đọc thành lời: **giá một cái tháp luôn đúng bằng tỉ lệ sức mạnh mà nó
+// đang có.** Đồ Đá 60% sức đánh thì 60% giá; Thiên Triều 100% thì trả đủ. Không thể
+// mua rẻ một thứ mạnh, cũng không thể bị bắt trả đủ cho một thứ chưa mạnh.
+function towerAgeMult(age) {
+  const T = CONFIG.AGE.TOWER_ATK;
+  return T[clamp(age || 1, 1, T.length - 1)];
+}
+
+// Giá THẬT của một công trình với bộ lạc này, ngay lúc này. Mọi chỗ hỏi giá đều
+// phải đi qua đây — `canAfford`, `pay`, đích tích trữ đá của thợ mỏ, và bảng hiển
+// thị. Đây chính là hình dạng lỗi `foodTarget` vs `wealth = food/5000` của Phase
+// 3.27, đọc theo chiều ngược: một khoản chi mà đích tích trữ tính bằng công thức
+// KHÁC thì thợ đá bị gọi về đúng lúc khoản chi sắp tới.
+//
+// Trả về CHÍNH bảng gốc (không sao chép) với mọi loại trừ tháp: hàm này chạy trong
+// vòng quyết định của bộ não, và dựng một object mới cho mười ba loại công trình
+// mỗi nhịp là một khoản phí không mua được gì.
+function buildCost(tribe, type) {
+  const base = CONFIG.BUILD[type].cost;
+  if (type !== 'tower') return base;
+  const m = towerAgeMult(tribe && tribe.age);
+  const c = {};
+  for (const k in base) c[k] = Math.round(base[k] * m);
+  return c;
+}
+
+// Giá xây CHỒNG một tầng nữa. Hai hệ số NHÂN nhau: bậc thời đại (tháp đời sau đắt
+// hơn) và bậc tầng (1,7^lv). Nhân chứ không cộng vì chúng tả hai chuyện độc lập —
+// "cái tháp này thuộc thời nào" và "nó đã cao mấy tầng" — và một cái tháp ba tầng
+// thời Thiên Triều đúng là thứ đắt nhất trong bảng công trình.
+function towerStackCost(level, tribe) {
+  const step = Math.pow(CONFIG.BUILD.TOWER_STACK.COST_STEP, level) * towerAgeMult(tribe && tribe.age);
   const c = {};
   for (const k in CONFIG.BUILD.tower.cost) c[k] = Math.round(CONFIG.BUILD.tower.cost[k] * step);
   return c;
@@ -747,7 +787,7 @@ function canStackTower(b) {
 
 function startTowerStack(tribe, b) {
   const lv = b.level || 1;
-  const cost = towerStackCost(lv);
+  const cost = towerStackCost(lv, tribe);
   if (!canAfford(tribe, cost)) return false;
   // Cùng cánh cửa với queueBuild: không có thợ rảnh thì không khởi công. Ở đây nó
   // còn đáng hơn — cái tháp NGỪNG BẮN suốt thời gian xây chồng, nên một công
@@ -758,6 +798,10 @@ function startTowerStack(tribe, b) {
   b.stacking = true;
   b.progress = 0;
   b.tendedAt = tick;
+  // GHI LẠI ĐÚNG SỐ ĐÃ TRẢ. Từ vòng này giá tháp đổi theo thời đại, nên hoàn tiền
+  // bằng cách tra lại bảng giá là hoàn SAI mỗi khi bộ lạc lên đời giữa lúc xây —
+  // đúng loại lỗi im lặng mà không có dòng lỗi nào để lần theo. Xem abandonDeadSites.
+  b.paid = cost;
   b.buildTicks = Math.round(CONFIG.BUILD.tower.buildTicks * Math.pow(CONFIG.BUILD.TOWER_STACK.TICK_STEP, lv));
   assignBuilders(tribe, b);
   logEvent(`🏯 ${tribe.name} khởi công tháp canh tầng ${lv + 1}`, tribe.color);
@@ -962,6 +1006,11 @@ function spawnBuilding(tribe, type, x, y, instant) {
     // trong tickVillager, đọc bởi rescueOrphanSites. `tick` chứ không phải 0 —
     // xem queueBuild để biết vì sao khai bằng 0 lại là một cái bẫy.
     tendedAt: tick,
+    // Số tài nguyên THẬT SỰ đã trả cho công trường này (Phase 3.35 vòng 2). Khai
+    // tường minh dù `null` cũng chạy: mọi vật đi qua đây phải có cùng hình dạng, và
+    // `null` nói rõ "chỗ này chứa một hoá đơn" trong khi một trường vắng mặt chỉ
+    // nói "chưa ai nghĩ tới". Xem abandonDeadSites để biết vì sao không tra lại giá.
+    paid: null,
     farmCells: []
   };
   buildings.push(b);

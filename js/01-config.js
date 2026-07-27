@@ -2013,6 +2013,19 @@ const CONFIG = {
     // người xem nhìn thấy — mà không lặng lẽ nhân đôi một khoản thuế mà yêu cầu đó
     // không nói tới. GỖ giữ nguyên 85, tức là tổng gỗ CÓ gấp đôi thật: gỗ đo được
     // chặn 0/373 và bản đồ còn 425.000 đơn vị, nên nó gánh được sức nặng mới.
+    //
+    // ---- Vòng 2: HAI SỐ DƯỚI ĐÂY LÀ GIÁ Ở BẬC CAO NHẤT, không phải giá cố định ----
+    //
+    // Giá thật nhân với `AGE.TOWER_ATK` — CHÍNH mảng đang hạ sức đánh (xem
+    // `towerAgeMult`). Nghĩa là 85 gỗ + 23 đá là giá của một cái tháp Thiên Triều
+    // đánh đủ 100%; ở Đồ Đá nó chỉ tốn 51 gỗ + 14 đá và cũng chỉ đánh 60%.
+    //
+    // Vì sao đáng làm thay vì để giá phẳng: một công trình BẮT BUỘC mà vừa yếu vừa
+    // đắt là một khoản thuế thuần — người chơi trả rồi quên nó đi, đúng cái mà cả
+    // khối chú thích ở trên vừa cảnh báo. Buộc giá vào chính đường cong sức mạnh thì
+    // hạn ngạch 4 cái đầu tiên (ở Đồ Đá/Đồ Đồng, lúc kho còn cạn nhất) rẻ đi 30-40%,
+    // còn 6 cái cuối — dựng ở Hoàng Kim, lúc bộ lạc đã giàu — trả đủ giá.
+    // Đường cong chi tiêu đi đúng đường cong khả năng chi trả, thay vì ngược lại.
     tower:    { hp: 640, size: 2, cost: { wood: 85, stone: 23 }, buildTicks: 130, pop: 0, label: 'Tháp canh', range: 10, attack: 16, cooldown: 11 },
     // Xưởng thợ (Đồ Đồng) — nơi ra cung thủ và máy bắn đá. Một bộ lạc không xây nó
     // thì vĩnh viễn chỉ có bộ binh, kể cả khi đã lên Đồ Sắt: thời đại MỞ KHOÁ chứ

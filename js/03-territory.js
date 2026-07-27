@@ -23,7 +23,30 @@
 // chủ, ba trên bốn bộ lạc không còn một mét biên giới nào dù đang sống khoẻ.
 const INFLUENCE_WEIGHT = {
   town: 7, wonder: 6, temple: 4, barracks: 3, tower: 3, workshop: 2.5, stable: 2.5,
-  infirmary: 2, shrine: 2, farm: 1.4, house: 1
+  // Kho hàng 2,2 — cao hơn nhà ở dù rẻ hơn, và có lý do đọc được trên bản đồ: kho
+  // là công trình bộ lạc cố ý đặt RA XA, cạnh mỏ. Cho nó ảnh hưởng khá thì biên
+  // giới tự phình về phía vùng đang khai thác, tức là đường biên kể đúng câu chuyện
+  // "chúng tôi đang ăn về hướng này" thay vì chỉ vẽ vòng quanh khu dân cư.
+  depot: 2.2,
+  // Tướng phủ 2,5 — ngang xưởng thợ/chuồng ngựa. Nó là công trình MỚI của Phase
+  // 3.28, và dòng này được viết cùng lúc với nó chứ không phải vá sau: bốn loại
+  // của Phase 3.6 bị bỏ quên ở đây từng xoá sạch biên giới của cả bộ lạc, và
+  // "nhớ sửa bảng ở file khác" đã chứng minh là một cách bảo trì không hoạt động.
+  heroHall: 2.5,
+  infirmary: 2, shrine: 2, farm: 1.4, house: 1,
+  // TRẠI TIẾP TẾ 0,8 — dưới cả nhà ở, và con số nhỏ này là một quyết định chứ không
+  // phải một chỗ điền cho đủ. Nó PHẢI có mặt: bốn loại công trình của Phase 3.6 bị
+  // bỏ quên ở đúng bảng này từng xoá sạch biên giới của cả bộ lạc (undefined -> NaN),
+  // và trại là loại công trình duy nhất trong game mọc lên GIỮA ĐẤT ĐỊCH — tức là
+  // đúng chỗ mà một ô NaN gây thiệt hại lớn nhất.
+  //
+  // Nhưng phải NHỎ, vì lãnh thổ nay là một luật chơi chứ không còn là trang trí
+  // (xem CONFIG.SUPPLY): cho cái lều 1.200 tick một trọng số ngang nhà ở thì nó tự
+  // kéo biên giới sang, đạo quân đứng trong vùng đó thành "ở nhà", và cả cơ chế
+  // quân lương tự tắt bằng chính công cụ sinh ra để chữa nó. 0,8 đủ để đường biên
+  // hơi phồng lên quanh trại — một dấu hiệu đọc được — mà không lật được chủ quyền
+  // của một ô nào đang có nhà cửa đứng gần.
+  camp: 0.8
 };
 // Mặc định cho loại chưa có trong bảng. Bảng này thuần HIỂN THỊ, nên một trọng số
 // hơi sai vẫn tốt hơn vô hạn lần so với một bản đồ không còn biên giới; thêm loại

@@ -77,7 +77,137 @@ const POLICY_SPEC = {
   // thông (dân đi làm nhanh hơn), nhưng ô lưới nào bị rừng/đá chiếm là mất luôn
   // — bộ lạc quy hoạch chặt mọc chậm hơn hẳn ở địa hình xấu, trong khi kẻ mọc
   // như nấm nhét được nhà vào mọi kẽ hở.
-  cityPlan:      { range: [0.15, 0.85], bounds: [0, 1] }
+  cityPlan:      { range: [0.15, 0.85], bounds: [0, 1] },
+
+  // ============================================================
+  // BỐN GEN CỦA PHASE 3.28 — mỗi gen trả lời MỘT cơ chế mới của cùng bản này
+  // ============================================================
+  // Luật tự đặt ra từ Phase 3.6 và nhắc lại ba lần trong tribeBrain — "đừng thêm
+  // gen thứ mười sáu, hãy cho gen cũ thêm việc" — vẫn đúng, và bốn gen dưới đây
+  // không vi phạm nó: chúng không chia lại một quyết định đã có chủ, chúng nhận
+  // bốn quyết định VỪA MỚI TỒN TẠI. Trước bản này không có gì để chọn về số lò
+  // quân (xây cái thứ hai không nhanh thêm một tick nào), về cấp đường (đường chỉ
+  // có một cấp), về đất chiếm được (không làm gì được với nó), và về anh hùng
+  // (ai có trại lính là có tướng). Bốn cơ chế mới, bốn ngã ba mới.
+  //
+  // Điều kiện để một gen được vào bảng này vẫn không đổi: phải có ĐÁNH ĐỔI mà
+  // KHÔNG con số nào trong code phán được bên nào đúng. Nếu tồn tại một giá trị
+  // luôn tốt hơn, chọn lọc sẽ đẩy nó lên trần trong hai kỷ nguyên rồi đứng im, và
+  // đường trôi của nó trên biểu đồ chẳng nói lên điều gì.
+
+  // SỐ LÒ QUÂN. Nhân vào số trại lính / xưởng thợ / chuồng ngựa mà bộ lạc muốn có
+  // (xem khối `forgeScale` trong tribeBrain). Từ bản này mỗi công trình là một cái
+  // lò chạy song song, nên đây là cái van duy nhất điều khiển TỐC ĐỘ RA QUÂN —
+  // tách hẳn khỏi `militaryRatio`, vốn chỉ nói quân đội nên TO tới đâu.
+  //
+  // Đánh đổi thật, và nó nằm ở chỗ dễ bỏ sót: 140 gỗ một trại lính là bốn căn nhà
+  // ở, tức là 20-68 suất dân số tuỳ thời đại. Bộ lạc `garrison` cao hồi quân sau
+  // một trận thua trong vài trăm tick thay vì vài nghìn, nhưng trần dân số của nó
+  // thấp hơn — nên đạo quân nó hồi nhanh lại là một đạo quân NHỎ HƠN. Bộ lạc
+  // `garrison` thấp nuôi được đạo quân to nhất bản đồ và mất nó vĩnh viễn trong
+  // một buổi chiều. Giá trị tốt nhất phụ thuộc vào việc bản đồ này có bao nhiêu
+  // trận đánh — thứ do ba bộ lạc kia quyết định.
+  garrison:      { range: [0.5, 1.5], bounds: [0.2, 2.6] },
+
+  // ƯU TIÊN ĐƯỜNG CÁI. Quyết định bao nhiêu phần ngân sách ĐÁ chảy vào mặt đường:
+  // trần số ô được lát, nhịp lát, và mức đá giữ lại trước khi động thổ.
+  //
+  // Đá là tài nguyên duy nhất trong game bị ba thứ cùng đòi và cả ba đều gấp:
+  // tháp canh (điều kiện lên đời từ bậc 3), Kỳ quan (đường thắng thứ hai), và
+  // đường cái. Từ Phase 3.25 nó lại còn HỮU HẠN — mỏ cạn thì biến mất. Nên gen
+  // này không mua tốc độ, nó mua tốc độ BẰNG CÁCH hoãn một trong hai thứ kia.
+  //
+  // Vì sao đây là đánh đổi chứ không phải một thang bậc: đường cái trả lời bằng
+  // NĂNG SUẤT DÀN ĐỀU (mọi chuyến gánh, mọi đợt hành quân, suốt phần đời còn lại
+  // của bộ lạc), còn tháp và Kỳ quan trả lời bằng những cú NHẢY RỜI RẠC. Một nền
+  // kinh tế nhanh hơn 15% suốt 8.000 tick và một cái cổng thời đại mở sớm 2.000
+  // tick là hai thứ không quy đổi được cho nhau — và cái nào lời hơn phụ thuộc
+  // vào bản đồ này rộng bao nhiêu và mỏ nằm ở đâu.
+  roadDrive:     { range: [0.15, 0.8], bounds: [0, 1] },
+
+  // DÁM LẬP ĐÔ TRÊN ĐẤT VỪA CHIẾM. Xem CONFIG.COLONY.
+  //
+  // Đánh đổi thuần TÌNH HUỐNG — họ hàng gần nhất của `greed` bên bộ gen anh hùng,
+  // và cùng lý do: không có con số nào trong code nói nó tốt hay xấu. Một kinh đô
+  // tiền tuyến kéo biên giới sang đất địch, rút ngắn quãng gánh của cả một vùng
+  // mỏ mới, và nâng trần dân số — nhưng nó đứng một mình giữa nơi vừa đánh nhau
+  // xong, cách quân nhà nửa bản đồ, và nó là toà nhà đắt nhất mà bộ lạc có thể
+  // đặt móng đúng vào lúc kho vừa cạn vì chiến tranh.
+  //
+  // Bộ lạc `colonize` cao mà `garrison` thấp là một đế chế trải dài không giữ nổi
+  // hai đầu; cao cả hai là một cỗ máy chinh phạt thật. Đó là loại tương tác GIỮA
+  // hai gen mà bộ gen này còn thiếu.
+  colonize:      { range: [0.15, 0.75], bounds: [0, 1] },
+
+  // ĐẦU TƯ VÀO ANH HÙNG. Có dựng Tướng phủ không, và chiêu mộ người kế nhiệm sốt
+  // sắng tới đâu sau khi tướng cũ ngã xuống.
+  //
+  // Gen này có một tính chất mà không gen nào khác trong bảng có: nó điều khiển
+  // TỐC ĐỘ QUAY của vòng tiến hoá thứ hai. Anh hùng là đơn vị duy nhất mang gen
+  // cá thể, và một đời anh hùng là một thế hệ của vòng đó. Bộ lạc `heroDrive` cao
+  // chạy vòng lặp ấy nhanh hơn — nhiều đời hơn, chọn lọc gắt hơn, nhưng mỗi đời
+  // là 130 lương + 60 vàng cộng với cái Tướng phủ, tiền lẽ ra thành quân.
+  //
+  // Đánh đổi thật vì anh hùng KHÔNG phải một khoản đầu tư luôn lời: hào quang chỉ
+  // huy chỉ đáng tiền khi có quân đứng quanh, mà bộ lạc dồn tiền cho tướng thì
+  // đúng là bộ lạc có ít quân nhất. Ở đầu kia, `heroDrive` gần 0 nghĩa là cả tầng
+  // tiến hoá thứ hai không tồn tại với bộ lạc đó — và nếu đó là bộ lạc thắng kỷ
+  // nguyên, gen ấy được nhân bản, và cả biểu đồ dòng dõi tắt dần. Đó là một kết
+  // cục hợp lệ và đáng xem, không phải một lỗi cần chặn.
+  heroDrive:     { range: [0.2, 0.8], bounds: [0, 1] },
+
+  // ============================================================
+  // PHÒNG THỦ (Phase 3.30) — bao nhiêu phần nền văn minh đổ vào ĐÁ và vào
+  // những thứ đứng yên
+  // ============================================================
+  // Gen này ra đời cùng lúc với hai thay đổi làm nó có nghĩa: tường thành to gấp
+  // đôi và TỰ SỬA BẰNG ĐÁ (CONFIG.WALL.REGEN_STONE). Trước đó "thích phòng thủ"
+  // không phải một chiến lược, nó chỉ là `towerTarget` — một con số đếm nhà.
+  //
+  // Nó điều khiển đúng ba thứ, và cả ba đều đi qua ĐÁ:
+  //   · trọng số nghề đập đá trong pickJob, và mức đá bộ lạc coi là "đủ";
+  //   · số tháp canh muốn có, cộng thêm vào `towerTarget`;
+  //   · nhịp gia cố — bộ lạc `fortify` cao chịu xây chồng tháp sớm hơn.
+  //
+  // ĐÁNH ĐỔI THẬT, và nó gắt hơn mọi gen kinh tế khác vì đá là tài nguyên HỮU HẠN
+  // (Phase 3.25): mỗi người thợ đứng ở mỏ đá là một người không hái lương, không
+  // đốn gỗ, không đãi vàng — mà lương là quân, gỗ là nhà, vàng là cổng thời đại.
+  // Bộ lạc `fortify` cao đứng sau một vành thành dày trong một thành phố nhỏ, lên
+  // đời chậm, và tới trận đánh quyết định với đạo quân bé nhất bản đồ. Bộ lạc
+  // `fortify` thấp có quân đông nhất và một vành thành mà chỉ cần thủng một lần
+  // là không bao giờ vá lại nổi.
+  //
+  // Cái nó KHÔNG làm, có chủ ý: nó không đụng tới `aggression`. Một bộ lạc vừa
+  // hiếu chiến vừa cố thủ là một tổ hợp hợp lệ và đáng xem (đánh xong rút về sau
+  // tường), và ép hai gen thành hai đầu của một trục là xoá mất tổ hợp đó.
+  fortify:       { range: [0.15, 0.7], bounds: [0, 1] },
+
+  // ============================================================
+  // VIỄN CHINH (Phase 3.33) — gen thứ hai mươi hai, và nó nhận một quyết định
+  // VỪA MỚI TỒN TẠI
+  // ============================================================
+  // Luật "đừng thêm gen thứ mười sáu, hãy cho gen cũ thêm việc" vẫn đứng, và gen
+  // này không vi phạm nó — vì trước bản này KHÔNG CÓ GÌ để chọn về chuyện hành quân
+  // xa. Một đạo quân đi mười ô và một đạo quân đi hai trăm ô là hai đạo quân giống
+  // hệt nhau lúc chạm trán (xem CONFIG.SUPPLY). Quân lương vừa tạo ra ngã ba ấy.
+  //
+  // Nó điều khiển đúng ba thứ, và cả ba đều đi qua LƯƠNG THỰC:
+  //   · trần quân lương mỗi người lính mang ra khỏi cổng (70..130 — xem unitMaxSupply);
+  //   · số ĐỘI HẬU CẦN muốn nuôi, và mức sốt sắng dựng trại tiếp tế;
+  //   · mức lương DỰ TRỮ mà bộ lạc từ chối tiêu (xem `reserve` trong tribeBrain).
+  //
+  // ĐÁNH ĐỔI THẬT, và nó nằm ở vế thứ ba — vế dễ bỏ sót nhất. Hai vế đầu trông như
+  // toàn mặt lợi, nhưng lương thực giữ trong kho là lương thực KHÔNG thành lính:
+  // `reserve` là ngưỡng mà cả thang tuyển quân lẫn lệnh lên đời đều phải vượt qua.
+  // Bộ lạc viễn chinh cao đánh được tới góc xa nhất bản đồ với một đạo quân NHỎ HƠN
+  // và lên đời CHẬM HƠN; bộ lạc viễn chinh thấp nuôi đạo quân to nhất bản đồ và mất
+  // một nửa sức đánh của nó ngay khi bước qua đường biên.
+  //
+  // Cái nào lời hơn KHÔNG có trong code: nó phụ thuộc kinh đô địch nằm cách bao xa
+  // trên bản đồ này, và ba bộ lạc kia có định đến tận nhà mình hay không. Đúng cùng
+  // họ với `rangedRatio` và `discipline` — tiến hoá trong một môi trường tự nó cũng
+  // đang tiến hoá.
+  expedition:    { range: [0.15, 0.75], bounds: [0, 1] }
 };
 
 function randomPolicy() {

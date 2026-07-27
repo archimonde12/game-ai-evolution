@@ -20,7 +20,19 @@ const MONSTER_DROPS = {
   wisp:   ['banner', 'relic', 'sword'],
   troll:  ['relic', 'armor', 'banner'],
   wyvern: ['relic', 'sword', 'boots'],
-  lord:   ['relic']
+  lord:   ['relic'],
+  // Năm loài của 3.22. Bảng rơi đồ bám theo ĐỘNG TỪ của loài chứ không rải đều:
+  // thứ chạy nhanh rơi giày, thứ dày da rơi giáp, thứ phép thuật rơi cờ/thánh vật.
+  // Quên một khoá ở đây là `table[...]` đọc trên `undefined` và cả mô phỏng dừng
+  // ngay lần đầu loài đó chết — cùng họ với lỗi bảng threat rời đã bỏ ở 3.7.
+  slime:    ['boots', 'boots', 'sword'],
+  burrower: ['sword', 'boots', 'armor'],
+  serpent:  ['boots', 'sword', 'relic'],
+  shaman:   ['banner', 'banner', 'relic'],
+  ent:      ['armor', 'armor', 'relic'],
+  // Thiên Ma rơi Thánh vật (drop 1,0). Phần thưởng THẬT của nó là kho báu trong
+  // onWorldBossSlain — món đồ này chỉ là phần cho riêng anh hùng nào đứng đó.
+  worldboss: ['relic']
 };
 
 // Mức nguy hiểm giờ nằm trong chính bảng TYPES (`spec.threat`) thay vì một bảng
@@ -61,6 +73,51 @@ function spawnLairs(spots) {
       raidTimer: Math.floor(randRange(0, 900)),   // lệch pha để 9 hang không cùng cướp một lúc
       raidsSent: 0, lordDeadAt: -99999, killCount: 0, lastFeedTick: 0
     });
+  }
+  // SÂN HANG — chặt trụi cây quanh mỗi ổ. Xem CONFIG.MONSTER.LAIR_CLEAR_R.
+  //
+  // THỨ TỰ là cả nội dung của ba dòng này, đúng cùng bài học đã trả giá hai lần ở
+  // carveForestLanes và ở chính spawnLairLodes ngay dưới đây: dọn cây NGAY SAU mỗi
+  // lần đặt hang thì cái hang đặt sau vẫn nằm giữa rừng của nó, còn dọn ở đây —
+  // sau khi cả 16 hang đã có chỗ — thì mọi cái sân đều là sân thật.
+  //
+  // Và phải đứng TRƯỚC spawnLairLodes: `addResource` từ chối ô đã có chủ, nên một
+  // gốc cây còn nằm đó sẽ lặng lẽ ăn mất một ô quặng của vỉa canh hang.
+  for (const l of lairs) clearTrees(l.x, l.y, CONFIG.MONSTER.LAIR_CLEAR_R);
+  spawnLairLodes();
+}
+
+// MỎ CANH HANG — vàng và đá mọc quanh mỗi ổ quái. Xem CONFIG.MONSTER.LODE.
+//
+// Chạy SAU khi đã đặt xong toàn bộ hang, cùng lý do với carveForestLanes: nếu rải
+// mỏ ngay sau mỗi hang thì cái hang đặt sau có thể rơi trúng mỏ của hang trước và
+// hai ổ dùng chung một vỉa — mà cả cơ chế này dựa trên "mỗi ổ canh phần của nó".
+//
+// Bảo đảm TỐI THIỂU một mỏ mỗi loại: bốc `[min, max]` chứ không bốc xác suất, vì
+// "thường thì có" đúng là thứ đã hỏng ở bộ khởi đầu tài nguyên (đo ra 13/100 bộ
+// lạc trắng tay đá). Một cơ chế mà người xem phải may mới thấy thì với phần lớn
+// ván chơi nó không tồn tại.
+function spawnLairLodes() {
+  const L = CONFIG.MONSTER.LODE;
+  if (!L) return;
+  for (const lair of lairs) {
+    for (const [type, range] of [['gold', L.GOLD], ['stone', L.STONE]]) {
+      const n = range[0] + Math.floor(Math.random() * (range[1] - range[0] + 1));
+      let placed = 0;
+      // `tries` chứ không phải `n` vòng: một vỉa rơi trúng chỗ đã có mỏ khác (hoặc
+      // bị biên bản đồ kẹp ra ngoài) thì `scatterResourceCluster` đặt được 0 ô và
+      // cái hang đó lặng lẽ không có quặng. Đo bản không có vòng thử lại: 1/128
+      // hang trắng đá — nhỏ, nhưng "ít nhất một mỏ mỗi loại" là một LỜI HỨA, và
+      // một lời hứa đúng 99,2% số lần thì nó là một xác suất, không phải lời hứa.
+      // Cùng bài học đã trả giá ở bộ khởi đầu tài nguyên (13/100 bộ lạc trắng đá).
+      for (let tries = 0; tries < 24 && (placed === 0 || tries < n); tries++) {
+        const a = Math.random() * Math.PI * 2;
+        const r = L.RING[0] + Math.random() * (L.RING[1] - L.RING[0]);
+        const x = clamp(Math.round(lair.x + Math.cos(a) * r), 4, CONFIG.GRID_WIDTH - 5);
+        const y = clamp(Math.round(lair.y + Math.sin(a) * r), 4, CONFIG.GRID_HEIGHT - 5);
+        placed += scatterResourceCluster(type, x, y, L.RICH, L.RADIUS_MULT);
+      }
+    }
   }
 }
 
@@ -145,12 +202,88 @@ function spawnMonster(lair, forceKey) {
     // này, nên để chúng ở cá thể thì hai đường sinh quái dùng chung một luật.
     fly: !!spec.fly, range: spec.range || 0, minRange: spec.minRange || 0,
     splash: spec.splash || 0, venom: spec.venom || null, aura: spec.aura || null,
+    // --- Phase 3.22 --- năm động từ mới, cùng một luật sao-chép-xuống-cá-thể như
+    // sáu trường trên: đường đi nóng đọc `u.xxx`, không tra `spec` lại mỗi tick.
+    split: spec.split || null, splitGen: 0,
+    ambush: spec.ambush || null, buried: !!spec.ambush, burstUntil: 0, rehideAt: 0,
+    slow: spec.slow || null, heal: spec.heal || null, siege: spec.siege || 0,
     raidTribe: -1, raidUntil: 0,
     rx: 0, ry: 0, flash: 0
   };
   u.rx = u.x; u.ry = u.y;
   units.push(u);
   return u;
+}
+
+// PHÂN ĐÔI — gọi từ onMonsterDeath, tức là sau khi máu đã về 0 nhưng TRƯỚC lượt
+// lọc xác ở cuối simulationTick. Con mới được đẩy thẳng vào `units` trong lúc
+// vòng for-of đang chạy trên chính mảng đó; chúng có hp > 0 nên vòng lặp gặp lại
+// là bỏ qua ngay, và `units.filter` ngay sau đó giữ chúng lại. An toàn, nhưng chỉ
+// vì cả hai điều kiện ấy cùng đúng — đổi thứ tự hai khối kia là mất con.
+//
+// splitGen chặn ở đời 1. Không có nó thì mỗi con là một cây nhị phân vô hạn: một
+// con Nhớt sinh 2, hai con sinh 4... trần quân số của hang KHÔNG chặn được vì
+// tickLair chỉ đếm khi ĐỊNH nhả con mới, còn phân đôi thì không đi qua cửa đó.
+function splitMonster(u, spec) {
+  const S = spec.split;
+  for (let i = 0; i < S.count; i++) {
+    const c = spawnMonster({ id: -1, x: u.x, y: u.y, tier: 1, spawnedTotal: 0 }, u.mType);
+    c.lairId = u.lairId; c.lairX = u.lairX; c.lairY = u.lairY; c.roam = u.roam;
+    c.splitGen = u.splitGen + 1;
+    c.split = null;                       // đời con KHÔNG tách nữa
+    // Nhân từ chỉ số THẬT CỦA CHA, không từ bảng gốc. spawnMonster vừa dựng con
+    // này bằng một cái hang giả cấp 1 (statMult 1,0), nên nếu lấy chỉ số nó tự
+    // tính thì một con Nhớt của Tổ Quỷ sẽ đẻ ra hai con yếu hơn đáng lẽ 35% —
+    // sai lặng lẽ, và chỉ lộ ra ở đúng cái hang hiếm gặp nhất bản đồ.
+    c.maxHp = Math.max(1, Math.round(u.maxHp * S.scale));
+    c.hp = c.maxHp;
+    c.attack = u.attack * (S.scale + 0.25);   // nhỏ đi thì yếu đi, nhưng không tỉ lệ thẳng
+    c.threat = u.threat * S.scale;
+    c.scale = S.scale;                    // hình vẽ đọc lại đúng con số này
+    // Toả ra hai bên chứ không chồng lên nhau: hai con sinh ra ở đúng một ô thì
+    // mắt đọc thành MỘT con, và cả cơ chế phân đôi trở nên vô hình.
+    const a = (i / S.count) * Math.PI * 2 + u.id;
+    c.x = clamp(u.x + Math.round(Math.cos(a) * 2), 0, CONFIG.GRID_WIDTH - 1);
+    c.y = clamp(u.y + Math.round(Math.sin(a) * 2), 0, CONFIG.GRID_HEIGHT - 1);
+    c.rx = c.x; c.ry = c.y;
+    // Thừa hưởng nhiệm vụ đang dở. Một con Nhớt đang đi cướp mà chết giữa làng
+    // người ta, hai con nhỏ lại quay đầu về hang thì cơ chế đọc ra là "nó biến
+    // mất", không phải "nó nhân đôi".
+    c.assault = u.assault; c.raidTribe = u.raidTribe; c.raidUntil = u.raidUntil;
+  }
+  addFx({ type: 'boom', x: u.x, y: u.y, life: 16, maxLife: 16, r: 1.6 });
+}
+
+// HỒI MÁU quanh Thầy Mo. Khuôn y hệt applyLordAura (quét bucket, lệch pha theo
+// id) và cùng lý do không gộp chung: thân hàm khác nhau đúng một dòng, nhưng đó
+// là dòng nằm trong vòng lặp trên từng phần tử của từng bucket.
+//
+// KHÔNG hồi cho chính nó. Nếu tự hồi thì một Thầy Mo đứng một mình gần như bất
+// tử trước cung thủ (2,4 máu mỗi 10 tick so với 6 sát thương mỗi 15 tick), và
+// "vá máu cho đồng đội" biến thành "một con quái tự hồi máu" — mất hẳn cái quyết
+// định thứ tự mục tiêu vốn là toàn bộ lý do loài này tồn tại.
+function applyMonsterHeal(u) {
+  const R = u.heal.r;
+  const B = CONFIG.BUCKET_SIZE;
+  const x0 = Math.floor((u.x - R) / B), x1 = Math.floor((u.x + R) / B);
+  const y0 = Math.floor((u.y - R) / B), y1 = Math.floor((u.y + R) / B);
+  let healed = 0;
+  for (let ix = x0; ix <= x1; ix++) {
+    for (let iy = y0; iy <= y1; iy++) {
+      const arr = unitBuckets.get(ix + ',' + iy);
+      if (!arr) continue;
+      for (const o of arr) {
+        if (o === u || o.type !== 'monster' || o.hp <= 0 || o.hp >= o.maxHp) continue;
+        if (dist(o.x, o.y, u.x, u.y) > R) continue;
+        o.hp = Math.min(o.maxHp, o.hp + u.heal.amount);
+        o.healedAt = tick;               // hình vẽ đọc con số này để nháy quầng xanh
+        healed++;
+      }
+    }
+  }
+  // Chỉ báo hiệu khi THẬT SỰ vá được ai đó. Một Thầy Mo đứng một mình mà vẫn phát
+  // sáng đều đặn thì người xem học sai luật: họ sẽ tưởng đó là hào quang buff.
+  if (healed) u.chantAt = tick;
 }
 
 function tickLair(lair) {
@@ -287,12 +420,71 @@ function applyLordAura(u) {
   }
 }
 
+// SĂN NGƯỜI SỐNG SÓT — bậc CUỐI của thang mục tiêu, và bậc duy nhất không hỏi
+// "công trình nào".
+//
+// Đo được (thủ thành, seed 7, tick 20.000): ba bộ lạc diệt vong, bộ lạc thứ tư
+// còn đúng một người dân và KHÔNG còn một toà nhà nào. Kết quả: 391 con quái còn
+// sống, **0 con có mục tiêu**, `waveTargetTribe = -1`, và kỷ nguyên chạy tới hết
+// giờ. Người xem nhìn ra màn hình thấy đúng một câu: "quái vật không tấn công
+// được". Nguyên nhân không nằm ở đường đi mà nằm ở CÂU HỎI: mọi bậc trong thang
+// mục tiêu của quái đều hỏi "công trình nào gần nhất", nên khi bản đồ không còn
+// công trình nào thì cả thang trả lời null và 391 con quái không có việc gì làm.
+//
+// Đây đúng họ lỗi "một cơ chế viết đúng nhưng không bao giờ chạy" đọc theo chiều
+// ngược: cơ chế chạy đúng, nhưng nó không có bậc nào cho một trạng thái mà ván
+// chơi hoàn toàn có thể rơi vào.
+//
+// Quét tuyến tính `units` chứ không dùng findNearestEnemyUnit: hàm đó đi theo ô
+// lưới không gian, và với tầm 9999 thì vòng lặp ô của nó duyệt hàng trăm nghìn ô
+// rỗng — đắt hơn hẳn một lượt quét 400 phần tử. Nhớ mục tiêu và chỉ dò lại mỗi 24
+// tick, lệch pha theo id.
+function huntSurvivors(u) {
+  if (!u.huntTarget || u.huntTarget.hp <= 0 || (tick + u.id) % 24 === 0) {
+    let best = null, bestD = Infinity;
+    for (const o of units) {
+      if (o.tribeId < 0 || o.hp <= 0) continue;
+      const d = dist(u.x, u.y, o.x, o.y);
+      if (d < bestD) { bestD = d; best = o; }
+    }
+    u.huntTarget = best;
+  }
+  const h = u.huntTarget;
+  if (!h) return null;
+  if (cheb(u.x, u.y, h.x, h.y) <= (u.range > 0 ? u.range : 1)) return h;
+  if (u.speed > 0) moveToward(u, h.x, h.y);
+  return null;
+}
+
 function tickMonster(u) {
   if (u.cooldown > 0) u.cooldown--;
+  // Quái đục tường bằng ĐÚNG hệ số phá nhà của chúng (MONSTER.BUILD_DMG, không bị
+  // BUILD_PENALTY của bộ binh) — xem dealDamage. Đó là chỗ tường thành trả lời
+  // được câu hỏi của chế độ thủ thành: một đợt sóng không còn tràn thẳng vào giữa
+  // làng nữa, nó phải dừng lại ở vành ngoài và ăn đạn tháp canh trong lúc đục.
+  bashWall(u);
   u.speedCredit += u.speedMult;
   u.speed = Math.floor(u.speedCredit);
   u.speedCredit -= u.speed;
+  // Quái cũng dính nọc Mãng Xà: nó cắn theo phe, mà quái thì cùng phe với nhau,
+  // nên trên thực tế dòng này gần như không bao giờ chạy. Vẫn để, vì thần lực của
+  // người chơi và các đường sát thương khác đều có thể gắn `slowUntil` lên bất kỳ
+  // ai — một trạng thái chỉ đúng cho một nửa số đơn vị là một cái bẫy để dành.
+  u.speed = slowedSpeed(u, u.speed);
   if (u.aura && (tick + u.id) % 4 === 0) applyLordAura(u);
+  if (u.heal && (tick + u.id) % u.heal.every === 0) applyMonsterHeal(u);
+
+  // PHỤC KÍCH — nằm im dưới đất. Đặt TRƯỚC cả dây xích về hang: một con đang vùi
+  // thì không di chuyển, không tìm mục tiêu, và không tồn tại với mắt ai cả.
+  if (u.ambush && u.buried) {
+    const prey = findNearestEnemyUnit(u.x, u.y, -1, u.ambush.r);
+    if (!prey) return;
+    u.buried = false;
+    u.burstUntil = tick + 12;                 // đòn đầu tiên trong quãng này được nhân
+    u.rehideAt = tick + u.ambush.rehide;
+    u.combatTarget = prey;
+    addFx({ type: 'boom', x: u.x, y: u.y, life: 14, maxLife: 14, r: 1.4 });
+  }
 
   // Chuyến đi cướp hết hạn: bỏ cờ assault, dây xích về hang có hiệu lực lại ngay
   // ở nhánh dưới và chúng tự lê xác về. Không cho hết hạn thì mọi con quái từng
@@ -355,13 +547,20 @@ function tickMonster(u) {
         if (b) {
           if (cheb(u.x, u.y, b.x, b.y) <= b.size + Math.max(0, u.range - 1)) target = b;
           else if (u.speed > 0) { moveToward(u, b.x, b.y); u.combatTarget = null; return; }
+        } else {
+          target = huntSurvivors(u);
+          if (!target) { u.combatTarget = null; return; }
         }
       } else if (!field) {
         // Trường chưa kịp tính (bộ lạc mới, hoặc vừa mất sạch nhà): đi tham lam.
         const b = findNearestBuildingInRange(u.x, u.y, 9999);
-        if (b && u.speed > 0) moveToward(u, b.x, b.y);
-        u.combatTarget = null;
-        return;
+        if (b) {
+          if (u.speed > 0) moveToward(u, b.x, b.y);
+          u.combatTarget = null;
+          return;
+        }
+        target = huntSurvivors(u);
+        if (!target) { u.combatTarget = null; return; }
       } else {
       const fv = field[u.y * W + u.x];
       if (fv > 2) {
@@ -392,6 +591,7 @@ function tickMonster(u) {
         // lam về phía công trình gần nhất còn hơn đứng im tới hết kỷ nguyên.
         const b = findNearestBuildingInRange(u.x, u.y, 9999);
         if (b && u.speed > 0) moveToward(u, b.x, b.y);
+        else if (!b) target = huntSurvivors(u);
       }
       }
     }
@@ -404,6 +604,14 @@ function tickMonster(u) {
   u.combatTarget = target;
 
   if (!target) {
+    // VÙI LẠI. Không có nhánh này thì phục kích là một cơ chế dùng ĐÚNG MỘT LẦN
+    // trong cả đời con quái: trồi lên, đánh xong, rồi đứng phơi giữa đồng như một
+    // con sói chậm. Cơ chế chỉ tồn tại nếu nó lặp lại được.
+    if (u.ambush && !u.buried && tick > u.rehideAt) {
+      u.buried = true;
+      addFx({ type: 'spark', x: u.x, y: u.y, life: 10, maxLife: 10, color: '#c98f4a' });
+      return;
+    }
     if (assault) return;   // đã lo phần di chuyển ở nhánh trên
     // Lảng vảng quanh hang cho có sức sống, không đứng như tượng.
     if (u.speed > 0 && (tick + u.id) % 40 < 12) {
@@ -423,8 +631,15 @@ function tickMonster(u) {
     u.stuck = 0;
     if (u.range > 0 && !isBuilding && d < u.minRange && u.speed > 0) moveAwayFrom(u, target.x, target.y);
     if (u.cooldown === 0) {
+      // ĐÒN PHỤC KÍCH — nhân đúng MỘT lần rồi đóng cửa ngay tại đây, không đợi
+      // đồng hồ `burstUntil` hết hạn. Nếu chỉ dựa vào đồng hồ thì một con Rết Cát
+      // đánh nhanh (cd 14) vẫn kịp hai đòn nhân trong 12 tick ở vài nhịp tốc độ,
+      // và "cú đầu tiên" âm thầm thành "cú đầu tiên hoặc hai".
+      const burst = u.burstUntil > tick;
+      if (burst) u.burstUntil = 0;
+      const opts = burst ? { mult: u.ambush.mult } : undefined;
       if (u.range > 0) rangedStrike(u, target, isBuilding);
-      else dealDamage(u, target, isBuilding);
+      else dealDamage(u, target, isBuilding, opts);
       // Nọc độc bám vào NGƯỜI, không bám vào tường. Áp sau đòn đánh chứ không
       // trong dealDamage: dealDamage là cửa chung của cả bốn phe, nhét trạng thái
       // riêng của một loài quái vào đó thì mọi cú đánh trong game phải trả tiền
@@ -432,6 +647,11 @@ function tickMonster(u) {
       if (u.venom && !isBuilding && target.hp > 0) {
         target.venomUntil = tick + u.venom.ticks;
         target.venomDps = u.venom.dps;
+      }
+      // LÀM CHẬM — cùng chỗ, cùng lý do, cùng luật "không bám vào tường".
+      if (u.slow && !isBuilding && target.hp > 0) {
+        target.slowUntil = tick + u.slow.ticks;
+        target.slowMult = u.slow.mult;
       }
       u.cooldown = u.cd;
     }
@@ -463,6 +683,18 @@ function dropItem(x, y, key, lv) {
 
 function onMonsterDeath(u) {
   const spec = CONFIG.MONSTER.TYPES[u.mType];
+  // PHÂN ĐÔI đọc `u.split` (bản sao trên cá thể) chứ không đọc `spec.split`: đời
+  // con được gán `split = null` để chặn tách vô hạn, mà bảng spec thì cả cha lẫn
+  // con dùng chung — tra vào đó là mọi đời đều tách được.
+  if (u.split) splitMonster(u, spec);
+  // THIÊN MA. Trao kho báu ở ĐÂY chứ không ở nhánh `hp <= 0` của dealDamage, và
+  // bản đầu đã làm ngược lại rồi phải sửa vì một phép đo: 3 ván thả boss thì 2 ván
+  // nó chết mà KHÔNG ai nhận được gì. Lý do là dealDamage KHÔNG phải cửa duy nhất
+  // mà mọi cái chết đi qua — tickDefender (tháp canh) trừ thẳng vào máu, và một
+  // con quái hành quân tới tận kinh đô thì kẻ ra đòn cuối rất thường là cái tháp.
+  // onMonsterDeath thì đúng là cửa duy nhất, và nó chỉ chạy MỘT lần mỗi cái chết
+  // (lượt lọc xác cuối tick) nên cũng không cần cờ chống trao hai lần.
+  if (u.worldBoss) onWorldBossSlain(u, u.lastHitTribe);
   if (spec.boss) {
     // Đồng hồ hồi sinh đếm từ lúc trùm CHẾT, ghi lên chính cái hang. Nếu để hang
     // tự dò "có trùm chưa" mà không có đồng hồ thì tick ngay sau cái chết nó gọi
@@ -475,7 +707,14 @@ function onMonsterDeath(u) {
   }
   if (Math.random() > spec.drop) return;
   const table = MONSTER_DROPS[u.mType];
-  dropItem(u.x, u.y, table[Math.floor(Math.random() * table.length)]);
+  // THIÊN MA rơi Thánh vật ở CẤP CAO NHẤT, không phải cấp 1 như mọi con khác. Đây
+  // là con đường duy nhất trong game tới một món cấp III mà không phải nung bốn món
+  // cấp 1 lại — và nó phải là một con đường riêng, vì hợp nhất đòi anh hùng sống đủ
+  // lâu để nhặt trúng bốn món trùng khoá, thứ mà đo được là gần như không xảy ra
+  // (xem phân bố số món trong hòm ở CONFIG.ITEM). Trước bản này con quái đắt nhất
+  // mà Chúa Tể mua được rơi ra đúng cùng một món với một con sói.
+  dropItem(u.x, u.y, table[Math.floor(Math.random() * table.length)],
+           u.worldBoss ? CONFIG.ITEM.MAX_LEVEL : 1);
 }
 
 function onLairDestroyed(lair, attacker) {
@@ -619,8 +858,15 @@ function findNearestGroundItem(x, y, range) {
 // tập trung đánh, nên không có bộ lạc nào ngồi yên tới hết giờ.
 function pickWaveTarget() {
   const alive = tribes.filter(t => t.alive && buildings.some(b => b.tribeId === t.id && b.done && b.hp > 0));
-  if (!alive.length) return -1;
-  return alive.slice().sort((a, b) => tribeScore(b) - tribeScore(a))[0].id;
+  if (alive.length) return alive.slice().sort((a, b) => tribeScore(b) - tribeScore(a))[0].id;
+  // KHÔNG AI CÒN CÔNG TRÌNH thì nhắm bộ lạc còn NGƯỜI. Bậc này sinh ra từ một ván
+  // đo được: tick 20.000, ba bộ lạc đã diệt vong, bộ lạc thứ tư còn đúng MỘT người
+  // dân và không còn một toà nhà nào — 391 con quái đứng đầy bản đồ với 0 con có
+  // mục tiêu, và kỷ nguyên chạy tới hết giờ. Cả hệ thống sóng chỉ biết hỏi "nhà ai
+  // đáng đánh nhất", nên khi câu trả lời là "không nhà nào" thì nó trả lời -1 và
+  // mọi thứ phía sau đứng lại. Xem huntSurvivors cho nửa còn lại của bản sửa.
+  const left = tribes.filter(t => t.alive && units.some(u => u.tribeId === t.id && u.hp > 0));
+  return left.length ? left[0].id : -1;
 }
 
 function computeMonsterField() {
@@ -642,18 +888,37 @@ function rollWaveMonsterType(wave) {
   // Cộng dồn theo thứ tự DỮ NHẤT TRƯỚC, và mỗi loài có mốc đợt riêng để bước vào
   // sân. Bảng này là chỗ duy nhất quyết định chế độ Thủ thành có thấy loài mới hay
   // không — bốn loài mới của 3.7 chỉ tồn tại trong chế độ Chinh phạt nếu quên nó.
-  const pLord   = wave >= 10 ? 0.035 : 0;                 // trùm: hiếm, và chỉ ở cuối
-  const pWyvern = clamp((wave - 6) / 14, 0, 0.16);
-  const pTroll  = clamp((wave - 4) / 12, 0, 0.28);
-  const pWisp   = clamp((wave - 2) / 10, 0, 0.18);
-  const pBear   = clamp((wave - 1) / 8, 0, 0.26);
-  const pSpider = 0.18;                                    // có mặt ngay từ đợt 1
+  //
+  // RẾT CÁT cố tình KHÔNG có trong bảng này, và đó là quyết định thiết kế chứ
+  // không phải bỏ sót. Động từ của nó là nằm im chờ người đi qua; một con quái
+  // của sóng thì luôn có đích hành quân, nên nó sẽ không bao giờ vùi lại và cả
+  // loài rút gọn thành "một con bọ đánh mạnh". Tệ hơn: nếu để nó sinh ra ở trạng
+  // thái vùi thì nó đứng nguyên tại điểm tập kết tới hết kỷ nguyên — mỗi con là
+  // một suất của đợt sóng bốc hơi lặng lẽ. Loài không hợp với một chế độ thì để
+  // nó ở ngoài, đừng cắt tiết nó cho vừa.
+  const pLord    = wave >= 10 ? 0.035 : 0;                 // trùm: hiếm, và chỉ ở cuối
+  const pEnt     = clamp((wave - 8) / 16, 0, 0.085);
+  const pWyvern  = clamp((wave - 6) / 14, 0, 0.12);
+  const pTroll   = clamp((wave - 4) / 12, 0, 0.17);
+  const pShaman  = clamp((wave - 3) / 10, 0, 0.085);
+  const pWisp    = clamp((wave - 2) / 10, 0, 0.105);
+  const pSerpent = clamp((wave - 1) / 9,  0, 0.10);
+  const pBear    = clamp((wave - 1) / 8,  0, 0.13);
+  const pSlime   = 0.075;                                  // có mặt ngay từ đợt 1
+  const pSpider  = 0.07;
+  // Tổng ở đợt cao là ~0,975, nên Sói vẫn còn một khe ~2,5%. Cộng dồn quá 1 thì
+  // mọi loài ở CUỐI danh sách lặng lẽ biến mất — bảng cũ (tổng 1,095) đã đúng như
+  // thế, và không có gì trên màn hình nói cho ai biết cả.
   const r = Math.random();
   let acc = pLord;                if (r < acc) return 'lord';
+  acc += pEnt;                    if (r < acc) return 'ent';
   acc += pWyvern;                 if (r < acc) return 'wyvern';
   acc += pTroll;                  if (r < acc) return 'troll';
+  acc += pShaman;                 if (r < acc) return 'shaman';
   acc += pWisp;                   if (r < acc) return 'wisp';
+  acc += pSerpent;                if (r < acc) return 'serpent';
   acc += pBear;                   if (r < acc) return 'bear';
+  acc += pSlime;                  if (r < acc) return 'slime';
   acc += pSpider;                 if (r < acc) return 'spider';
   return 'wolf';
 }
@@ -672,7 +937,13 @@ function rollWaveMonsterType(wave) {
 // con. Người chơi thấy dòng thông báo rồi chẳng thấy gì — đúng như báo lỗi
 // "wave quái không xuất hiện". Sóng phải là một KHỐI thì mới đọc ra là sóng.
 function pickWaveStagingPoints(wave) {
-  const fronts = wave >= 12 ? 3 : wave >= 6 ? 2 : 1;   // càng về sau càng nhiều mũi
+  // Mốc chia mũi kéo sớm lại: 6/12/(không có) -> 4/9/15. Đây là nửa còn lại của
+  // bản sửa "tụ quân giờ đã dễ", và nó khác hẳn về BẢN CHẤT với việc cộng thêm máu:
+  // một đạo quân gom về một chỗ vẫn đỡ được mọi thứ đi tới chỗ đó, dù đông tới đâu.
+  // Chia mũi buộc bên thủ phải CHỌN bỏ hướng nào — mà "phải chọn" mới là thứ làm
+  // nên độ khó. Đo được: qua 18 đợt bên thủ chỉ mất 7 công trình, tức là gần như
+  // không có con quái nào chạm được vào phần kinh tế.
+  const fronts = wave >= 15 ? 4 : wave >= 9 ? 3 : wave >= 4 ? 2 : 1;
   const pts = [];
   for (let k = 0; k < fronts; k++) {
     if (lairs.length) {
@@ -697,10 +968,34 @@ function pickWaveSpawn(index) {
   return { x: Math.floor(W / 2), y: M };
 }
 
+// Số quái của đợt tới. Tách ra khỏi spawnWave vì nó có HAI vế và vế thứ hai đọc
+// trạng thái bên thủ — xem khối PRESSURE trong CONFIG.DEFEND.
+//
+// Người gọi phải chọn `waveTargetTribe` TRƯỚC khi gọi hàm này, và đó không phải
+// một chi tiết sắp xếp: bản cũ chọn mục tiêu ở CUỐI spawnWave, nên đọc thẳng vào
+// đây sẽ lấy quân số của bộ lạc bị đánh ở đợt TRƯỚC — một đợt cân theo sức của
+// người khác. Đúng họ lỗi "ảnh chụp thay cho tham chiếu sống" đã cắn ở camera đạo
+// diễn và ở flow field; lần này bắt được lúc viết chứ không lúc chơi.
+// `stats` có thể còn null trong vài tick đầu kỷ nguyên (bộ não chưa chạy lần nào)
+// — khi ấy sàn bằng 0 và chỉ còn nền tuyến tính, đúng như bản cũ.
+function waveCount(wave) {
+  const D = CONFIG.DEFEND;
+  const base = D.BASE_COUNT + Math.floor(wave * D.COUNT_GROWTH);
+  const t = waveTargetTribe >= 0 ? tribes[waveTargetTribe] : null;
+  const army = t && t.alive && t.stats ? t.stats.soldiers : 0;
+  const P = D.PRESSURE;
+  const rate = Math.min(P.MAX, P.START + wave * P.PER_WAVE);
+  return Math.max(base, Math.round(army * rate));
+}
+
 function spawnWave() {
   const D = CONFIG.DEFEND;
   waveNumber++;
-  const count = D.BASE_COUNT + Math.floor(waveNumber * D.COUNT_GROWTH);
+  // Chọn mục tiêu Ở ĐÂY, trước cả khi biết đợt này đông bao nhiêu — vì chính quân
+  // số của kẻ bị nhắm quyết định con số đó (xem waveCount). Trước bản này dòng
+  // chọn mục tiêu nằm ở cuối hàm, ngay trên computeMonsterField.
+  waveTargetTribe = pickWaveTarget();
+  const count = waveCount(waveNumber);
   const hpMult = 1 + waveNumber * D.HP_GROWTH;
   const atkMult = 1 + waveNumber * D.ATK_GROWTH;
 
@@ -768,6 +1063,15 @@ function spawnWave() {
       carry: { type: null, amount: 0 }, fleeTimer: 0,
       fly: !!spec.fly, range: spec.range || 0, minRange: spec.minRange || 0,
       splash: spec.splash || 0, venom: spec.venom || null, aura: spec.aura || null,
+      // Bốn động từ của 3.22 mà sóng thủ thành CÓ dùng. `ambush` không nằm ở đây
+      // (xem rollWaveMonsterType), và `buried: false` được ghi tường minh chứ
+      // không bỏ trống: đây là bản sao chép tay thứ hai của cùng một cấu trúc đơn
+      // vị, và mọi trường bỏ quên ở một trong hai bản đều là một cơ chế chỉ chạy
+      // ở nửa số chế độ chơi — đúng loại lỗi mà chú thích ngay trên đầu hàm chọn
+      // loài đã phải viết ra để nhắc.
+      split: spec.split || null, splitGen: 0,
+      ambush: null, buried: false, burstUntil: 0, rehideAt: 0,
+      slow: spec.slow || null, heal: spec.heal || null, siege: spec.siege || 0,
       // raidTribe = -1 -> tickMonster hiểu đây là quái của SÓNG và dùng
       // monsterField toàn cục, không phải homeField của một bộ lạc cụ thể.
       raidTribe: -1, raidUntil: 0,
@@ -778,10 +1082,11 @@ function spawnWave() {
     spawned++;
   }
 
-  // Chọn mục tiêu TRƯỚC khi tính trường, để cả đợt vừa sinh ra đã có chung đích.
-  waveTargetTribe = pickWaveTarget();
+  // Trường dẫn đường tính SAU khi đàn đã đứng trên bản đồ, để cả đợt vừa sinh ra
+  // đã có chung đích. Mục tiêu thì đã chốt từ đầu hàm (xem waveCount).
   computeMonsterField();
-  nextWaveTick = tick + CONFIG.DEFEND.WAVE_INTERVAL;
+  // Nhịp rút dần theo số đợt — xem khối INTERVAL_TIGHTEN trong CONFIG.DEFEND.
+  nextWaveTick = tick + Math.max(D.INTERVAL_MIN, D.WAVE_INTERVAL - waveNumber * D.INTERVAL_TIGHTEN);
   const victim = waveTargetTribe >= 0 ? tribes[waveTargetTribe] : null;
   logEvent(victim
     ? `🌊 ĐỢT ${waveNumber} — ${spawned} quái vật tràn vào ${victim.name} từ ${staging.length} hướng!`
@@ -810,15 +1115,30 @@ function tickDefender(b, tribe) {
   const spec = CONFIG.BUILD[b.type];
   if (!spec.range) return;
   if (b.cooldown > 0) { b.cooldown--; return; }
-  const enemy = findNearestEnemyHero(b.x, b.y, b.tribeId, spec.range)
-             || findNearestEnemyUnit(b.x, b.y, b.tribeId, spec.range);
+  // TẦM và SỨC ĐÁNH nhân theo tầng tháp — hai trong ba chỉ số của TOWER_STACK
+  // (cái thứ ba, máu, đã nằm trong buildingMaxHp). Đọc từ `b.level` mỗi lần bắn
+  // chứ không nướng vào toà nhà lúc xây xong, đúng cùng lý do đã viết ở effAttack:
+  // một cái tháp lên tầng giữa lúc đang bắn phải đổi ngay, không đợi xây lại.
+  const stack = b.type === 'tower' ? towerStackMult(b.level) : 1;
+  const range = spec.range * stack;
+  const enemy = findNearestEnemyHero(b.x, b.y, b.tribeId, range)
+             || findNearestEnemyUnit(b.x, b.y, b.tribeId, range);
   if (!enemy) return;
   // Mũi tên của tháp cũng bị GIÁP chặn, y như đòn của quân. Nếu bỏ qua giáp ở
   // đây thì công trình phòng thủ trở thành đường duy nhất trong game không bị luật
   // giáp chi phối — và kỵ sĩ giáp 4, thứ được thiết kế để lao vào chỗ nguy hiểm
   // nhất, sẽ bị chính cái nó khắc chế được đốn hạ y như một người lính trần.
-  const raw = spec.attack * CONFIG.AGE.BONUS[tribe.age].atk;
+  const raw = spec.attack * stack * CONFIG.AGE.BONUS[tribe.age].atk;
   enemy.hp -= Math.max(raw * CONFIG.UNIT.ARMOR_FLOOR, raw - effDefense(enemy));
+  // AI VỪA CHẠM VÀO NÓ. Dòng này tồn tại vì tháp canh là đường sát thương DUY
+  // NHẤT trong game không đi qua `dealDamage` — nó trừ thẳng vào máu ở ngay trên.
+  // Mọi thứ dựa vào "cửa duy nhất mà mọi cái chết đi qua" vì thế đều có một lỗ
+  // đúng ở đây, và kho báu Thiên Ma là thứ đầu tiên rơi vào lỗ đó: đo 3 ván thì
+  // 2 ván con boss chết mà KHÔNG bộ lạc nào nhận được gì, vì kẻ ra đòn cuối là
+  // một cái tháp. Ghi lại người chạm cuối cùng ngay tại đây rẻ hơn nhiều so với
+  // việc bắt tickDefender đi vòng qua dealDamage (nó cố ý không đi vòng: mũi tên
+  // tháp có luật giáp riêng và không có hồi chiêu của đơn vị).
+  enemy.lastHitTribe = b.tribeId;
   b.cooldown = spec.cooldown;
   // Tháp bắn MŨI TÊN bay có thời gian bay, không phải tia sáng tức thời — đây là
   // hiệu ứng dễ đọc nhất trên bản đồ: nhìn hướng tên là biết ai đang thủ ai.

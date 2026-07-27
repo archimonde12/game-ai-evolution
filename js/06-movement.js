@@ -13,6 +13,64 @@
 // ============================================================
 // Di chuyển
 // ============================================================
+// LÀM CHẬM (nọc Mãng Xà, Phase 3.22). Nhận tốc độ CƠ BẢN và trả về tốc độ thật
+// của tick này.
+//
+// Vì sao là một hàm gọi ở bốn chỗ chứ không phải một dòng ở một chỗ: mọi con
+// đường di chuyển trong game đều đọc `u.speed`, nhưng KHÔNG có chỗ nào chung để
+// đặt nó. Dân thường được gán `speed = 1` đúng một lần lúc sinh ra và không bao
+// giờ tính lại; lính, anh hùng và quái thì tính lại mỗi tick từ speedCredit.
+// Thử đặt ở tryStep (cửa duy nhất của bước đi) thì hụt mất stepDownField — hàm
+// hành quân theo flow field dời `u.x` thẳng, không đi qua tryStep — tức là đúng
+// cái đường mà cả một đạo quân dùng để đi xa sẽ miễn nhiễm với nọc rắn.
+//
+// Đơn vị speed 1 không thể "đi nửa ô", nên nó đi một tick nghỉ một tick. Lệch
+// pha theo id để một hàng lính bị cắn không giật cùng nhịp như một cái máy.
+function slowedSpeed(u, base) {
+  if (!(u.slowUntil > tick)) return base;
+  const s = base * (u.slowMult || 0.5);
+  return s >= 1 ? Math.floor(s) : ((tick + u.id) & 1) ? 0 : 1;
+}
+
+// ============================================================
+// TỐC ĐỘ TRÊN ĐƯỜNG CÁI — nhân vào TỐC ĐỘ CƠ BẢN, trước mọi thứ khác
+// ============================================================
+// Nhận tốc độ cơ bản và trả về tốc độ sau khi tính đường. Ba lời gọi (dân, lính,
+// anh hùng) đúng như `slowedSpeed` ngay trên, và cùng một lý do đã viết ở đó: mọi
+// đường đi đều đọc `u.speed` nhưng KHÔNG có chỗ nào chung để đặt nó.
+//
+// THỨ TỰ với nọc rắn là một quyết định, không phải tình cờ: đường NHÂN vào cơ bản
+// rồi nọc mới ăn lên kết quả. Nghĩa là một người lính bị cắn mà đang chạy trên
+// đường cái vẫn nhích được (2 × 0,5 = 1), còn ngoài đường thì đứng hình (1 × 0,5
+// -> nhịp một-tick-đi-một-tick-nghỉ). Đường cái vì thế là một ĐƯỜNG THOÁT khỏi
+// nọc rắn, và đó là một tương tác đáng có giữa hai cơ chế cách nhau năm bản.
+//
+// QUÁI KHÔNG BAO GIỜ ĐI QUA HÀM NÀY — xem tickMonster. Đó là luật, không phải sót:
+// một con đường dẫn về kinh đô mà quái cũng chạy nhanh gấp đôi trên đó thì bộ lạc
+// vừa tự xây một đường ray chở quái tới cửa nhà mình.
+//
+// CẤP ĐƯỜNG đọc theo thời đại của BỘ LẠC CHỦ con đường, không theo bộ lạc đang
+// đi trên nó (Phase 3.28). Hai hệ quả cố ý:
+//   · Đường của địch vẫn cho mình đi nhờ, và đi nhờ ĐÚNG cấp của nó. Xâm lược một
+//     đế chế Thiên Triều nghĩa là được dùng chính ngự đạo của nó để tiến quân —
+//     cái giá của hạ tầng, và là thứ cân lại đúng chỗ mà cấp 3 vừa mạnh lên.
+//   · Cả mạng đường của một bộ lạc lên cấp CÙNG MỘT LÚC, ngay tại tick nó lên
+//     đời. Nếu lưu cấp vào từng ô lúc lát thì bản đồ sẽ đầy những tuyến vá chằng
+//     vá đụp, mà mắt đọc ra "lỗi hiển thị" chứ không đọc ra "lịch sử".
+function roadSpeedMult(tribeId) {
+  const T = CONFIG.ROAD.SPEED_BY_AGE;
+  const t = tribes[tribeId];
+  // Kẹp cả hai đầu: một tribeId lạ (bộ lạc đã bị xoá sổ giữa kỷ nguyên) rơi về
+  // cấp thấp nhất chứ không ra `undefined` — nhân undefined vào tốc độ là NaN, và
+  // một đơn vị có speed NaN thì đứng im vĩnh viễn mà không báo lỗi ở đâu cả.
+  return T[clamp(t ? (t.age || CONFIG.ROAD.MIN_AGE) : CONFIG.ROAD.MIN_AGE, 1, T.length - 1)];
+}
+
+function roadSpeed(u, base) {
+  const r = roadCells.get(u.x + ',' + u.y);
+  return r ? base * roadSpeedMult(r.tribeId) : base;
+}
+
 // avoidX/avoidY (tuỳ chọn): ô CẤM bước vào lượt này. Bỏ trống thì `nx === undefined`
 // luôn false nên mọi lời gọi cũ giữ nguyên hành vi — xem moveToward để biết vì sao cần.
 function tryStep(u, dx, dy, avoidX, avoidY) {
@@ -22,13 +80,26 @@ function tryStep(u, dx, dy, avoidX, avoidY) {
     const nx = clamp(u.x + adx, 0, CONFIG.GRID_WIDTH - 1);
     const ny = clamp(u.y + ady, 0, CONFIG.GRID_HEIGHT - 1);
     if (nx === avoidX && ny === avoidY) continue;
+    if (nx === u.x && ny === u.y) continue;
     // `u.fly === true` là toàn bộ chi phí của cơ chế bay trên đường đi nóng nhất
     // của cả file. blockedCells = cây + NƯỚC, nên một dòng này cho loài bay đi
     // xuyên rừng và vượt hồ mà không cần một hệ thống đường đi thứ hai.
-    if ((nx !== u.x || ny !== u.y) && (u.fly === true || !isBlocked(nx, ny))) {
-      u.x = nx; u.y = ny; u.facingX = adx; u.facingY = ady;
-      return true;
+    if (u.fly !== true) {
+      if (isBlocked(nx, ny)) continue;
+      // TƯỜNG THÀNH — vật cản CÓ PHE đầu tiên của mô phỏng này (xem wallBlocks).
+      // Ghi lại ô vừa đâm phải chứ không chỉ bỏ qua nó: bên công phải BIẾT thứ gì
+      // đang chắn đường mới đục được nó, và chỗ này là nơi duy nhất còn biết. Xoá
+      // dấu ở đầu mỗi lần gọi moveToward/stepDownField, đọc ở bashWall.
+      //
+      // Loài BAY đi qua trên đầu — chúng đã bỏ qua cả khối này. Đó là một lựa chọn:
+      // mỗi loài quái đáng có một động từ riêng, và "bức tường không giữ được nó"
+      // là động từ mạnh nhất mà bản này có thể tặng cho phi long mà không cần thêm
+      // một dòng luật nào.
+      const w = wallBlocks(u.tribeId, nx, ny);
+      if (w) { u.wallBump = w; continue; }
     }
+    u.x = nx; u.y = ny; u.facingX = adx; u.facingY = ady;
+    return true;
   }
   return false;
 }
@@ -65,6 +136,7 @@ function tryStep(u, dx, dy, avoidX, avoidY) {
 // vị men dọc HẲN một phía bờ nước/rừng thay vì dao động tại chỗ. Đi thẳng được một
 // bước là quên mép đang men (wallSide=0) để chướng ngại sau chọn phía mới từ đầu.
 function moveToward(u, tx, ty) {
+  u.wallBump = null;                          // xem tryStep — dấu vết của lần gọi NÀY
   let px = -1, py = -1;                       // ô vừa rời khỏi, chỉ tính trong lần gọi này
   for (let i = 0; i < u.speed; i++) {
     if (u.x === tx && u.y === ty) break;
@@ -200,8 +272,39 @@ function computeWarField(tribe) {
 //     nó nằm bên kia hồ — đi tới bờ, kẹt, chọn lại, và chọn đúng cái cũ. Vòng lặp
 //     đó làm cả nền kinh tế đứng hình: đo thật, không bộ lạc nào lên nổi thời đại 2.
 //  2. Đường về kho: đi xuống theo trường là đường ngắn nhất thật sự, vòng được hồ.
+// TRẠI TIẾP TẾ BỊ LOẠI KHỎI CẢ HAI TRƯỜNG, và đây là một trong hai chỗ nguy hiểm
+// nhất mà Phase 3.33 chạm vào. Trại là công trình duy nhất trong game mọc lên GIỮA
+// ĐẤT ĐỊCH; để nó gieo mầm homeField thì "nhà" của bộ lạc bỗng có một mầm nằm cách
+// kinh đô nửa bản đồ, và hai thứ vỡ cùng lúc:
+//   · `reachableIn(homeField, ...)` là bộ lọc quyết định người dân được phép nhắm ô
+//     tài nguyên nào. Một cái mầm ở đất địch mở toang bộ lọc đó ra cả một vùng mới,
+//     và đội dân sẽ lũ lượt đi bộ vào chỗ đang đánh nhau để hái quả.
+//   · `walkHome` bước xuống trường tới công trình GẦN NHẤT — với một đạo quân đang
+//     rút, cái gần nhất sẽ là chính cái trại tiền tuyến mà họ đang cố rời khỏi.
+// Cả hai đều là "trường dẫn tới cái gần nhất, mà cái gần nhất không phải cái mình
+// muốn" — họ lỗi đã đếm được NĂM lần trong dự án này. Lần này nó được chặn trước
+// khi chạy, bằng một mệnh đề.
+const FIELD_SEED_SKIP = { camp: 1 };
 function computeHomeField(tribe) {
-  tribe.homeField = bfsFieldFromBuildings(b => b.tribeId === tribe.id && b.hp > 0 && b.done);
+  tribe.homeField = bfsFieldFromBuildings(
+    b => b.tribeId === tribe.id && b.hp > 0 && b.done && !FIELD_SEED_SKIP[b.type]);
+  // TRƯỜNG THỨ HAI, gieo mầm CHỈ từ nơi nhận hàng (kinh đô + kho). Xem DEPOT_TYPES.
+  //
+  // Vì sao không dùng chung homeField cho dân gánh hàng: homeField mọc từ MỌI công
+  // trình, nên nó dẫn tới cái gần nhất — và từ bản này cái gần nhất thường là một
+  // cái ruộng hay một cái nhà ở, những thứ KHÔNG nhận hàng nữa. Người dân sẽ đi
+  // đúng theo trường tới tận chân một cái ruộng rồi đứng đó với đầy hàng trên vai,
+  // vì điều kiện trả hàng đo với một toà nhà khác. Đó chính xác là con lỗi hình học
+  // kho hàng đã làm 56/135 người đứng chết ở Phase 3.15, chỉ khác nguyên nhân —
+  // lần đó là hình vuông gặp hình tròn, lần này là "trường trả lời một câu hỏi
+  // khác câu đang hỏi". Cùng họ với "trường dẫn tới cái gần nhất, mục tiêu lại là
+  // một cái cụ thể" đã đếm được năm lần.
+  //
+  // Hai trường chứ không phải một, và homeField giữ NGUYÊN nghĩa cũ: lính về hàng,
+  // thầy lang về trạm xá, quái đi cướp đều hỏi "công trình gần nhất" — với chúng
+  // câu trả lời cũ vẫn đúng. Chỉ người gánh hàng mới cần câu hỏi mới.
+  tribe.depotField = bfsFieldFromBuildings(
+    b => b.tribeId === tribe.id && b.hp > 0 && b.done && isDepot(b.type));
   tribe.homeFieldTick = tick;
 }
 
@@ -223,6 +326,7 @@ function reachableIn(field, x, y) {
 function stepDownField(u, field) {
   const W = CONFIG.GRID_WIDTH, H = CONFIG.GRID_HEIGHT;
   let moved = false;
+  u.wallBump = null;
   for (let step = 0; step < u.speed; step++) {
     const here = field[u.y * W + u.x];
     if (here < 0) return moved;
@@ -234,7 +338,21 @@ function stepDownField(u, field) {
         const nx = u.x + dx, ny = u.y + dy;
         if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
         const v = field[ny * W + nx];
-        if (v >= 0 && v < bv) { bv = v; bx = nx; by = ny; }
+        if (v >= 0 && v < bv) {
+          // TRƯỜNG KHÔNG BIẾT GÌ VỀ TƯỜNG, và đó là chủ ý. Trường là BFS từ công
+          // trình địch, tính một lần cho cả đạo quân; nếu tường bị đục vào trường
+          // thì mỗi lần một ô thủng ra hay lành lại là một lần phải tính lại cả
+          // bản đồ khoảng cách cho bốn bộ lạc. Để trường chảy xuyên tường thì mọi
+          // người lính đi thẳng tới đoạn tường GẦN NHẤT trên đường tới đích của
+          // mình — tức là cả đạo quân tự dồn vào cùng một cung tường mà không cần
+          // một dòng nào ra lệnh, rồi đục đúng chỗ đó. Vòng vây đọc được trên bản
+          // đồ chính là hệ quả hình học của một cái trường KHÔNG né tường.
+          if (u.fly !== true) {
+            const wb = wallBlocks(u.tribeId, nx, ny);
+            if (wb) { u.wallBump = wb; continue; }
+          }
+          bv = v; bx = nx; by = ny;
+        }
       }
     }
     if (bx < 0) return moved;
@@ -264,21 +382,37 @@ function stepDownField(u, field) {
 // ============================================================
 // NHÀ Y TẾ — tìm về, và hồi máu
 // ============================================================
-// `tribe.medics` được dựng lại mỗi lần bộ não chạy (computeTribeStats), nên hai
+// `tribe.infirmaries` được dựng lại mỗi lần bộ não chạy (computeTribeStats), nên hai
 // hàm dưới đây chỉ duyệt một mảng 0-3 phần tử chứ không quét toàn bộ `buildings`
 // — chúng nằm trên đường đi nóng, gọi cho mỗi người lính rảnh mỗi tick.
 function nearestMedic(u, tribe) {
   let best = null, bestD = Infinity;
-  for (const b of tribe.medics) {
+  for (const b of tribe.infirmaries) {
     const d = dist(u.x, u.y, b.x, b.y);
     if (d < bestD) { bestD = d; best = b; }
   }
   return best;
 }
 
+// Có thầy lang nào của phe mình đang ở gần không? Đây là KHỚP NỐI giữa hai nửa của
+// hệ thống y tế, và toàn bộ ý nghĩa nằm ở chỗ nó được gọi từ đâu: một người lính
+// kiệt sức chỉ bỏ trận về hậu phương KHI KHÔNG có ai ra tận nơi vá cho mình.
+//
+// Duyệt `tribe.healers` (dựng lại mỗi nhịp bộ não, 0-5 phần tử) chứ không quét
+// `units`: hàm này chạy cho mỗi người lính bị thương mỗi tick.
+function healerNear(u, tribe) {
+  if (!tribe.healers || !tribe.healers.length) return null;
+  const R = CONFIG.HEALER.COVER_R;
+  for (const h of tribe.healers) {
+    if (h.hp <= 0) continue;
+    if (dist(u.x, u.y, h.x, h.y) <= R) return h;
+  }
+  return null;
+}
+
 // Hồi máu nếu đang đứng trong bán kính một trạm xá VÀ quanh đó sạch địch.
 function healAtMedic(u, tribe) {
-  if (u.hp >= u.maxHp || !tribe.medics.length) return false;
+  if (u.hp >= u.maxHp || !tribe.infirmaries.length) return false;
   const M = CONFIG.MEDIC;
   const m = nearestMedic(u, tribe);
   if (!m || dist(u.x, u.y, m.x, m.y) > M.RANGE + m.size) return false;
@@ -294,7 +428,7 @@ function healAtMedic(u, tribe) {
 // cùng họ với lỗi rung đã bắt ở hang ổ lên/xuống cấp. Cờ chỉ tắt ở LEAVE_HP (90%).
 function seekMedic(u, tribe) {
   const M = CONFIG.MEDIC;
-  if (!tribe.medics.length) { u.mending = false; return false; }
+  if (!tribe.infirmaries.length) { u.mending = false; return false; }
   const frac = u.hp / u.maxHp;
   if (u.mending) { if (frac >= M.LEAVE_HP) { u.mending = false; return false; } }
   else if (frac < M.SEEK_HP) u.mending = true;
@@ -302,7 +436,11 @@ function seekMedic(u, tribe) {
 
   const m = nearestMedic(u, tribe);
   if (!m) { u.mending = false; return false; }
-  if (dist(u.x, u.y, m.x, m.y) > M.RANGE) walkHome(u, tribe, m.x, m.y);
+  // walkToPoint, KHÔNG phải walkHome: đích ở đây là MỘT trạm xá cụ thể (cái gần
+  // nhất trong `tribe.infirmaries`), còn homeField thì dẫn tới công trình gần nhất
+  // bất kể loại — mà công trình gần một thương binh ngoài tiền tuyến gần như luôn
+  // là một cái ruộng hay một cái nhà ở. Xem chú thích walkToPoint.
+  if (dist(u.x, u.y, m.x, m.y) > M.RANGE) walkToPoint(u, tribe, m.x, m.y);
   else healAtMedic(u, tribe);
   return true;
 }
@@ -348,7 +486,26 @@ function computeArmyLine(tribe) {
 // Đây là toàn bộ "chiến thuật" của bản này và nó cố tình chỉ có ba số: thứ tạo ra
 // đội hình hai lớp ở Phase 3.6 không phải là một lệnh dàn trận mà là TẦM BẮN —
 // bảng này chỉ nói rõ ra cái vốn đã đúng, để lúc ĐỨNG CHỜ chúng cũng đứng đúng chỗ.
-const ORDER_ROW = { soldier: 0, knight: 0, hero: 0, archer: 1, horsearcher: 1, catapult: 2 };
+// `medic: 2` — hàng SAU CÙNG, cùng hàng với máy bắn đá. Thiếu dòng này thì
+// `ORDER_ROW[u.type] || 0` cho thầy lang giá trị 0, tức là TIỀN QUÂN: đơn vị duy
+// nhất trong game không có ô sát thương đứng đúng hàng đầu chịu đòn. Cùng cái bẫy
+// "quên khai báo thì rơi vào nhánh mặc định" đã cắn ở computeTribeStats (thầy lang
+// bị đếm thành người hái quả) và ở bảng UNIT_SPEC — và nhánh mặc định lần này là
+// chỗ chết nhanh nhất trên chiến trường.
+// Ba loại Thiên Triều, và chỗ đứng của chúng nói ra đúng cái chúng làm:
+//   · voi chiến hàng 0 — nó gây sát thương bằng cách ĐI XUYÊN QUA, nên đứng sau
+//     hàng quân nhà thì thứ nó giẫm phải là quân nhà. Tiền quân là chỗ duy nhất đúng.
+//   · nỏ thần hàng 2 — cùng hàng máy bắn đá, và còn cần nó hơn: mũi tên xuyên đi
+//     theo ĐƯỜNG THẲNG từ chính nó tới mục tiêu, nên đứng lẫn giữa quân nhà là bắn
+//     xuyên qua lưng đồng đội. (Sát thương xuyên chỉ tính địch — xem rangedStrike —
+//     nhưng hàng sau vẫn là chỗ cho tầm bắn 11 phát huy.)
+//   · quân kỳ hàng 1 — GIỮA, và đây là con số duy nhất trong bảng phải cân nhắc.
+//     Hào quang cổ vũ có bán kính 7,5 ô: đứng hàng cuối thì nó phủ tới hàng đầu
+//     chỉ khi đội hình mỏng, còn đứng hàng đầu thì nó chết trong ba mươi tick.
+//     Hàng giữa là chỗ duy nhất vừa phủ được cả ba hàng vừa không ăn đòn đầu.
+const ORDER_ROW = { soldier: 0, knight: 0, hero: 0, elephant: 0,
+                    archer: 1, horsearcher: 1, standard: 1,
+                    catapult: 2, medic: 2, ballista: 2 };
 
 // Hành quân theo đội hình. Trả về true nếu đã tự lo xong việc di chuyển tick này.
 function marchWithFormation(u, tribe) {
@@ -403,18 +560,78 @@ function stepUpField(u, field) {
 // `discipline` điều khiển hai thứ cùng lúc: hàng chặt tới đâu, và có thẳng hàng
 // hay không. Ở kỷ luật thấp, độ nhiễu cộng vào lớn tới mức nó trở lại thành một
 // đám tụ tập lộn xộn — nhưng là một đám lộn xộn ĐỨNG YÊN, không rung.
-function formationSpot(u, tribe) {
+// ============================================================
+// XẾP LẠI CHỖ ĐỨNG — vì SỐ THỨ TỰ LÚC RA LÒ KHÔNG PHẢI CHỖ ĐỨNG TRONG HÀNG
+// ============================================================
+// `formSlot` cũ = `tribe.nextFormSlot++` lúc sinh ra: một bộ đếm chỉ tăng, không
+// bao giờ thu lại khi có người ngã xuống. Hệ quả đo được (9.000 tick, một bộ lạc
+// 52 lính): slot chạy từ 33 tới 161, tức đội hình được tính cho 161 người trong
+// khi chỉ còn 52 người đứng — hàng sâu 16 lớp thay vì 3, khung đội hình 14×27 ô,
+// và giữa các lớp là những khoảng trống của người đã chết.
+//
+// Đó chính là "gen tổ chức quân đội dàn hàng không đều": gen `discipline` vẫn
+// điều khiển đúng bề rộng hàng và khoảng cách, nhưng nó điều khiển một đội hình
+// được đánh số cho một đạo quân KHÔNG TỒN TẠI. Một tham số đúng áp lên một tập
+// hợp sai thì không có giá trị nào của nó cho ra kết quả đúng.
+//
+// Xếp lại theo THỨ HẠNG trong số người CÒN SỐNG, mỗi hàng binh chủng đánh số
+// riêng, và mỗi hàng bắt đầu ở ngay sau chiều sâu thật của hàng trước. Chạy mỗi
+// nhịp bộ não (BRAIN_INTERVAL) — đủ dày để đội hình liền lại sau một trận, đủ
+// thưa để không ai phải đổi chỗ mỗi tick.
+//
+// Sắp theo `id` chứ không theo khoảng cách tới chỗ trống gần nhất: id là thứ tự
+// KHÔNG ĐỔI, nên một người chỉ dịch lên đúng bằng số người chết trước mình. Sắp
+// theo khoảng cách thì cả đạo quân đổi chỗ mỗi lần xếp lại, và cái nhìn thấy được
+// là một đám đông xáo trộn chứ không phải một hàng ngũ khép lại.
+function reassignFormation(tribe) {
   const p = tribe.policy;
-  const row = ORDER_ROW[u.type] || 0;
   const perRow = 5 + Math.round(p.discipline * 7);
   const gap = 1 + p.discipline * 1.2;
-  const col = (u.formSlot % perRow) - (perRow - 1) / 2;
-  const depth = Math.floor(u.formSlot / perRow);
+  const byRow = new Map();
+  for (const u of units) {
+    if (u.tribeId !== tribe.id || u.hp <= 0 || !isMilitary(u.type)) continue;
+    const r = ORDER_ROW[u.type] || 0;
+    let arr = byRow.get(r);
+    if (!arr) { arr = []; byRow.set(r, arr); }
+    arr.push(u);
+  }
+  let yAcc = 0;
+  for (const r of [...byRow.keys()].sort((a, b) => a - b)) {
+    const arr = byRow.get(r);
+    arr.sort((a, b) => a.id - b.id);
+    for (let i = 0; i < arr.length; i++) {
+      arr[i].formSlot = i;
+      arr[i].formDX = ((i % perRow) - (perRow - 1) / 2) * gap;
+      arr[i].formDY = yAcc + Math.floor(i / perRow) * gap;
+    }
+    // Hàng sau bắt đầu sau chiều sâu THẬT của hàng trước, cộng một dải trống 1,6 ô.
+    // Bản cũ dùng `row * 2,4` cố định, nên 50 người bộ binh sâu 6 lớp thì cung thủ
+    // của hàng 1 đứng lẫn vào giữa lưng họ — và cả ý nghĩa "tiền quân / hậu quân"
+    // biến mất đúng vào lúc đạo quân đủ đông để nó có ý nghĩa.
+    yAcc += Math.ceil(arr.length / perRow) * gap + 1.6;
+  }
+}
+
+function formationSpot(u, tribe) {
+  const p = tribe.policy;
   // Nhiễu tất định theo id: cùng một người luôn ra cùng một lệch, nên chỗ đứng
   // vẫn cố định. Dùng Math.random() ở đây là quay lại đúng lỗi rung của bản cũ.
   const jitter = (1 - p.discipline) * 7;
   const jx = (((u.id * 37) % 100) / 100 - 0.5) * jitter;
   const jy = (((u.id * 61) % 100) / 100 - 0.5) * jitter;
+  if (u.formDX !== undefined) {
+    return { x: Math.round(tribe.rally.x + u.formDX + jx),
+             y: Math.round(tribe.rally.y + u.formDY + jy) };
+  }
+  // Người vừa ra lò giữa hai nhịp xếp hàng: dùng công thức cũ cho tới nhịp sau.
+  // Giữ nhánh này chứ không ép gọi reassignFormation ngay lúc sinh — xếp lại cả
+  // đạo quân mỗi lần một người lính ra lò là O(n log n) trên đường đi nóng nhất
+  // của cả bộ não, và cái giá phải trả là vài chục tick đứng hơi lệch.
+  const row = ORDER_ROW[u.type] || 0;
+  const perRow = 5 + Math.round(p.discipline * 7);
+  const gap = 1 + p.discipline * 1.2;
+  const col = (u.formSlot % perRow) - (perRow - 1) / 2;
+  const depth = Math.floor(u.formSlot / perRow);
   return {
     x: Math.round(tribe.rally.x + col * gap + jx),
     y: Math.round(tribe.rally.y + (row * 2.4 + depth * gap) + jy)
@@ -425,6 +642,60 @@ function walkHome(u, tribe, gx, gy) {
   const W = CONFIG.GRID_WIDTH;
   const fv = tribe.homeField ? tribe.homeField[u.y * W + u.x] : -1;
   if (fv > 3 && stepDownField(u, tribe.homeField)) return;
+  moveToward(u, gx, gy);
+}
+
+// ============================================================
+// ĐI TỚI MỘT ĐIỂM CỤ THỂ TRONG ĐẤT NHÀ — và vì sao walkHome KHÔNG làm được
+// ============================================================
+// `homeField` là BFS gieo mầm từ MỌI công trình của bộ lạc, nên đi xuống nó là đi
+// tới công trình GẦN NHẤT. Đó là câu trả lời đúng cho người dân đang vác hàng về
+// kho (kho nào cũng được) và SAI cho mọi thứ có một cái đích riêng: chỗ đứng của
+// mình trong đội hình, một trạm xá cụ thể, một toà nhà đang bị đánh.
+//
+// Đây là họ lỗi "trường dẫn tới cái gần nhất, mục tiêu lại là một cái cụ thể" —
+// lần thứ NĂM trong dự án này, và lần này nó không nằm ở chỗ nào lạ mà nằm ở
+// nhánh CUỐI CÙNG của thang ưu tiên lính: "không có gì để đánh thì về hàng".
+// Chú thích của marchToDefend đã mô tả chính xác cơ chế hỏng từ lần thứ tư —
+// trường kéo về, tới nơi thì nhánh dự phòng đẩy ra, bước ra thì trường lại kéo về
+// — nhưng bản sửa lần đó chỉ chữa đúng một chỗ gọi.
+//
+// ĐO TRƯỚC KHI SỬA, 9.000 tick, 85.628 lượt "lính rảnh đang đi về hàng":
+//   · 24,8% số bước là do TRƯỜNG cầm lái (fv > 3), không phải do đích thật.
+//   · Cắt thành cửa sổ 90 tick: 431 lượt tới gần hơn, 274 lượt đứng nguyên một
+//     khoảng cách, 16 lượt ra XA hơn — và 422/721 (58,5%) đảo chiều hơn 12 lần
+//     trong 90 tick. Tức là gần sáu trên mười người lính rảnh đang RUNG tại chỗ.
+//   · Cộng lại: 33,4% tổng số unit-tick của lính là không có việc, và 3/4 khoảng
+//     đó là đi-về-mà-không-tới.
+// Nhìn ra màn hình thì đó chính là "lính không biết phải làm gì".
+//
+// CÁCH CHỮA: giữ trường lại (nó vẫn là thứ duy nhất biết vòng qua rừng) nhưng bắt
+// nó phải CHỨNG MINH từng bước. Bước nào của trường không rút ngắn khoảng cách
+// tới đích thật thì HUỶ, và đi tham lam. Nhờ vậy khoảng cách tới đích đơn điệu
+// giảm — một dãy đơn điệu thì không thể dao động, bất kể trường trỏ đi đâu.
+//
+// Hoàn nguyên toạ độ chứ không thử-trước-rồi-mới-đi: stepDownField đi tới `u.speed`
+// bước một lần gọi và tự chọn hướng ở từng bước, nên không có cách nào hỏi nó
+// "anh định đi đâu" mà không viết lại nó. Hoàn nguyên là hai phép gán, và nó đúng
+// cho mọi tốc độ — kể cả kỵ binh 2 bước/tick, vốn là nhóm dao động mạnh nhất.
+function walkToPoint(u, tribe, gx, gy) {
+  const field = tribe.homeField;
+  if (field) {
+    const W = CONFIG.GRID_WIDTH;
+    if (field[u.y * W + u.x] > 3) {
+      const px = u.x, py = u.y, fx0 = u.facingX, fy0 = u.facingY;
+      const d0 = dist(px, py, gx, gy);
+      if (stepDownField(u, field)) {
+        if (dist(u.x, u.y, gx, gy) < d0) return;   // trường đi cùng hướng với đích -> nhận
+        // Trường kéo sang chỗ khác -> huỷ bước. Hoàn nguyên CẢ HƯỚNG NHÌN, không
+        // chỉ toạ độ: stepDownField ghi facingX/facingY trước khi ta biết bước đó
+        // có được nhận hay không, và nếu moveToward bên dưới không bước nổi (bị cây
+        // chặn) thì hướng nhìn sẽ kẹt lại ở hướng của một bước chưa từng xảy ra —
+        // đơn vị đứng nhìn một đằng, đi một nẻo.
+        u.x = px; u.y = py; u.facingX = fx0; u.facingY = fy0;
+      }
+    }
+  }
   moveToward(u, gx, gy);
 }
 
@@ -470,6 +741,12 @@ function findNearestEnemyUnit(x, y, tribeId, range, soldiersOnly) {
       if (!arr) continue;
       for (const o of arr) {
         if (o.tribeId === tribeId || o.hp <= 0) continue;
+        // RẾT CÁT ĐANG VÙI thì không ai thấy — kể cả chính con Rết khác. Đây là
+        // dòng làm cho phục kích tồn tại, và nó phải nằm ĐÚNG Ở ĐÂY: hàm này là
+        // con mắt chung của cả bốn bộ lạc, của anh hùng khi cân địch/ta, và của
+        // chính đám quái. Lọc ở chỗ nào hẹp hơn thì sẽ có một đường nhìn nào đó
+        // vẫn "thấy" nó, và bất ngờ chỉ cần một cái lỗ là hết bất ngờ.
+        if (o.buried) continue;
         // soldiersOnly = "kẻ có vũ khí" chứ không phải đúng type 'soldier': dân
         // thường phải bỏ chạy khỏi anh hùng địch nữa, nếu không họ sẽ thản nhiên
         // hái quả bên cạnh người vừa một mình phá sập trại lính của họ.
@@ -516,7 +793,8 @@ function findNearestEnemyHero(x, y, tribeId, range) {
 function homeIntruder(tribe) {
   if (tribe.intruderTick !== tick) {
     tribe.intruderTick = tick;
-    tribe.intruderCache = findNearestEnemyUnit(tribe.home.x, tribe.home.y, tribe.id, 26);
+    // soldiersOnly: xem chú thích ở bước 2b của tickSoldier.
+    tribe.intruderCache = findNearestEnemyUnit(tribe.home.x, tribe.home.y, tribe.id, 26, true);
   }
   return tribe.intruderCache;
 }
@@ -656,18 +934,33 @@ function findNearestEnemyBuilding(x, y, tribeId, onlyTribe) {
 // Đo theo mép cũng là thứ CONFIG nói từ đầu: "đứng cách nhà <= 2 ô". Trước đây câu
 // đó không đúng — nó đo tới tâm, nên nhà càng to thì càng phải đứng lọt vào trong.
 //
-// `depotEdge` là khoảng cách tới mép của toà nhà vừa trả về. Biến toàn cục thay vì
+// ============================================================
+// NƠI NHẬN HÀNG — và vì sao "mọi công trình" là một câu trả lời sai
+// ============================================================
+// Tới Phase 3.24 hàm này còn tên là `findNearestOwnBuilding` và KHÔNG lọc gì cả:
+// dân trút hàng vào bất cứ toà nào gần nhất, kể cả một cái ruộng hay một cái nhà
+// ở. Nghĩa là mọi công trình đều âm thầm là một cái kho, nên khoảng cách gánh hàng
+// chưa bao giờ là một bài toán và cũng chưa bao giờ có quyết định nào để ra.
+//
+// Bảng chứ không phải một chuỗi `===`: thêm loại nhận hàng thứ ba sau này mà viết
+// vào một chuỗi so sánh thì loại mới lặng lẽ rơi vào nhánh mặc định, đúng cái bẫy
+// đã ghi ở UNIT_SPEC, MILITARY_SET và ORDER_ROW. Ở đây hậu quả của nhánh mặc định
+// là "không nhận hàng", tức là cả một nền kinh tế đứng im mà không có lỗi nào.
+const DEPOT_TYPES = { town: 1, depot: 1 };
+function isDepot(type) { return DEPOT_TYPES[type] === 1; }
+
+// `depotDropEdge` là khoảng cách tới MÉP của kho vừa trả về. Biến toàn cục thay vì
 // trả về một object: hàm này chạy cho mỗi người dân đang về kho mỗi tick, cấp phát
 // một object ở đó là rác sinh ra 60 lần/giây x 100 người.
-let depotEdge = Infinity;
-function findNearestOwnBuilding(x, y, tribeId) {
+let depotDropEdge = Infinity;
+function findNearestDepot(x, y, tribeId) {
   let best = null, bestD = Infinity;
   for (const b of (tribeBuildings[tribeId] || [])) {
-    if (!b.done || b.hp <= 0) continue;
+    if (!b.done || b.hp <= 0 || !isDepot(b.type)) continue;
     const d = cheb(x, y, b.x, b.y) - b.size;   // <= 0 = đang đứng trên móng
     if (d < bestD) { bestD = d; best = b; }
   }
-  depotEdge = bestD;
+  depotDropEdge = bestD;
   return best;
 }
 

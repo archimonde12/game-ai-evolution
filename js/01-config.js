@@ -1708,7 +1708,7 @@ const CONFIG = {
       banner: { label: 'Cờ lệnh',    icon: '🚩', color: '#e0a58c', auraR: 3, auraMult: 0.18,
                 blurb: 'Buff QUÂN ĐỨNG QUANH chứ không buff người cầm. Vô dụng nếu anh hùng đánh lẻ.' },
       relic:  { label: 'Thánh vật',  icon: '💎', color: '#d8a544', attack: 3, maxHp: 60, auraMult: 0.1,
-                blurb: 'Di sản của cả nền văn minh: ngã trên đất nhà thì được rước về đền và trao lại cho người kế nhiệm.' }
+                blurb: 'Món duy nhất mạnh cả ba mặt cùng lúc — đánh, máu và hào quang. Cũng là món đáng tiếc nhất khi một anh hùng tử trận.' }
     },
     // ============================================================
     // HỢP NHẤT ĐỒ TRÙNG
@@ -2673,7 +2673,17 @@ const CONFIG = {
     // dòng này không gác cửa gì cả trong đường chạy thật — nó có mặt vì `unlockedBuild`
     // là một phép tra bảng có mặc định 1, và một loại công trình vắng mặt ở đây thì
     // lần sau ai đó gọi hàm ấy sẽ nhận về "mở từ Đồ Đá" mà không ai cố ý.
-    UNLOCK_BUILD: { town: 1, house: 1, farm: 2, depot: 1, barracks: 1, tower: 1, shrine: 1, heroHall: 1, workshop: 2, infirmary: 2, camp: 2, stable: 3, temple: 3, wonder: 4 },
+    // `wonder: 5` (Thiên Triều) từ Phase 3.34, trước là 4. Không phải một cú siết
+    // cảm tính — đo 6 kỷ nguyên chinh phạt, tick mà bộ lạc ĐẦU TIÊN chạm mỗi đời:
+    //     đời 3 ở 2.700-4.000 · đời 4 ở 3.740-5.700 · đời 5 ở 4.360-7.160
+    //     (1/6 kỷ nguyên bế tắc hẳn ở đời 3, không ai lên nổi đời 4 — cả hai luật
+    //      cũ và mới đều khoá Kỳ quan ở kỷ nguyên đó, nên bản này không làm mất gì)
+    // Trong 5 kỷ nguyên còn lại, khoảng cách từ lúc đời 5 xuất hiện tới lúc ván ngã
+    // ngũ là 2.000-10.000 tick, thừa cho 820 tick khởi công + 2.600 tick giữ. Nói
+    // cách khác: luật mới dời Kỳ quan muộn khoảng 2.000 tick chứ không đẩy nó ra
+    // ngoài kỷ nguyên — đúng ranh giới của bài học "nội dung để dành ở cấp cao nhất
+    // là nội dung không tồn tại" (Phase 3.22), và lần này phép đo nói là chưa chạm.
+    UNLOCK_BUILD: { town: 1, house: 1, farm: 2, depot: 1, barracks: 1, tower: 1, shrine: 1, heroHall: 1, workshop: 2, infirmary: 2, camp: 2, stable: 3, temple: 3, wonder: 5 },
     UNLOCK_UNIT:  { villager: 1, soldier: 1, hero: 1, archer: 2, medic: 2, quarter: 2, knight: 3, catapult: 3, horsearcher: 4,
                     ballista: 5, elephant: 5, standard: 5 },
     // ================================================================
@@ -2735,7 +2745,54 @@ const CONFIG = {
   GOD: {
     FAITH_MAX: 100,
     FAITH_START: 45,
-    FAITH_REGEN_TICKS: 20  // +1 Đức Tin mỗi N tick
+    FAITH_REGEN_TICKS: 20,  // +1 Đức Tin mỗi N tick
+    // ============================================================
+    // QUYỀN NĂNG MẠNH DẦN THEO ĐỒNG HỒ KỶ NGUYÊN (Phase 3.34)
+    // ============================================================
+    // Cho tới bản này, năm quyền năng "thường" có đúng một bộ số cho cả kỷ nguyên,
+    // trong khi thế giới dưới tay chúng thì không: một người lính Đồ Đá có 65 máu và
+    // một người lính Thiên Triều đã có hơn 100 cộng ba cấp giáp, một cái kho đầu kỷ
+    // nguyên có 300 lương còn cuối kỷ nguyên có hàng chục nghìn. Hệ quả không phải
+    // "về sau hơi yếu" — nó là: MỌI quyền năng đều đáng bấm nhất ở tick 0 và trở
+    // thành tiếng ồn về sau, nên nửa sau mỗi ván không còn quyết định nào để ra.
+    // Đúng cái bẫy đã phải sửa cho Thiên Ma ở 3.33, chỉ khác là ở đó nó ẩn sau một
+    // cái nút, còn ở đây nó nằm trên năm cái nút cùng lúc.
+    //
+    // MỘT hệ số, tuyến tính theo tick, kẹp hai đầu — cùng hình dạng với
+    // WORLD_BOSS.RAMP và cùng lý do: người xem phải NHẨM ĐƯỢC nó. Cả hai đọc chung
+    // một hàm `eraRamp` (xem 12-loop-era) chứ không chép công thức lần thứ hai.
+    //
+    //   0,70 ở tick 0        -> sét 53 sát thương, thiên ân 196 lương
+    //   1,00 ở tick ~4.700   -> đúng bảng số cũ
+    //   1,46 ở tick 10.000   -> quãng mà phần lớn ván đang ngã ngũ
+    //   2,60 ở tick 25.000   -> sét 195, thiên ân 728 lương
+    //
+    // HAI LOẠI HIỆU LỰC, và ranh giới giữa chúng là cả nội dung của khối này:
+    //   · SỐ TUYỆT ĐỐI (sát thương, tài nguyên) NHÂN THẲNG hệ số. Đây là loại mục
+    //     ruỗng theo thời gian, vì cái nó so sánh với — máu, kho — thì lớn dần.
+    //   · TỈ LỆ (Dịch Bệnh lấy % máu tối đa) KHÔNG nhân hệ số này. Một phân số đã
+    //     tự leo theo thế giới rồi; nhân thêm lần nữa là leo hai lần. Nó có đường
+    //     ramp riêng, hẹp hơn nhiều, nằm ngay tại chỗ dùng.
+    //   · BÁN KÍNH nhân theo CĂN BẬC HAI của hệ số, không nhân thẳng. Diện tích đi
+    //     theo bình phương bán kính, nên nhân thẳng 2,6 vào bán kính là nhân 6,8
+    //     vào vùng ảnh hưởng — một cơn mưa cuối kỷ nguyên sẽ phủ gần trọn lãnh thổ
+    //     một bộ lạc và cú click không còn phải NHẮM vào đâu nữa. Lấy căn thì diện
+    //     tích lớn lên đúng bằng hệ số, và người xem vẫn phải chọn chỗ.
+    RAMP: { START: 0.70, PEAK: 2.60, PEAK_TICK: 25000 },
+    // Bộ số GỐC, tức là con số ở hệ số 1,0 (tick ~4.700). Đọc bảng này thay vì đọc
+    // những con số nằm rải trong thân `apply` là điều kiện để cả ba chỗ — bảng hint,
+    // dòng nhật ký, hiệu lực thật — không thể lệch nhau; ba chỗ ấy đã lệch một lần
+    // rồi ở nút Thiên Ma ("5.200 máu" trong khi con quái có 9.000).
+    STRIKE: { unit: 75, build: 220, r: 5 },
+    // Thiên ân: 260/240/180/90 -> 280/240/200/120. Hai khoản được nâng, và cả hai
+    // theo đúng chỗ thắt của bản đồ từ 3.30-3.33: ĐÁ là thứ bức tường mới biến thành
+    // nút thắt thật, VÀNG là thứ gác cửa lên đời. Lương và gỗ giữ nguyên vì cả hai
+    // đều có nguồn tái tạo trong lãnh thổ (ruộng, rừng), nên chúng là thứ một bộ lạc
+    // tự xoay được — tặng thêm chỉ rút ngắn thời gian, không mở ra lựa chọn nào.
+    GIFT: { food: 280, wood: 240, stone: 200, gold: 120 },
+    // [đầu kỷ nguyên, ở PEAK_TICK]. Là TỈ LỆ nên đi đường riêng, không nhân RAMP —
+    // lý do đầy đủ nằm ở chú thích `apply` của Dịch Bệnh.
+    PLAGUE_FRAC: [0.30, 0.62]
   },
 
   // ============================================================
@@ -2759,6 +2816,29 @@ const CONFIG = {
   // làm kẻ dẫn đầu chảy máu, nhưng nếu kẻ dẫn đầu hạ được nó thì chính hắn nhận
   // kho báu và bỏ xa hơn nữa.
   WORLD_BOSS: {
+    // ============================================================
+    // CỬA MỞ: PHẢI CÓ MỘT BỘ LẠC TỚI HOÀNG KIM (Phase 3.34)
+    // ============================================================
+    // Bản 3.33 cho con quái mạnh dần theo tick để "thả sớm" không còn là câu trả lời
+    // duy nhất đúng. Nó chữa được một nửa vấn đề: sau bản đó, thả sớm vẫn LUÔN HỢP
+    // LỆ, chỉ là được một con quái yếu hơn. Mà một con Thiên Ma cấp Sơ Giáng thả vào
+    // tick 600 thì thế giới lúc ấy có bốn cụm nhà tranh và chưa bộ lạc nào có nổi
+    // một trại lính — nó không phải một biến cố, nó là một cái nút xoá ván.
+    //
+    // Điều kiện là THỜI ĐẠI chứ không phải một mốc tick, và khác biệt đó là toàn bộ
+    // lý do nó đáng có: một mốc tick chỉ bắt người xem chờ, còn một mốc thời đại
+    // biến việc chờ thành một thứ ĐỌC ĐƯỢC TRÊN BẢN ĐỒ — mái nhà đổi vật liệu, tường
+    // mọc lên, kỵ binh ra khỏi chuồng. Người xem không đếm ngược, họ nhìn thế giới
+    // lớn lên rồi mới được quyền thả tai hoạ xuống nó.
+    //
+    // Đo 6 kỷ nguyên chinh phạt: bộ lạc đầu tiên chạm Hoàng Kim ở tick 3.740-5.700
+    // (1/6 kỷ nguyên không ai chạm tới — kỷ nguyên đó bế tắc ở Đồ Sắt và Thiên Ma
+    // khoá suốt ván, đúng như ý định). Hệ quả phụ đáng ghi: đầu dải RAMP (0,62 ở
+    // tick 0) từ nay là vùng không với tới được, cú thả sớm nhất có thể rơi vào
+    // khoảng hệ số 0,79. Không hạ START để bù — cái ramp ấy đo sức mạnh theo ĐỒNG
+    // HỒ, còn cái cửa này đo theo THẾ GIỚI, và chồng hai thước đo lên nhau để giữ
+    // một con số cũ thì chỉ được một con số, không được một luật.
+    MIN_AGE: 4,
     // Hoàn lại Đức Tin khi nó chết: thả một con Thiên Ma tốn 75, hoàn 45. Người
     // xem chủ động thả boss vì thế KHÔNG bị phạt vĩnh viễn — chỉ mất 30 Đức Tin
     // ròng nếu thế giới giết được nó, và mất trọn 75 nếu nó sống mãi. Đó là cách

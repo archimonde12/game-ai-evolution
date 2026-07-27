@@ -188,10 +188,17 @@ function startEra(policies) {
         braveTrend: []     // chỉ gen dũng cảm, để vẽ biểu đồ cho gọn
       },
       heroCooldownUntil: 0,
-      // Thánh vật được đưa về đền khi anh hùng chết TRÊN ĐẤT NHÀ. Khác đồ nghề
-      // thường (mất theo người chết), thánh vật là di sản của CẢ nền văn minh: cất ở
-      // đây rồi trao cho người kế nhiệm khi chiêu mộ. Trần bằng số món giữ tối đa.
-      enshrinedRelics: []
+      // ============================================================
+      // GIA BẢO — kho đồ chờ người kế nhiệm
+      // ============================================================
+      // Trước Phase 3.34 kho này tên `enshrinedRelics` và chỉ nhận đúng MỘT loại
+      // (Thánh vật), theo một luật ĐỊA LÝ: ngã trên đất nhà thì về đền, ngã trên đất
+      // địch thì rơi tại chỗ. Từ bản này luật đổi trục — không còn hỏi NGÃ Ở ĐÂU mà
+      // hỏi NGÃ VÌ SAO (xem onHeroDeath) — và kho nhận MỌI loại đồ, nên cái tên cũ
+      // đã thành một lời nói dối: một đôi giày nằm trong "enshrinedRelics" thì mọi
+      // chỗ đọc nó sẽ tự suy ra một luật không còn tồn tại.
+      // Trần bằng số món giữ tối đa của một anh hùng.
+      heirloom: []
     };
     delete tribe.policy.__lineage;
     delete tribe.policy.__heroSeed;
@@ -849,14 +856,15 @@ function spawnUnit(tribe, type, x, y) {
     // tính lại chỉ số mỗi lần nhặt đồ, nên cần nhớ hệ số của chính mình.
     u.ageBonus = bonus;
     u.items = [];
-    // Thừa hưởng thánh vật đã được đưa về đền. Đây là ngoại lệ CÓ CHỦ Ý của luật
-    // "vật phẩm không di truyền": đồ nghề cá nhân thì mất theo người, nhưng THÁNH VẬT
-    // là của cả nền văn minh — nó chờ ở đền và được trao cho người kế nhiệm. Lấy tối
-    // đa MAX_HELD, phần dư (hiếm) vẫn nằm ở đền cho đời sau nữa.
-    if (tribe.enshrinedRelics.length) {
-      const take = tribe.enshrinedRelics.splice(0, CONFIG.ITEM.MAX_HELD);
+    // Thừa hưởng GIA BẢO của dòng dõi. Từ Phase 3.34 đây không còn là "ngoại lệ cho
+    // riêng Thánh vật" nữa mà là đường đi bình thường của mọi món đồ: cái quyết định
+    // món đồ có sang được đời sau hay không nằm ở CÁI CHẾT của người trước (chết già
+    // thì sang trọn bộ, tử trận thì mất một nửa — xem onHeroDeath), chứ không nằm ở
+    // loại đồ. Lấy tối đa MAX_HELD, phần dư vẫn nằm lại cho đời sau nữa.
+    if (tribe.heirloom.length) {
+      const take = tribe.heirloom.splice(0, CONFIG.ITEM.MAX_HELD);
       for (const r of take) u.items.push({ key: r.key, lv: r.lv || 1 });
-      logEvent(`💎 ${u.name} thừa kế ${take.length} thánh vật từ đền ${tribe.name}`, tribe.color, true);
+      logEvent(`🎁 ${u.name} thừa kế ${take.length} món gia bảo của ${tribe.name}`, tribe.color, true);
     }
     u.itemSeekId = null;
     u.itemBestD = Infinity;

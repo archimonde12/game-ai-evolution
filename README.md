@@ -28,9 +28,14 @@ hoặc đáp lại lời khẩn cầu của bộ lạc — tuỳ thích, không 
 Có hai thế cuộc: **Chinh Phạt** (các bộ lạc đánh nhau, thắng bằng quân sự hoặc xây xong Kỳ quan) và
 **Thủ Thành** (các bộ lạc thôi đánh nhau, cùng chống các đợt quái vật mỗi lúc một mạnh).
 
-Kỳ quan **không mua được bằng kho**: muốn khởi công thì phải hạ được kinh đô của một bộ lạc khác trước
-(*Thiên mệnh*), và cả bản đồ chỉ được có **một** Kỳ quan — kể cả đang xây dở. Nghĩa là đường thắng bằng
-công trình đi *xuyên qua* chiến tranh chứ không vòng qua nó.
+Kỳ quan **không mua được bằng kho**: phải lên tới **Thiên Triều** (đời 5), phải hạ được kinh đô của một
+bộ lạc khác trước (*Thiên mệnh*), và cả bản đồ chỉ được có **một** Kỳ quan — kể cả đang xây dở. Nghĩa là
+đường thắng bằng công trình đi *xuyên qua* chiến tranh chứ không vòng qua nó.
+
+Quyền năng của Chúa Tể **mạnh dần theo đồng hồ kỷ nguyên** — một cái kho cuối kỷ nguyên lớn gấp hàng chục
+lần cái kho đầu kỷ nguyên, nên một quyền năng đứng yên là một quyền năng tan biến. Riêng **Thiên Ma** bị
+khoá cho tới khi có ít nhất một bộ lạc lên đời 4: điều kiện là *thời đại* chứ không phải một mốc tick, nên
+nó đọc được thẳng trên bản đồ.
 
 ## Cấu trúc mã nguồn
 

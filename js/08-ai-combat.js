@@ -334,6 +334,25 @@ function rangedStrike(u, target, isBuilding) {
     if (dist(b.x, b.y, target.x, target.y) > R + b.size / 2) continue;
     dealDamage(u, b, true, { fx: 'none', mult: 0.5 });
   }
+  // TƯỜNG cũng ăn sát thương lan — và việc nó KHÔNG ăn cho tới bản này không phải
+  // một lựa chọn cân bằng, nó là hệ quả im lặng của việc tường không nằm trong mảng
+  // `buildings`. Cùng một cái sót đã sinh ra "máy bắn đá phải bò vào 1 ô mới bắn
+  // được tường" ngay phía trên: hai vòng lặp ngay trên đây tả đúng ý định "một quả
+  // đạn rơi vào giữa đám đông thì mọi thứ quanh đó cùng chịu", và tường là thứ duy
+  // nhất bị loại khỏi ý định đó mà không ai viết ra lý do.
+  //
+  // Quét ô vuông quanh ĐIỂM RƠI chứ không duyệt cả `wallCells` (gần hai nghìn phần
+  // tử): bán kính lan lớn nhất trong game là 2,4 + nhánh Công thành, nên đây là vài
+  // chục lần tra băm cho một quả đạn.
+  const wr = Math.ceil(R);
+  for (let dx = -wr; dx <= wr; dx++) {
+    for (let dy = -wr; dy <= wr; dy++) {
+      const w = wallCells.get((target.x + dx) + ',' + (target.y + dy));
+      if (!w || w === target || w.hp <= 0 || w.tribeId === u.tribeId) continue;
+      if (dist(w.x, w.y, target.x, target.y) > R) continue;
+      dealDamage(u, w, true, { fx: 'none', mult: 0.5 });
+    }
+  }
 }
 
 // Địch SỐNG giành quyền ưu tiên trước một CÔNG TRÌNH đang bị đánh dở.
@@ -403,6 +422,148 @@ function bashWall(u) {
   // không có một lỗi nào để lần theo. Đúng họ NaN im lặng đã cắn dự án này ba lần
   // (lãnh thổ · upkeepMult · RES_MIN), lần này là undefined thay cho NaN.
   u.cooldown = u.atkCooldown || u.cd || 12;
+  return true;
+}
+
+// ============================================================
+// CÔNG THÀNH TỪ XA — nửa còn thiếu của cơ chế tường thành
+// ============================================================
+// Tường không nằm trong mảng `buildings` (xem wallCells: gần hai nghìn vật thể trên
+// một mảng bị quét tuyến tính ở sáu chỗ nóng là chi phí không trả nổi). Cái giá phải
+// trả cho quyết định ấy là: KHÔNG lượt quét chọn mục tiêu nào nhìn thấy tường, nên
+// đường duy nhất để một bức tường ăn đòn là bashWall — mà bashWall thì đòi đứng KỀ.
+//
+// Với bộ binh, "đòi đứng kề" chính là luật đúng. Với quân tầm xa thì nó xoá thẳng
+// đặc tính định nghĩa của cả binh chủng. Đo một kỷ nguyên chinh phạt 21.767 tick:
+//     đòn trúng tường:  bộ binh 6.024 · kỵ binh 1.753 · CUNG THỦ 1.510 ·
+//                       anh hùng 800 · kỵ xạ 527 · MÁY BẮN ĐÁ 176
+//     19,1% tổng số unit-tick của quân tầm xa là đang đứng KỀ một bức tường địch
+// Dòng cuối cùng của bảng là cả vấn đề gói trong một câu: **một cỗ máy bắn đá có
+// tầm 12 ô phải bò vào 1 ô mới bắn được tường.** Nó bò qua trọn vẹn tầm bắn của
+// tháp canh (10 ô) để làm việc đó, tức là binh chủng đắt nhất bảng đang tự nộp mình
+// cho binh chủng nó sinh ra để khắc chế.
+//
+// BA quyết định thiết kế, mỗi cái tránh một cái bẫy đã cắn dự án này:
+//
+// 1. KHÔNG đụng vào `u.combatTarget`. Bức tường không được ghi vào ô mục tiêu, và
+//    nấc này nằm SAU địch-sát-sườn, SAU cứu-nhà, SAU thương-binh-về-trạm. "Mục tiêu
+//    dính chặt" đã cắn năm lần, luôn cùng một hình dạng: một `target` khác null
+//    nuốt trọn cả thang ưu tiên bên dưới nó. Ở đây thang chạy đủ mọi tick và nấc
+//    này chỉ nhận những tick người lính thật sự rảnh tay.
+//
+// 2. TÍNH LẠI MỖI TICK, KHÔNG NHỚ. `u.siegeWall` chỉ là kết quả của tick hiện tại,
+//    ghi ra cho thẻ thông tin đọc — không phải một mục tiêu được giữ. Bản đầu làm
+//    ngược lại (nhớ bức tường gần nhất rồi bám lấy nó) và phép đo bác bỏ; xem khối
+//    chú thích của wallOnPathTo ngay dưới. Chi phí của việc tính lại là một tia
+//    quét dài đúng bằng tầm bắn (tối đa 12 ô), chỉ chạy cho quân tầm xa và chỉ ở
+//    những tick chúng rảnh — rẻ hơn hẳn cái nó thay thế.
+//
+// 3. ĐỨNG ĐÚNG TẦM CỦA MÌNH. `standoff` = effRange - 1 (kẹp sàn ở minRange): gần
+//    hơn thì lùi, xa hơn thì không tiến. Trừ 1 chứ không đứng đúng mép tầm vì mép
+//    tầm là chỗ một bước lệch nào cũng làm mất mục tiêu, và khi đó đơn vị sẽ rung
+//    giữa "bắn" và "đi tìm" mãi mãi.
+function siegeStandoff(u) {
+  return Math.max(u.minRange || 1, effRange(u) - 1);
+}
+
+// ============================================================
+// "BỨC TƯỜNG CHẶN ĐƯỜNG TÔI", chứ KHÔNG PHẢI "bức tường gần tôi nhất"
+// ============================================================
+// Bản đầu của cơ chế này hỏi câu thứ hai — quét vòng đồng tâm tìm ô tường địch gần
+// nhất trong tầm — và phép đo bác bỏ nó ngay: 58,0% tổng số unit-tick của quân tầm
+// xa rơi vào trạng thái đang công thành, ở cự ly trung bình 8,57 ô. Nghe thì đúng ý
+// định, nhưng nó đúng QUÁ NHIỀU. Vành tường có hàng trăm ô; đục thủng ô trước mặt
+// xong thì ô kế bên vẫn nằm trong tầm 12 của máy bắn đá, nên cung thủ và máy bắn đá
+// sẽ gặm sạch cả vành tường mà KHÔNG BAO GIỜ đi qua cái lỗ do chính mình vừa mở.
+// Bộ binh tràn vào trong, quân tầm xa ở lại ngoài bắn mãi một cái vòng — đúng cái
+// hình dạng "cả đạo quân đứng chôn chân" mà trường dẫn đường đã năm lần tạo ra.
+//
+// Nên câu hỏi phải là câu thứ nhất, và nó TỰ TẮT: bức tường thôi chặn đường thì hàm
+// này trả về null và người lính đi tiếp. `wallBlocks` trả null cho ô đã vỡ
+// (hp <= 0 tới hết `downUntil`), nên cái lỗ vừa mở chính là điều kiện dừng bắn —
+// không cần một cơ chế "thôi vây" thứ hai nào cả.
+//
+// Đường đi mô phỏng ĐÚNG cách đơn vị sẽ thật sự bước, chứ không phải một đoạn thẳng
+// hình học: bước tham lam bằng Math.sign giống hệt moveToward. Sai một chút so với
+// đường đi thật thì hàm sẽ chỉ vào một ô tường mà đơn vị không bao giờ đâm phải —
+// và khi ấy nó lại đứng bắn một bức tường không cản nó, tức là quay về đúng lỗi vừa
+// bỏ đi, chỉ hiếm hơn.
+function wallOnPathTo(u, tx, ty, R) {
+  let x = u.x, y = u.y;
+  for (let i = 0; i < R; i++) {
+    const sx = Math.sign(tx - x), sy = Math.sign(ty - y);
+    if (sx === 0 && sy === 0) return null;
+    x += sx; y += sy;
+    const w = wallBlocks(u.tribeId, x, y);
+    if (w) return w;
+  }
+  return null;
+}
+
+// Cùng câu hỏi, nhưng cho quãng HÀNH QUÂN — nơi không có toạ độ đích nào để nhắm,
+// chỉ có một trường khoảng cách. Tụt dốc đúng như stepDownField, và cũng như nó,
+// việc chọn ô kế tiếp KHÔNG né tường: trường được BFS ra mà không biết gì về tường
+// (xem chú thích trong stepDownField — đó là lý do cả đạo quân tự dồn vào cùng một
+// cung tường). Hàm này chỉ đi theo cái trường ấy rồi báo lại thứ đang đứng chắn.
+function wallOnFieldPath(u, field, R) {
+  const W = CONFIG.GRID_WIDTH, H = CONFIG.GRID_HEIGHT;
+  let x = u.x, y = u.y, here = field[y * W + x];
+  if (!(here > 0)) return null;                 // ngoài trường, hoặc đã tới nơi
+  for (let i = 0; i < R; i++) {
+    let bx = -1, by = -1, bv = here;
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        if (!dx && !dy) continue;
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const v = field[ny * W + nx];
+        if (v >= 0 && v < bv) { bv = v; bx = nx; by = ny; }
+      }
+    }
+    if (bx < 0) return null;
+    const w = wallBlocks(u.tribeId, bx, by);
+    if (w) return w;
+    x = bx; y = by; here = bv;
+  }
+  return null;
+}
+
+// Trả về true nếu người lính này đã dùng hết lượt của mình vào việc công thành —
+// chỗ gọi phải `return` ngay, đúng như mọi nhánh khác của thang ưu tiên.
+//
+// `dest` là chỗ đơn vị đang muốn tới: một vật có (x, y) khi đã nhắm được cái gì đó,
+// hoặc null khi đang hành quân theo trường. Hai chỗ gọi, một hàm — vì "tường có
+// chặn đường tôi không" là CÙNG một câu hỏi ở cả hai, và tách làm hai bản là cách
+// chắc chắn nhất để một bản được sửa còn bản kia thì không.
+function siegeWallFromRange(u, tribe, dest) {
+  const R = effRange(u);
+  if (R <= 0) return false;              // bộ binh: bashWall đã lo, và đứng kề mới đúng
+  // Nhìn xa hơn tầm bắn một chút để còn kịp DỪNG LẠI trước khi bước vào tầm tháp
+  // canh; nhưng chỉ bắn khi thật sự trong tầm (kiểm lại ở dưới).
+  const look = R + 2;
+  const w = dest ? wallOnPathTo(u, Math.round(dest.x), Math.round(dest.y), look)
+                 : (tribe.warField ? wallOnFieldPath(u, tribe.warField, look) : null);
+  // Thẻ thông tin đọc trường này để nói ra "phá tường · cách N ô" (xem 14-ui-panels).
+  // Trên bản đồ thì không cần thêm gì: rangedStrike đã bắn ra đúng vệt tên/đá từ chỗ
+  // đứng tới bức tường, nên chuyện này TỰ NÓ nhìn thấy được.
+  u.siegeWall = w || null;
+  if (!w) return false;
+  const d = cheb(u.x, u.y, w.x, w.y);
+  const stand = siegeStandoff(u);
+  // XA HƠN TẦM thì vẫn phải tiến — trả false để nhường lại cho bước hành quân bên
+  // dưới. Không có vế này thì một cỗ máy bắn đá "thấy" bức tường ở 14 ô rồi đứng
+  // yên vì nó đang bận công thành, mà đạn thì không tới nơi: một trạng thái bận rộn
+  // không sản xuất ra gì cả, đúng họ với "lệnh rút lui được ghi ra mà không ai đọc".
+  if (d > R) return false;
+  // Bị áp sát bức tường (thường là vì vừa hành quân tới) thì LÙI RA rồi vẫn bắn.
+  // Cùng vi thao tác mà quân tầm xa đã dùng với địch sống, chỉ khác là ở đây nó
+  // tạo ra hình ảnh mà cả cơ chế này sinh ra để có: bộ binh ôm chân tường, cung thủ
+  // và máy bắn đá dàn thành lớp thứ hai phía sau.
+  if (d < stand) moveAwayFrom(u, w.x, w.y);
+  if (u.cooldown === 0 && cheb(u.x, u.y, w.x, w.y) <= R) {
+    rangedStrike(u, w, true);
+    u.cooldown = u.atkCooldown;
+  }
   return true;
 }
 
@@ -638,6 +799,24 @@ function tickSoldier(u, tribe) {
     return;
   }
 
+  // 2d. CÔNG THÀNH TỪ XA — xem siegeWallFromRange để biết vì sao nấc này tồn tại và
+  //     vì sao nó phải nằm ĐÚNG CHỖ NÀY.
+  //
+  //     Trên nó: địch sát sườn (1), nhà đang bị đánh (2), thương binh về trạm (2c).
+  //     Cả ba đều đúng là những thứ phải cắt ngang một cuộc công thành.
+  //     Dưới nó: hành quân (3) và quét địch trong tầm nhìn (4) — và thứ tự ấy mới là
+  //     nội dung thật của nấc này. Không có nó thì bước 3 sẽ đẩy người bắn đi tiếp
+  //     cho tới khi đâm vào tường, tức là bức tường vẫn quyết định chỗ đứng của quân
+  //     tầm xa y như cũ, chỉ khác là giờ nó ăn thêm vài mũi tên trên đường vào.
+  //     `u.combatTarget = null` trước khi return: mọi nhánh thoát sớm trong hàm này
+  //     phải tự ghi lại trạng thái của mình, vì lệnh gán chính thức nằm ở cuối hàm
+  //     (bài học "mục tiêu dính chặt" lần thứ tư đã trả giá đúng ở chỗ này).
+  if (!target && !defendSpot && tribe.warTarget !== null && tribe.warField
+      && siegeWallFromRange(u, tribe, null)) {
+    u.combatTarget = null;
+    return;
+  }
+
   // 3. Chinh phạt. Hành quân đường dài đi theo FLOW FIELD (BFS từ toàn bộ công
   // trình địch) chứ không nhắm sẵn một toà nhà cụ thể từ bên kia bản đồ.
   //
@@ -744,6 +923,14 @@ function tickSoldier(u, tribe) {
       u.cooldown = u.atkCooldown;
     }
   } else {
+    // CHƯA TỚI TẦM — và trước khi bước tới, hỏi VÌ SAO chưa tới. Nếu cái chắn giữa
+    // là một bức tường thì bước tới nghĩa là bò vào tận chân nó, và với quân tầm xa
+    // đó chính là hành vi đã phải sửa (xem siegeWallFromRange). Chỗ này là nửa thứ
+    // hai của bản sửa: nấc 2d chỉ bắt được quãng HÀNH QUÂN (lúc chưa nhắm ai), còn
+    // đây bắt quãng đã nhắm được một toà nhà hay một người cụ thể sau bức tường —
+    // mà đó mới đúng là lúc vòng vây đang siết, tức là lúc chuyện này xảy ra nhiều
+    // nhất. Thiếu nó thì bản sửa tự tắt đúng vào lúc nó cần chạy.
+    if (siegeWallFromRange(u, tribe, target)) return;
     // Truy đuổi cự ly gần: đi tham lam. Nhưng phải có lối thoát — con mồi có thể
     // nấp sau một dải rừng, và khi đó lính sẽ ép mặt vào mép rừng mãi.
     moveToward(u, target.x, target.y);

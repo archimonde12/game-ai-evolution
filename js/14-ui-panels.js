@@ -227,10 +227,19 @@ function renderDefendPanel() {
 function renderGodPanel() {
   el('faithLabel').textContent = `${Math.floor(faith)} / ${CONFIG.GOD.FAITH_MAX}`;
   el('faithFill').style.width = (faith / CONFIG.GOD.FAITH_MAX * 100) + '%';
+  // Thiên Ma có hai lý do bị khoá, không một: thiếu Đức Tin, HOẶC thế giới chưa tới
+  // Hoàng Kim (xem worldBossGate). Cái thứ hai phải nhìn ra được từ cái nút — người
+  // xem đủ Đức Tin mà nút vẫn mờ thì họ kết luận nút hỏng, chứ không đi tìm luật.
+  // `title` mang lý do vì đó là chỗ duy nhất một nút disabled còn nói được (nút mờ
+  // không nhận sự kiện chuột nên setGodHint không bao giờ có cơ hội chạy).
+  const bossGate = worldBossGate();
   for (const p of GOD_POWERS) {
     const btn = el('god_' + p.id);
     if (!btn) continue;
-    btn.disabled = faith < p.cost;
+    const locked = p.id === 'worldboss' && !!bossGate;
+    btn.disabled = faith < p.cost || locked;
+    btn.classList.toggle('locked', locked);
+    btn.title = locked ? bossGate : '';
     btn.classList.toggle('armed', armedPower === p.id);
   }
 }
@@ -581,12 +590,12 @@ function heroSlotsHTML(hero) {
 function heroChestHTML(hero, tribe) {
   const held = hero ? hero.items : [];
   const cells = heroSlotsHTML(hero);
-  // Kho đền chỉ hiện khi có thánh vật: một hàng ngăn rỗng thường trực sẽ ngụ ý rằng
-  // đền LUÔN cất được đồ, trong khi thật ra nó chỉ nhận đúng thánh vật, và chỉ khi
-  // anh hùng ngã trên đất nhà.
-  const shrine = tribe && tribe.enshrinedRelics.length
-    ? `<div class="chest-hd" style="margin-top:7px;"><b>Đền thờ</b><span>người kế nhiệm thừa hưởng</span></div>
-       <div class="slots">${tribe.enshrinedRelics.map(r => {
+  // Kho gia bảo chỉ hiện khi có đồ: một hàng ngăn rỗng thường trực sẽ ngụ ý rằng nó
+  // luôn sẵn sàng nhận, trong khi thật ra nó chỉ được rót vào đúng một lần — lúc đời
+  // trước ngã xuống (xem onHeroDeath).
+  const shrine = tribe && tribe.heirloom.length
+    ? `<div class="chest-hd" style="margin-top:7px;"><b>Gia bảo</b><span>người kế nhiệm thừa hưởng</span></div>
+       <div class="slots">${tribe.heirloom.map(r => {
          const sp = CONFIG.ITEM.TYPES[r.key], lv = clamp(Math.round(r.lv || 1), 1, CONFIG.ITEM.MAX_LEVEL);
          return `<div class="slot full shrine-slot${lv > 1 ? ' lv' + lv : ''}" data-item="${r.key}" data-lv="${lv}"><span class="glow" style="background:${sp.color}"></span><span class="ico">${sp.icon}</span>${lv > 1 ? `<span class="lvtag">${CONFIG.ITEM.LEVEL_TAG[lv]}</span>` : ''}</div>`;
        }).join('')}</div>`
@@ -1360,8 +1369,16 @@ function renderOverlaySelected() {
       // liếc mắt mà không tốn thêm một ô nữa trên một hàng vốn đã chật.
       kv('Công / Thủ', `${effAttack(sel).toFixed(1)} / ${effDefense(sel).toFixed(1)}`);
       if (sel.speedMult > 0) kv('Tốc độ', sel.speedMult.toFixed(2) + ' ô/tick');
+      // "PHÁ TƯỜNG" xếp trên "giữ hàng" và dưới "về trạm xá", đúng thứ tự mà thang
+      // ưu tiên của tickSoldier thật sự dùng. Nó phải có một dòng riêng vì trạng thái
+      // này KHÔNG có combatTarget (xem nấc 2d): thiếu vế này thì một cỗ máy bắn đá
+      // đang nã vào thành sẽ hiện là "giữ hàng" — thẻ thông tin nói ngược hẳn với
+      // thứ đang diễn ra trên màn hình.
       kv('Mục tiêu', sel.mending ? '<span style="color:var(--gold)">về trạm xá</span>'
-        : sel.combatTarget ? (sel.combatTarget.size !== undefined ? 'công thành' : 'giao chiến') : 'giữ hàng');
+        : sel.combatTarget ? (sel.combatTarget.size !== undefined ? 'công thành' : 'giao chiến')
+        : (sel.siegeWall && sel.siegeWall.hp > 0)
+          ? `<span style="color:var(--cinnabar)">phá tường</span> <span style="color:var(--bone-3)">· cách ${cheb(sel.x, sel.y, sel.siegeWall.x, sel.siegeWall.y)} ô</span>`
+          : 'giữ hàng');
     }
   }
 

@@ -398,61 +398,178 @@ function beginNextEra() {
 // Ban Phước là thứ bị chỉnh mạnh nhất: 35 Đức Tin đổi lấy 750 tài nguyên là món
 // hời nhất bảng theo mọi cách tính, nên nó lên 42 và phần thưởng đổi thành phần —
 // bớt vàng, thêm ĐÁ, thứ mà bức tường mới vừa biến thành nút thắt thật.
+// ============================================================
+// HỆ SỐ THEO ĐỒNG HỒ KỶ NGUYÊN — MỘT hàm cho cả Thiên Ma lẫn năm quyền năng kia
+// ============================================================
+// Hai cái ramp có hai bộ hằng số riêng (chúng phải khác nhau: một cái đo sức một con
+// quái, một cái đo sức một cú click) nhưng chỉ được có MỘT công thức. Bản 3.32 đã
+// trả giá cho bài học ngược lại — "hai công thức cùng tả một đường cong" cắn hai lần
+// trong cùng một hình vẽ — và ở đây rủi ro còn cao hơn vì con số không nằm im trong
+// CONFIG mà phụ thuộc `tick`, nên hai đường tính sẽ lệch nhau ngay tại tick đầu tiên
+// có ai đó sửa một hằng số.
+//
+// `atTick` cho phép hỏi "nếu bấm BÂY GIỜ thì thế nào" — bảng hint hỏi câu đó mỗi lần
+// người xem rê chuột lên nút, và nó phải hỏi được mà không cần hiệu ứng nào tồn tại.
+function eraRamp(R, atTick) {
+  const t = clamp((atTick === undefined ? tick : atTick) / R.PEAK_TICK, 0, 1);
+  return R.START + (R.PEAK - R.START) * t;
+}
+
+// Hệ số của NĂM quyền năng thường. Tách thành hàm riêng chứ không gọi thẳng eraRamp ở
+// tám chỗ dùng: chỗ gọi không được phép biết nó đọc bảng nào.
+function godPower(atTick) { return eraRamp(CONFIG.GOD.RAMP, atTick); }
+
+// Bán kính đi theo CĂN của hệ số — xem chú thích CONFIG.GOD.RAMP để biết vì sao
+// (diện tích phải lớn lên đúng bằng hệ số, không phải bằng bình phương của nó).
+function godRadius(base, pow) { return base * Math.sqrt(pow); }
+
+// Bộ chỉ số ĐÃ NHÂN của từng quyền năng. Ba hàm nhỏ chứ không phải ba biểu thức
+// chép ở sáu chỗ (hint · apply · nhật ký của mỗi quyền năng): đó chính là cách bảng
+// hint của Thiên Ma từng quảng cáo 5.200 máu cho một con quái 9.000 máu.
+function godStrike(atTick) {
+  const S = CONFIG.GOD.STRIKE, pow = godPower(atTick);
+  return { pow, unit: Math.round(S.unit * pow), build: Math.round(S.build * pow), r: godRadius(S.r, pow) };
+}
+function godGift(atTick) {
+  const G = CONFIG.GOD.GIFT, pow = godPower(atTick);
+  return { pow, food: Math.round(G.food * pow), wood: Math.round(G.wood * pow),
+           stone: Math.round(G.stone * pow), gold: Math.round(G.gold * pow) };
+}
+function godPlagueFrac(atTick) {
+  const P = CONFIG.GOD.PLAGUE_FRAC;
+  const t = clamp((atTick === undefined ? tick : atTick) / CONFIG.GOD.RAMP.PEAK_TICK, 0, 1);
+  return P[0] + (P[1] - P[0]) * t;
+}
+
 const GOD_POWERS = [
   {
     id: 'lightning', label: '⚡ Sét Trời', name: 'Sét Trời', tone: 'harm', cost: 24,
-    hint: 'Click 1 điểm: gây 75 sát thương lên mọi quân và 220 lên nhà cửa trong bán kính 5 ô (không phân biệt phe).',
+    // GETTER, không phải chuỗi dựng sẵn lúc nạp file: từ bản này con số đổi theo
+    // `tick`, nên một chuỗi tính một lần ở tick 0 sẽ quảng cáo con số của tick 0
+    // suốt cả kỷ nguyên — đúng cái lỗi nhãn-lệch-số đã cắn ở nút Thiên Ma.
+    get hint() {
+      const S = godStrike();
+      return `Click 1 điểm: gây ${S.unit} sát thương lên mọi quân và ${S.build} lên nhà cửa `
+        + `trong bán kính ${S.r.toFixed(1)} ô (không phân biệt phe). MẠNH DẦN THEO THỜI GIAN — `
+        + `hiện ×${S.pow.toFixed(2)}, đỉnh ×${CONFIG.GOD.RAMP.PEAK} ở tick ${CONFIG.GOD.RAMP.PEAK_TICK.toLocaleString('vi-VN')}.`;
+    },
     // 45 -> 75. Ở mức cũ, một phát sét vào giữa đạo quân Thiên Triều không giết
     // nổi một người nào (bộ binh đời 5 có hơn 100 máu): người xem trả 25 Đức Tin
     // để nhìn một vòng lửa rồi mọi thứ tiếp diễn y nguyên. 75 thì nó dọn sạch
     // dân thường và hạ được lính đang bị thương — đủ để phát sét là một QUYẾT
-    // ĐỊNH, chưa đủ để nó thay thế một trận đánh.
+    // ĐỊNH, chưa đủ để nó thay thế một trận đánh. Từ 3.34, 75 là con số ở hệ số
+    // 1,0 (tick ~4.700) chứ không còn là con số của cả kỷ nguyên.
     apply(x, y) {
-      const R = 5;
-      for (const u of units) if (dist(u.x, u.y, x, y) <= R) u.hp -= 75;
-      for (const b of buildings) if (dist(b.x, b.y, x, y) <= R + b.size) b.hp -= 220;
+      const S = godStrike();
+      for (const u of units) if (dist(u.x, u.y, x, y) <= S.r) u.hp -= S.unit;
+      for (const b of buildings) if (dist(b.x, b.y, x, y) <= S.r + b.size) b.hp -= S.build;
+      // TƯỜNG cũng phải chịu sét. Nó không nằm trong `buildings` (xem wallCells), nên
+      // vòng ngay trên bỏ sót nó — cùng cái sót đã làm máy bắn đá không bắn được
+      // tường. Một tia sét chẻ đôi thành luỹ là hình ảnh mà quyền năng này hứa hẹn.
+      //
+      // Hạ máu rồi PHẢI gọi onWallBreached khi nó về 0, chứ không được trừ suông như
+      // vòng `buildings` ngay trên. Hai loại vật này dọn xác ở hai chỗ khác nhau:
+      // công trình chết được vòng lọc cuối tick nhặt, còn ô tường thì KHÔNG bị xoá
+      // khỏi Map bao giờ — thứ đánh dấu nó đang thủng là `downUntil`, và chỉ
+      // onWallBreached đặt trường đó. Trừ suông thì `downUntil` giữ giá trị cũ (đã
+      // qua), nên vòng tự vá ở tickWalls thấy `tick >= w.downUntil` NGAY TICK SAU và
+      // dựng lại bức tường tức thì: người xem thấy sét đánh trúng thành, thành không
+      // đổ, và không có một dòng lỗi nào để lần theo.
+      const wr = Math.ceil(S.r);
+      for (let dx = -wr; dx <= wr; dx++) for (let dy = -wr; dy <= wr; dy++) {
+        const w = wallCells.get((x + dx) + ',' + (y + dy));
+        if (!w || w.hp <= 0 || dist(w.x, w.y, x, y) > S.r) continue;
+        w.hp -= S.build;
+        w.hitTick = tick;
+        if (w.hp <= 0) onWallBreached(w, null);
+      }
       addFx({ type: 'bolt', x, y, life: 14, maxLife: 14, seed: tick % 97 });
-      addFx({ type: 'boom', x, y, life: 22, maxLife: 22, r: R });
+      addFx({ type: 'boom', x, y, life: 22, maxLife: 22, r: S.r });
       addHotspot(x, y, 8, 'Sét của Chúa Tể');
-      logEvent('⚡ Chúa Tể giáng sét', '#d8a544');
+      logEvent(`⚡ Chúa Tể giáng sét (×${S.pow.toFixed(2)})`, '#d8a544');
     }
   },
   {
     id: 'rain', label: '🌧 Mưa Lành', name: 'Mưa Lành', tone: 'grow', cost: 16,
-    hint: 'Click 1 điểm: mọi bụi quả/ruộng trong bán kính 18 ô đầy lại tức thì.',
+    get hint() {
+      const pow = godPower();
+      return `Click 1 điểm: mọi bụi quả và ô ruộng CÒN SỐNG trong bán kính `
+        + `${godRadius(18, pow).toFixed(1)} ô đầy lại tức thì. Ô đã bị hái CẠN thì đã biến mất `
+        + `khỏi bản đồ — mưa không gọi lại được, nên đây là quyền năng phải bấm TRƯỚC khi ruộng quả tàn. `
+        + `Bán kính mạnh dần theo thời gian (hiện ×${pow.toFixed(2)}).`;
+    },
+    // ĐỌC resourceCells, KHÔNG đọc regrowList — và đây là một lỗi im lặng đã sống
+    // suốt từ Phase 3.25. `regrowList` chỉ chứa ô có `regrow > 0`, mà bản 3.25 đặt
+    // MAP.BERRY_REGROW = 0 để làm lương thực hữu hạn: từ tick ấy trở đi, KHÔNG MỘT
+    // BỤI QUẢ NÀO còn nằm trong danh sách này. Quyền năng vẫn chạy, vẫn ghi nhật ký,
+    // vẫn quảng cáo "bụi quả/ruộng" trong bảng hint — và suốt hai bản nó chỉ chạm
+    // được vào ruộng, thứ vốn đã tự đầy lại. Một cơ chế đúng cú pháp, chạy được, và
+    // không ai từng thấy nó làm cái nó nói.
+    //
+    // Sau khi sửa thì đây là quyền năng CHỐNG lại chính luật hữu hạn của 3.25, nên
+    // nó phải có một giới hạn ĂN KHỚP với luật đó: ô hái cạn bị removeResource xoá
+    // hẳn khỏi bản đồ, nên mưa không hồi sinh được cái đã mất. Đó không phải một
+    // ngoại lệ kỹ thuật — nó là cả sức nặng của quyền năng này: một cơn mưa đúng lúc
+    // giữ được cả cánh đồng, một cơn mưa muộn thì rơi xuống đất trống.
     apply(x, y) {
-      const R = 18;
-      let n = 0;
-      for (const c of regrowList) {
-        if (dist(c.x, c.y, x, y) <= R && c.amount < c.max) { c.amount = c.max; n++; }
+      const R = godRadius(18, godPower());
+      let n = 0, gained = 0;
+      for (const c of resourceCells.values()) {
+        if (c.type !== 'food' || c.amount >= c.max) continue;
+        if (dist(c.x, c.y, x, y) > R) continue;
+        gained += c.max - c.amount; c.amount = c.max; n++;
       }
-      logEvent(`🌧 Mưa lành hồi sinh ${n} ô lương thực`, '#63b4ad');
+      addFx({ type: 'boom', x, y, life: 26, maxLife: 26, r: R });
+      logEvent(`🌧 Mưa lành hồi sinh ${n} ô lương thực (+${Math.round(gained)} lương)`, '#63b4ad');
     }
   },
   {
     id: 'forest', label: '🌲 Rừng Mọc', name: 'Rừng Mọc', tone: 'grow', cost: 12,
-    hint: 'Click 1 điểm: mọc thêm 1 khu rừng nhỏ (gỗ mới, đồng thời chặn đường + chặn tầm nhìn).',
+    get hint() {
+      const pow = godPower();
+      return `Click 1 điểm: mọc thêm 1 khu rừng (gỗ mới, đồng thời chặn đường + chặn tầm nhìn) `
+        + `bán kính ${godRadius(7, pow).toFixed(1)} ô. Mạnh dần theo thời gian (hiện ×${pow.toFixed(2)}) — `
+        + `về cuối kỷ nguyên đủ rộng để bịt một hướng tiến quân.`;
+    },
     apply(x, y) {
+      const R = godRadius(7, godPower());
       let n = 0;
-      scatterCluster(x, y, 7, 2, 0.6, (px, py) => { if (addResource(px, py, 'wood', CONFIG.MAP.WOOD_PER_TREE)) n++; });
+      scatterCluster(x, y, R, 2, 0.6, (px, py) => { if (addResource(px, py, 'wood', CONFIG.MAP.WOOD_PER_TREE)) n++; });
       logEvent(`🌲 Chúa Tể gieo ${n} gốc cây`, '#5aa07c');
     }
   },
   {
     id: 'bless', label: '✨ Ban Phước', name: 'Ban Phước', tone: 'gift', cost: 42, needTribe: true,
-    hint: 'Click 1 quân/nhà: bộ lạc đó nhận +260 lương, +240 gỗ, +180 đá, +90 vàng.',
+    get hint() {
+      const g = godGift();
+      return `Click 1 quân/nhà: bộ lạc đó nhận +${g.food} lương, +${g.wood} gỗ, +${g.stone} đá, +${g.gold} vàng. `
+        + `Mạnh dần theo thời gian (hiện ×${g.pow.toFixed(2)}) — một cái kho cuối kỷ nguyên lớn gấp hàng chục lần `
+        + `cái kho đầu kỷ nguyên, nên một món quà đứng yên là một món quà tan biến.`;
+    },
     apply(x, y, tribe) {
-      tribe.res.food += 260; tribe.res.wood += 240; tribe.res.stone += 180; tribe.res.gold += 90;
-      logEvent(`✨ ${tribe.name} nhận thiên ân`, tribe.color);
+      const g = godGift();
+      tribe.res.food += g.food; tribe.res.wood += g.wood; tribe.res.stone += g.stone; tribe.res.gold += g.gold;
+      logEvent(`✨ ${tribe.name} nhận thiên ân (×${g.pow.toFixed(2)})`, tribe.color);
     }
   },
   {
     id: 'plague', label: '☠ Dịch Bệnh', name: 'Dịch Bệnh', tone: 'harm', cost: 34, needTribe: true,
-    hint: 'Click 1 quân/nhà: mọi quân của bộ lạc đó mất 45% máu tối đa.',
+    get hint() {
+      return `Click 1 quân/nhà: mọi quân của bộ lạc đó mất ${Math.round(godPlagueFrac() * 100)}% máu tối đa. `
+        + `Nặng dần theo thời gian (${Math.round(CONFIG.GOD.PLAGUE_FRAC[0] * 100)}% đầu kỷ nguyên → `
+        + `${Math.round(CONFIG.GOD.PLAGUE_FRAC[1] * 100)}% ở tick ${CONFIG.GOD.RAMP.PEAK_TICK.toLocaleString('vi-VN')}).`;
+    },
+    // TỈ LỆ, nên nó KHÔNG nhân hệ số godPower — xem chú thích CONFIG.GOD.RAMP: một
+    // phân số của máu tối đa đã tự leo theo thế giới rồi, nhân thêm lần nữa là leo
+    // hai lần và tới cuối kỷ nguyên nó sẽ vượt 100%, tức là một cú click xoá sạch
+    // quân đội của một bộ lạc. Đường ramp riêng, hẹp hơn nhiều, nội suy thẳng giữa
+    // hai đầu PLAGUE_FRAC: 30% -> 62%. Ở đầu dải nó là một đòn làm suy yếu, ở cuối
+    // dải nó vẫn không giết ai đang đầy máu — nó chỉ khiến trận đánh kế tiếp thua.
     apply(x, y, tribe) {
+      const frac = godPlagueFrac();
       let n = 0;
-      for (const u of units) if (u.tribeId === tribe.id) { u.hp -= u.maxHp * 0.45; n++; }
-      logEvent(`☠ Dịch bệnh càn quét ${tribe.name} (${n} người)`, tribe.color);
+      for (const u of units) if (u.tribeId === tribe.id) { u.hp -= u.maxHp * frac; n++; }
+      logEvent(`☠ Dịch bệnh càn quét ${tribe.name} (${n} người, −${Math.round(frac * 100)}% máu)`, tribe.color);
     }
   },
   {
@@ -469,6 +586,8 @@ const GOD_POWERS = [
     // `setGodHint(p.hint)` đọc thuộc tính đúng lúc bấm nút, nên chỗ gọi không phải đổi.
     get hint() {
       const S = worldBossScaled();
+      const gate = worldBossGate();
+      if (gate) return gate;
       return `Thả một con THIÊN MA ở chính giữa bản đồ (click đâu cũng vậy). `
         + `NÓ MẠNH DẦN THEO THỜI GIAN — thả lúc này: bậc ${S.rank}, `
         + `${S.hp.toLocaleString('vi-VN')} máu · đòn ${Math.round(S.attack)} (đỉnh ở tick `
@@ -478,7 +597,16 @@ const GOD_POWERS = [
         + `một THÁNH VẬT cấp ${CONFIG.ITEM.LEVEL_TAG[CONFIG.ITEM.MAX_LEVEL]} và MỘT CẤP NGHIÊN CỨU miễn phí; `
         + `Chúa Tể được hoàn ${CONFIG.WORLD_BOSS.FAITH_REFUND} Đức Tin. Chỉ một con trên bản đồ cùng lúc.`;
     },
-    apply() { spawnWorldBoss(); }
+    // `return`, KHÔNG phải gọi rồi bỏ. Thiếu đúng từ khoá này thì cả cơ chế hoàn tiền
+    // ở castPower là mã chết — và nó ĐÃ là mã chết từ 3.30 tới giờ: castPower kiểm
+    // `apply(...) === false`, mà `apply() { spawnWorldBoss(); }` luôn trả undefined,
+    // nên mọi cú click bị từ chối ("đã có một con trên bản đồ rồi") vẫn rút trọn 75
+    // Đức Tin. Đo được ở đây: thả boss lúc chưa tới Hoàng Kim → hint hiện đúng câu từ
+    // chối, con quái không sinh ra, và Đức Tin vẫn tụt 100 → 25.
+    // Chú thích ở castPower mô tả đúng hành vi mong muốn và đã mô tả suốt bốn bản —
+    // đúng cái hình dạng "một chú thích đúng nằm cạnh một dòng mã không làm điều nó
+    // nói" mà 3.31 đã ghi lại là còn tệ hơn im lặng.
+    apply() { return spawnWorldBoss(); }
   }
 ];
 
@@ -499,6 +627,21 @@ function worldBossAlive() {
   return null;
 }
 
+// Cửa mở của Thiên Ma: phải có ÍT NHẤT MỘT bộ lạc tới CONFIG.WORLD_BOSS.MIN_AGE.
+// Trả về null khi cửa đã mở, hoặc một câu giải thích khi chưa — MỘT hàm cho cả ba
+// chỗ cần biết (bảng hint, nút bấm, lúc thi hành). Trả CÂU chứ không trả boolean vì
+// hai trong ba chỗ đó phải nói ra LÝ DO: một cái nút mờ đi mà không nói vì sao thì
+// với người xem nó là một cái nút hỏng, đúng bài học đã ghi cho điều kiện Thiên mệnh
+// của Kỳ quan ("một điều kiện không đọc ra được thì với người xem nó không tồn tại").
+function worldBossGate() {
+  const need = CONFIG.WORLD_BOSS.MIN_AGE;
+  let best = 0;
+  for (const t of tribes) if (t.alive && (t.age || 1) > best) best = t.age || 1;
+  if (best >= need) return null;
+  return `🔒 CHƯA MỞ — Thiên Ma chỉ giáng thế khi thế giới đã đủ lớn để chịu nó: cần ít nhất `
+       + `MỘT bộ lạc tới ${CONFIG.AGE.NAMES[need]}. Cao nhất hiện giờ là ${CONFIG.AGE.NAMES[best] || '—'}.`;
+}
+
 // ============================================================
 // HỆ SỐ SỨC MẠNH THEO ĐỒNG HỒ KỶ NGUYÊN
 // ============================================================
@@ -511,9 +654,7 @@ function worldBossAlive() {
 // `atTick` cho phép hỏi "nếu thả BÂY GIỜ thì thế nào" mà không cần con quái tồn tại
 // (bảng hint hỏi câu đó mỗi lần người xem rê chuột lên nút).
 function worldBossPower(atTick) {
-  const R = CONFIG.WORLD_BOSS.RAMP;
-  const t = clamp((atTick === undefined ? tick : atTick) / R.PEAK_TICK, 0, 1);
-  return R.START + (R.PEAK - R.START) * t;
+  return eraRamp(CONFIG.WORLD_BOSS.RAMP, atTick);
 }
 
 function worldBossRank(pow) {
@@ -559,6 +700,12 @@ function worldBossTarget() {
 }
 
 function spawnWorldBoss() {
+  // Cửa thời đại kiểm ở ĐÂY chứ không chỉ ở nút bấm: `apply` là cửa duy nhất mà mọi
+  // đường thả đi qua, còn cái nút chỉ là một trong số đó. Trả về false thì castPower
+  // KHÔNG trừ Đức Tin (xem chú thích ở castPower — thứ tự ấy được viết ra chính vì
+  // Thiên Ma là quyền năng đầu tiên biết từ chối, và giờ nó có hai lý do để từ chối).
+  const gate = worldBossGate();
+  if (gate) { setGodHint(gate); return false; }
   if (worldBossAlive()) { setGodHint('Đã có một Thiên Ma trên bản đồ rồi.'); return false; }
   const cx = Math.floor(CONFIG.GRID_WIDTH / 2), cy = Math.floor(CONFIG.GRID_HEIGHT / 2);
   // Hang giả cấp 1 — cùng thủ thuật mà splitMonster đang dùng, nên chỉ số lấy

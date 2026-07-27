@@ -671,6 +671,16 @@
   .god-btn.armed { box-shadow: inset 0 0 0 1px var(--gold); background: rgba(216,165,68,.14); }
   .god-btn.armed .gb-name { color: var(--gold-hi); }
   .god-btn:disabled { opacity: 0.35; cursor: default; }
+  /* KHOÁ ≠ HẾT TIỀN. Nút mờ vì thiếu Đức Tin là chuyện chờ vài trăm tick là xong;
+     nút khoá vì thế giới chưa tới Hoàng Kim là một LUẬT, và người xem phải phân biệt
+     được hai thứ đó bằng mắt trước khi rê chuột lên đọc lý do. Ổ khoá ăn vào chỗ
+     `::after` còn trống, nên không đụng vạch màu lãnh vực ở `::before`. */
+  .god-btn.locked { opacity: 0.5; cursor: help; }
+  .god-btn.locked::after {
+    content: '🔒'; position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+    font-size: 12px; filter: grayscale(1); opacity: .8;
+  }
+  .god-btn.locked .gb-cost { color: var(--bone-3); }
   #godHint { font-size: 11px; color: var(--bone-3); margin-top: 10px; min-height: 15px; line-height: 1.5; }
 
   /* Lời khẩn cầu: mỗi dòng là một câu hỏi thật gửi người xem; nút "Đáp lời" là một

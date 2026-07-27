@@ -352,6 +352,7 @@ function codexMonsterVerb(spec) {
     v.push(`<b>MẠNH DẦN THEO THỜI GIAN</b> — thả càng muộn càng dữ, đỉnh ở tick ${R.PEAK_TICK.toLocaleString('vi-VN')}: `
          + `${lo.rank} ${lo.hp.toLocaleString('vi-VN')} máu / đòn ${Math.round(lo.attack)} `
          + `→ ${hi.rank} ${hi.hp.toLocaleString('vi-VN')} máu / đòn ${Math.round(hi.attack)}`);
+    v.push(`<b>KHOÁ TỚI ${CONFIG.AGE.NAMES[CONFIG.WORLD_BOSS.MIN_AGE].toUpperCase()}</b> — Chúa Tể không thả được nó khi chưa bộ lạc nào tới đời ${CONFIG.WORLD_BOSS.MIN_AGE}. Điều kiện là THỜI ĐẠI chứ không phải một mốc tick, nên nó đọc được thẳng trên bản đồ: mái nhà đổi vật liệu, tường mọc lên, kỵ binh ra chuồng`);
     v.push(`<b>SĂN KẺ DẪN ĐẦU</b> — hành quân thẳng tới bộ lạc đang đứng nhất bảng, nhắm lại mỗi ${CONFIG.WORLD_BOSS.RETARGET} tick`);
     v.push(`<b>KHO BÁU</b> — bộ lạc ra đòn cuối nhận ${L.food} lương · ${L.wood} gỗ · ${L.stone} đá · ${L.gold} vàng ở bậc gốc, NHÂN theo đúng hệ số con quái (tới ${Math.round(L.food * R.PEAK)} lương ở bậc đỉnh); Chúa Tể được hoàn ${CONFIG.WORLD_BOSS.FAITH_REFUND} Đức Tin`);
     v.push(`<b>THÁNH VẬT CẤP ${CONFIG.ITEM.LEVEL_TAG[CONFIG.ITEM.MAX_LEVEL]}</b> — con đường duy nhất tới món đồ mạnh nhất game mà không phải nung bốn món cấp 1 lại`);
@@ -576,7 +577,13 @@ function codexTabBuilds() {
       Bộ binh đấm vào tường gần như vô hại
       (×${CONFIG.UNIT.BUILD_PENALTY}) — phá thành là việc của <b>máy bắn đá</b> (×${CONFIG.UNIT.BUILDING_DAMAGE_MULT}),
       và đó là <b>lý do thứ hai</b> để tồn tại một Xưởng thợ, sau Kỳ quan. Bộ lạc <b>bành trướng</b> rộng thì
-      vĩnh viễn có nhà nằm ngoài tường: đó là cái giá đúng đắn, không phải một lỗi.</div>
+      vĩnh viễn có nhà nằm ngoài tường: đó là cái giá đúng đắn, không phải một lỗi.
+      <br>Từ Phase 3.34, quân <b>tầm xa nã tường TỪ XA</b>: chúng chỉ dừng lại khi bức tường thật sự
+      <b>chắn đường đi của chính mình</b>, rồi đứng lùi về đúng tầm bắn mà bắn — máy bắn đá ở <b>11</b> ô,
+      cung thủ ở <b>5</b> ô — thay vì bò vào <b>1</b> ô như trước. Nhờ vậy vòng vây tự xếp thành hai lớp:
+      bộ binh ôm chân tường, quân bắn đứng ngoài tầm tháp canh. Đục thủng được ô trước mặt là chúng
+      <b>đi tiếp ngay</b> qua lỗ ấy, không ở lại gặm nốt vành tường. Đạn <b>lan</b> của máy bắn đá nay
+      chạm cả tường, nên một quả rơi đúng chỗ mở được cả một đoạn.</div>
   </div></div>`;
 
   return `<div class="cx-intro">Công trình <b>không chặn đường đi</b> — quân đi xuyên qua nhà. Đó là một đánh đổi cố ý:
@@ -638,8 +645,10 @@ function codexTabHero() {
     <div class="cx-sect">Năm gen của cá thể</div>
     <div class="cx-grid">${genes}</div>
     <div class="cx-sect">Vật phẩm — nhặt trên xác quái và trong hang</div>
-    <div class="cx-intro" style="margin-bottom:12px;">Vật phẩm <b>KHÔNG di truyền</b>: đồ nghề cá nhân mất theo người chết.
-    Ngoại lệ duy nhất là <b>Thánh vật</b> — ngã trên đất nhà thì nó được rước về đền và trao lại cho người kế nhiệm.
+    <div class="cx-intro" style="margin-bottom:12px;">Vật phẩm truyền lại hay không là do <b>CÁCH CHẾT</b> quyết định, không phải do loại đồ:
+    <b>chết già</b> thì cả hòm vào kho <b>gia bảo</b> và người kế nhiệm nhận <b>trọn bộ</b>;
+    <b>tử trận</b> thì <b>mất một nửa</b> — số ấy rơi vãi ngay chỗ ngã xuống cho bên nào tới trước nhặt, nửa còn lại vẫn về kho.
+    Nên một dòng dõi biết lượng sức càng đánh càng giàu đồ, còn một dòng dõi hung hăng thì đời nào cũng phải gây dựng lại.
     Nhặt trúng đồ trùng thì hai món <b>hợp nhất</b> lên cấp, và đường cong cố ý vượt phép cộng: ${lv}.
     Hòm chứa tối đa <b>${CONFIG.ITEM.MAX_HELD}</b> món.</div>
     <div class="cx-grid">${items}</div>

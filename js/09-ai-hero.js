@@ -283,6 +283,13 @@ function tickHero(u, tribe) {
   // nếu không dòng dõi sẽ được ghi sổ hai lần cho cùng một người.
   if (tick - u.born >= CONFIG.HERO.MAX_AGE) {
     u.hp = 0;
+    // CỜ NGUYÊN NHÂN CHẾT, đặt ở ĐÂY và chỉ ở đây. Từ Phase 3.34 cả gia sản của một
+    // dòng dõi treo trên đúng một bit này (xem onHeroDeath), nên nó phải được đặt ở
+    // chỗ DUY NHẤT biết chắc câu trả lời. Mặc định là `undefined` = tử trận: mọi
+    // đường chết khác đều đi qua dealDamage, và không đường nào trong số đó cần biết
+    // gì về anh hùng — đó chính là lý do cờ này mang giá trị "chết già" chứ không
+    // mang giá trị "tử trận". Một cờ phải được đặt ở n chỗ thì sẽ có n-1 chỗ quên.
+    u.diedOfAge = true;
     logEvent(`🕯 Anh hùng ${u.name} của ${tribe.name} qua đời vì tuổi già`, tribe.color, true);
     return;
   }
@@ -565,32 +572,58 @@ function onHeroDeath(u) {
   tribe.heroCooldownUntil = tick + CONFIG.HERO.RESPAWN_DELAY;
   addHotspot(u.x, u.y, 6, `${u.name} ngã xuống`);
 
-  // Đồ đạc rơi lại. Đây là chỗ luật chơi nói thẳng ra điều quan trọng nhất của cả
-  // hệ thống: GEN thì truyền cho đời sau, VẬT PHẨM thì không. Người kế nhiệm thừa
-  // hưởng tính cách của tổ tiên nhưng phải tự đi nhặt lại thanh đao — hoặc để bộ
-  // lạc khác nhặt mất.
+  // ============================================================
+  // GIA SẢN CỦA MỘT ĐỜI ANH HÙNG — chia theo CÁCH CHẾT (Phase 3.34)
+  // ============================================================
+  // Luật cũ (Phase 3.13) hỏi NGÃ Ở ĐÂU: thánh vật ngã trên đất nhà thì về đền, mọi
+  // thứ khác rơi tại chỗ. Luật mới hỏi NGÃ VÌ SAO, và đổi trục như thế không phải
+  // để cho khác — nó đổi vì trục cũ hỏi một câu mà người chơi không tác động được.
+  // Anh hùng gục ở đâu là hệ quả của việc trận đánh cuối cùng diễn ra ở đâu; còn
+  // "chết già hay tử trận" thì đúng là cái mà gen `braveness` đang quyết định từng
+  // tick một. Nói cách khác: trục mới nối thẳng phần thưởng vào chính cái gen mà
+  // vòng tiến hoá thứ hai đang chọn lọc, trục cũ thì không.
   //
-  // NGOẠI LỆ cho THÁNH VẬT — và nó không tuỳ tiện mà theo ĐỊA LÝ nơi ngã xuống:
-  //   · Ngã trên ĐẤT NHÀ  → thánh vật được đưa về đền (enshrinedRelics), đời sau
-  //     thừa kế. Thánh vật là di sản của cả nền văn minh, không phải đồ nghề cá nhân
-  //     — nên trên đất nhà nó không lăn lóc giữa đồng chờ tan biến, mà về đền.
-  //   · Ngã trên ĐẤT ĐỊCH/HOANG → rơi thành chiến lợi phẩm tranh chấp tại chỗ, y
-  //     như đồ thường. "Chết trên đất nó thì nó nhặt được" là cái giá THOẢ ĐÁNG về
-  //     nghĩa — thánh vật thất lạc đúng nơi người mang nó gục xuống.
-  // Đồ nghề thường (đao/giáp/giày/cờ) thì luôn rơi vãi tại chỗ, không đổi.
-  const C = CONFIG.TERRITORY.CELL;
-  const onHomeSoil = terrOwnerAt(Math.floor(u.x / C), Math.floor(u.y / C)) === u.tribeId;
-  for (const it of u.items) {
-    if (it.key === 'relic' && onHomeSoil && tribe.enshrinedRelics.length < CONFIG.ITEM.MAX_HELD) {
-      // Cấp đi theo món vào tận đền: một Thánh vật III mà đời sau nhận lại thành
-      // cấp 1 thì cả công nung của người trước bị xoá đúng ở chỗ mà cơ chế này
-      // sinh ra để KHÔNG xoá — "di sản của cả nền văn minh".
-      tribe.enshrinedRelics.push({ key: it.key, lv: it.lv || 1 });
-      const tag = it.lv > 1 ? ' ' + CONFIG.ITEM.LEVEL_TAG[it.lv] : '';
-      logEvent(`💎 Thánh vật${tag} của ${u.name} được rước về đền ${tribe.name}`, tribe.color, true);
+  //   · CHẾT GIÀ  → TRỌN BỘ sang đời sau. Người kế nhiệm ra lò với đúng cái hòm của
+  //     tổ tiên. Đây là phần thưởng cho một dòng dõi biết lượng sức: sống hết tuổi
+  //     thọ nghĩa là chưa lần nào đánh một trận không thắng nổi.
+  //   · TỬ TRẬN   → MẤT MỘT NỬA, rơi vãi ngay tại chỗ ngã xuống thành chiến lợi
+  //     phẩm tranh chấp. Nửa còn lại vẫn về gia bảo: kể cả một cái chết tồi cũng
+  //     không xoá sạch công của cả một đời, nếu không thì mọi dòng dõi hung hăng sẽ
+  //     vĩnh viễn bắt đầu lại từ hòm rỗng và cả hệ thống vật phẩm tắt ngóm ở nửa
+  //     sau kỷ nguyên — đúng cái ngõ cụt mà 6 ngăn hòm đã phải sửa ở Phase 3.17.
+  //
+  // LÀM TRÒN NGẪU NHIÊN, không phải floor cũng không phải ceil. Với hòm 1 món thì
+  // floor mất 0 (tử trận không mất gì) còn ceil mất 1 (mất sạch) — cả hai đều sai
+  // hẳn so với "mất 50%", và hòm 1-2 món là ca THƯỜNG GẶP nhất (đo ở 3.17: 0 món
+  // 42,2% · 1 món 29,1% · 2 món 11,7%). `floor(n/2 + random)` cho kỳ vọng đúng
+  // bằng n/2 ở MỌI n, nên luật đọc lên đúng như nó chạy.
+  const lost = u.diedOfAge ? 0 : Math.floor(u.items.length / 2 + Math.random());
+  // Xáo trước khi cắt: cắt theo thứ tự trong hòm thì món nhặt sớm nhất luôn là món
+  // mất đầu tiên, mà món nhặt sớm nhất cũng là món có nhiều thời gian hợp nhất lên
+  // cấp nhất — tức là cái nửa bị mất sẽ có hệ thống nặng hơn cái nửa giữ lại.
+  const bag = u.items.slice();
+  for (let i = bag.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [bag[i], bag[j]] = [bag[j], bag[i]];
+  }
+  let kept = 0;
+  for (let i = 0; i < bag.length; i++) {
+    const it = bag[i];
+    // Cấp đi THEO MÓN vào gia bảo: một Thánh vật III mà đời sau nhận lại thành cấp 1
+    // thì cả công nung của người trước bị xoá đúng ở chỗ cơ chế này sinh ra để KHÔNG
+    // xoá. Trần MAX_HELD vẫn giữ — quá trần thì rơi xuống đất như phần bị mất.
+    if (i >= lost && tribe.heirloom.length < CONFIG.ITEM.MAX_HELD) {
+      tribe.heirloom.push({ key: it.key, lv: it.lv || 1 });
+      kept++;
     } else {
       dropItem(u.x + Math.round(randRange(-2, 2)), u.y + Math.round(randRange(-2, 2)), it.key, it.lv);
     }
+  }
+  if (u.items.length) {
+    logEvent(u.diedOfAge
+      ? `🎁 ${kept} món của ${u.name} vào kho gia bảo ${tribe.name} — người kế nhiệm nhận trọn bộ`
+      : `⚱ ${u.name} tử trận: ${u.items.length - kept} món thất lạc tại chỗ, ${kept} món về kho gia bảo`,
+      tribe.color, true);
   }
 }
 

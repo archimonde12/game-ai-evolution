@@ -95,6 +95,10 @@ function startEra(policies) {
       razed: 0,        // công trình của bộ lạc KHÁC do mình san phẳng
       townsRazed: 0,   // trong đó, bao nhiêu cái là KINH ĐÔ
       peakPop: 0,
+      // Số tick còn lại của đồng hồ MẤT KINH ĐÔ, 0 = đồng hồ không chạy (Phase
+      // 3.35). Xem tickCapitalClock để biết vì sao là "còn lại" chứ không phải
+      // "mốc bắt đầu".
+      capitalLeft: 0,
       warTarget: null,
       // HÀNG ĐỢI = suất đã TRẢ TIỀN nhưng chưa cái lò nào nhận. Đồng hồ đếm giờ
       // thì nằm trên từng CÔNG TRÌNH (b.trainType / b.trainTimer) từ Phase 3.28 —
@@ -674,11 +678,21 @@ function towerStackMult(level) {
   return Math.pow(CONFIG.BUILD.TOWER_STACK.MULT, Math.max(0, (level || 1) - 1));
 }
 
+// MÁU THEO THỜI ĐẠI (Phase 3.35). Tra bằng chỉ số KẸP chứ không đọc thẳng
+// `T[tribe.age]`: đây đúng là hình dạng đã sinh ra lỗi lãnh thổ NaN ở Phase 3.6 —
+// một `undefined` nhân vào máu cho NaN, và một toà nhà máu NaN thì không bao giờ
+// chết mà cũng không bao giờ đầy. `tribe` có thể null ở đường gọi của Thư khố.
+function ageBuildHp(tribe) {
+  const T = CONFIG.AGE.BUILD_HP;
+  return T[clamp((tribe && tribe.age) || 1, 1, T.length - 1)];
+}
+
 function buildingMaxHp(b, tribe) {
   const spec = CONFIG.BUILD[b.type];
   if (!spec) return b.maxHp;
+  const t = tribe || tribes[b.tribeId];
   const stack = b.type === 'tower' ? towerStackMult(b.level) : 1;
-  return Math.round(spec.hp * stack * masonryMult(tribe || tribes[b.tribeId]));
+  return Math.round(spec.hp * stack * masonryMult(t) * ageBuildHp(t));
 }
 
 // Tính lại maxHp cho MỌI công trình và MỌI ô tường của một bộ lạc.
@@ -735,10 +749,15 @@ function startTowerStack(tribe, b) {
   const lv = b.level || 1;
   const cost = towerStackCost(lv);
   if (!canAfford(tribe, cost)) return false;
+  // Cùng cánh cửa với queueBuild: không có thợ rảnh thì không khởi công. Ở đây nó
+  // còn đáng hơn — cái tháp NGỪNG BẮN suốt thời gian xây chồng, nên một công
+  // trường tầng hai không ai tới là tự tay tháo vũ khí phòng thủ của chính mình.
+  if (freeBuilders(tribe) === 0) return false;
   pay(tribe, cost);
   b.done = false;
   b.stacking = true;
   b.progress = 0;
+  b.tendedAt = tick;
   b.buildTicks = Math.round(CONFIG.BUILD.tower.buildTicks * Math.pow(CONFIG.BUILD.TOWER_STACK.TICK_STEP, lv));
   assignBuilders(tribe, b);
   logEvent(`🏯 ${tribe.name} khởi công tháp canh tầng ${lv + 1}`, tribe.color);
@@ -768,6 +787,13 @@ function spawnUnit(tribe, type, x, y) {
     // bỏ qua — không đơn vị nào phải trả giá cho một cơ chế nó không dùng.
     speedMult: base.speedMult || 0,
     speedCredit: 0,
+    // THỂ LỰC (Phase 3.35). Khai ở đây cho MỌI đơn vị dù tickStamina tự dựng được
+    // khi thiếu: `maxStam` là mẫu số của thanh thể lực trong bảng thông tin và của
+    // staminaMult, nên một đơn vị lọt qua mà không có nó sẽ chia cho undefined và
+    // ra NaN — thứ đã hai lần âm thầm xoá cả một cơ chế trong dự án này (lãnh thổ ở
+    // 3.6, đội hình ở 3.17). `stamX/stamY` là vị trí tick trước, cách duy nhất đo
+    // được quãng đã đi mà không bỏ sót đường di chuyển nào.
+    maxStam: 0, stam: 0, stamX: undefined, stamY: undefined,
     facingX: 1, facingY: 0,
     cooldown: 0,
     born: tick,
@@ -891,6 +917,9 @@ function spawnUnit(tribe, type, x, y) {
     addHotspot(u.x, u.y, 3, `Anh hùng ${u.name} xuất thế`);
   }
 
+  u.maxStam = staminaCap(u);
+  u.stam = u.maxStam;
+  u.stamX = u.x; u.stamY = u.y;
   units.push(u);
   return u;
 }
@@ -901,7 +930,7 @@ function spawnBuilding(tribe, type, x, y, instant) {
   // đây và refreshBuildingHp — nên cả hai đọc chung `masonryMult`; viết thẳng
   // `spec.hp` ở đây thì mọi toà nhà xây sau khi nghiên cứu xong sẽ lặng lẽ mỏng
   // hơn những toà nhà cũ vừa được cộng, và không có lỗi nào để lần theo.
-  const maxHp = Math.round(spec.hp * masonryMult(tribe));
+  const maxHp = Math.round(spec.hp * masonryMult(tribe) * ageBuildHp(tribe));
   const b = {
     id: nextId++, tribeId: tribe.id, type,
     x: clamp(Math.round(x), 1, CONFIG.GRID_WIDTH - 2),
@@ -929,6 +958,10 @@ function spawnBuilding(tribe, type, x, y, instant) {
     // một trường vắng mặt chỉ nói "chưa ai nghĩ tới".
     trainType: null,
     trainTimer: 0,
+    // Lần cuối có một người thợ ĐỨNG trên công trường này (Phase 3.35). Đóng dấu
+    // trong tickVillager, đọc bởi rescueOrphanSites. `tick` chứ không phải 0 —
+    // xem queueBuild để biết vì sao khai bằng 0 lại là một cái bẫy.
+    tendedAt: tick,
     farmCells: []
   };
   buildings.push(b);

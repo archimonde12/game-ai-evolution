@@ -379,6 +379,12 @@ function renderTribeBoard() {
     // ra ở góc bản đồ khác, hàng nghìn tick trước.
     const mandate = (gameMode !== 'defend' && t.alive && t.townsRazed >= CONFIG.WONDER.NEED_TOWNS)
       ? `<span class="tag" style="color:var(--gold-hi)" title="đã hạ ${t.townsRazed} kinh đô địch — đủ Thiên mệnh để khởi công Kỳ quan">👑</span>` : '';
+    // ĐỒNG HỒ MẤT KINH ĐÔ (Phase 3.35) — huy hiệu DUY NHẤT trong cụm này mang một
+    // con số đang chạy, và nó đáng được ưu tiên đó: đây là thứ sắp xoá một bộ lạc
+    // khỏi bàn cờ. Đổi sang đỏ dưới mốc WARN_AT chứ không chỉ đếm lùi, vì một dãy
+    // số chạy không nói được "sắp hết" nếu người xem chưa biết nó bắt đầu từ đâu.
+    const capital = t.alive && t.capitalLeft > 0
+      ? `<span class="tag" style="color:${t.capitalLeft <= CONFIG.CAPITAL.WARN_AT ? 'var(--cinnabar-hi)' : '#e09a3c'}" title="MẤT KINH ĐÔ — còn ${t.capitalLeft} tick để dựng lại nhà chính, hết giờ là diệt vong. Đồng hồ dừng lại trong lúc có thợ đang dựng.">⏳${t.capitalLeft}</span>` : '';
     const pray = t.prayer ? `<span class="tag" style="color:var(--gold)" title="đang khẩn cầu: ${PRAYERS[t.prayer.kind].label}">🙏</span>` : '';
     const blessed = t.blessUntil >= tick ? `<span class="tag" style="color:var(--gold-hi)" title="đang mang phước lành">✨</span>` : '';
     // Thầy lang vào cụm HUY HIỆU chứ không thành con số thứ năm của cột quân đội.
@@ -409,8 +415,11 @@ function renderTribeBoard() {
     const abReason = t.alive ? ageBlock(t) : null;
     const ageWall = abReason && abReason !== 'đã tới bậc cuối'
       ? `<span class="tag" style="color:#c98f6a" title="chưa lên ${CONFIG.AGE.NAMES[t.age + 1]} được: ${abReason}">⛯</span>` : '';
-    const tags = (war || starve || wonder || mandate || pray || blessed || heal || rally || supply || ageWall)
-      ? `<span class="tags">${war}${starve}${wonder}${mandate}${pray}${blessed}${heal}${rally}${supply}${ageWall}</span>` : '';
+    // Đồng hồ mất kinh đô đứng ĐẦU cụm, trước cả huy hiệu chinh phạt: nó là trạng
+    // thái khẩn cấp nhất mà một bộ lạc có thể mang, và cụm này bị cắt từ bên phải
+    // khi cột hẹp lại.
+    const tags = (capital || war || starve || wonder || mandate || pray || blessed || heal || rally || supply || ageWall)
+      ? `<span class="tags">${capital}${war}${starve}${wonder}${mandate}${pray}${blessed}${heal}${rally}${supply}${ageWall}</span>` : '';
     // Quân đội hiện thành BỐN con số chứ không một tổng: cơ cấu quân mới là thứ
     // hai gen rangedRatio và militaryRatio đang điều khiển, mà một cột tổng thì
     // giấu đúng cái đó đi. Kỵ binh tô vàng — nó là cột duy nhất ở đây chỉ xuất
@@ -769,7 +778,32 @@ function combatRows(u) {
     <span class="value">${atk.toFixed(1)}${plus(upAtk)}${auraTag}</span>
     <span class="label" title="trừ thẳng vào mỗi đòn ăn vào người này (sàn ${Math.round(CONFIG.UNIT.ARMOR_FLOOR * 100)}% đòn gốc)">Thủ</span>
     <span class="value">${def.toFixed(1)}${plus(upDef)}</span>
-    ${buildDmgRow(u, atk)}`;
+    ${buildDmgRow(u, atk)}
+    ${staminaRow(u)}`;
+}
+
+// THỂ LỰC — một hàng có THANH, không chỉ một con số.
+//
+// Đây là chỉ số duy nhất trong thẻ thay đổi từng tick và chỉ có nghĩa ở dạng TỈ LỆ
+// ("còn bao nhiêu phần") chứ không ở dạng tuyệt đối: 60 thể lực là dư dả với một
+// người dân và gần cạn với một anh hùng. Một con số trần buộc người xem phải nhớ
+// sức chứa của từng loài mới đọc được, mà bảng sức chứa thì có mười ba dòng.
+//
+// Đổi MÀU theo trạng thái chứ không chỉ đổi độ dài, vì cái người xem cần biết
+// không phải "còn 41%" mà là "đã tới lúc chạy chậm lại chưa" — và ngưỡng đó
+// (TIRED) là một con số không nhìn thấy được trên một cái thanh trơn.
+function staminaRow(u) {
+  if (!u.maxStam) return '';
+  const S = CONFIG.STAMINA;
+  const f = clamp(u.stam / u.maxStam, 0, 1);
+  const eff = staminaSpeed(u, 1);
+  const tired = f < S.TIRED;
+  const col = f < 0.12 ? '#d05a44' : tired ? '#e09a3c' : 'var(--gold)';
+  const note = tired
+    ? `<span style="color:${col}"> · ĐUỐI, trần ${eff.toFixed(2)} ô/tick</span>`
+    : '';
+  return `<span class="label" title="Chỉ hao khi CHẠY dưới áp lực (đuổi · bỏ chạy · rút lui · đi săn). Đi lại bình thường và hành quân thì không hao. Cạn sạch thì tốc độ bị chặn ở ${S.EXHAUST_SPEED} ô/tick, bất kể loài nào — một con ngựa mệt không còn là một con ngựa nhanh.">Thể lực</span>
+    <span class="value"><span style="display:inline-block;width:52px;height:6px;background:#241c14;border:1px solid #3a2f22;vertical-align:middle;margin-right:5px;"><span style="display:block;height:100%;width:${Math.round(f * 100)}%;background:${col};"></span></span>${Math.round(f * 100)}%${note}</span>`;
 }
 
 // SÁT THƯƠNG LÊN TƯỜNG — một hàng riêng, không gộp vào ô "Công".

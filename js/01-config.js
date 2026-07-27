@@ -407,6 +407,134 @@ const CONFIG = {
     STARVE_DAMAGE: 0.25
   },
 
+  // ============================================================
+  // THỂ LỰC (Phase 3.35) — cái giá của việc DI CHUYỂN
+  // ============================================================
+  // Cho tới bản này, tốc độ là một hằng số của LOÀI: kỵ xạ 1,65 ô/tick từ tick đầu
+  // tới tick cuối, sói 1,5, dân thường 1. Hệ quả không phải "kỵ xạ mạnh" mà là một
+  // điều nặng hơn nhiều: **một đơn vị nhanh hơn thì KHÔNG BAO GIỜ bị bắt**. Không
+  // phải khó bắt — là không thể, theo đúng nghĩa số học, vì khoảng cách giữa kẻ
+  // chạy và kẻ đuổi tăng đơn điệu và không có gì trong mô phỏng làm nó giảm.
+  //
+  // ĐO ĐƯỢC (4 kỷ nguyên, 42.000 tick, 7.170 cuộc rượt dài ≥3 tick):
+  //     trung vị            30 tick
+  //     p90                 70 tick
+  //     p99                284 tick
+  //     DÀI NHẤT         1.206 tick   ← một phút rưỡi đồng hồ thật, một cuộc rượt
+  //     kết thúc mà con mồi VẪN SỐNG      37,2%
+  //     % thời gian lính đang rượt        13,2%
+  // Một phần tám thời gian của cả quân đội đổ vào những cuộc rượt mà hơn một phần
+  // ba không đi tới đâu. Đó không phải chiến đấu, đó là hai chấm màu chạy song song.
+  //
+  // CÁCH CHỮA: tiêu hao theo Ô ĐI ĐƯỢC, không theo tick. Đây là quyết định trung
+  // tâm của cả cơ chế và nó tự động giải đúng bài toán trên — kẻ chạy nhanh gấp
+  // 1,65 lần thì cũng đốt thể lực nhanh gấp 1,65 lần, nên lợi thế tốc độ có HẠN MỨC
+  // tính bằng quãng đường chứ không phải vô hạn theo thời gian. Đuổi theo không còn
+  // là "chạy nhanh hơn" mà là "bền hơn", và đó là một trục hoàn toàn mới.
+  //
+  // HỒI theo TỈ LỆ sức chứa, KHÔNG theo lượng tuyệt đối. Bài học đã trả giá ở
+  // HERO.HEAL_RATE: hồi tuyệt đối thì kẻ có bể chứa lớn bị PHẠT (nằm hồi lâu hơn),
+  // nên "quái vật dồi dào thể lực" sẽ tự biến thành "quái vật kiệt sức vĩnh viễn"
+  // — đúng ngược điều muốn. Hồi theo tỉ lệ thì mọi loài mất cùng một KHOẢNG THỜI
+  // GIAN (~135 tick từ cạn lên đầy), còn "dồi dào" giữ đúng nghĩa của nó: chạy xa
+  // hơn, không phải hồi nhanh hơn.
+  STAMINA: {
+    // ================================================================
+    // SỨC CHỨA ĐO BẰNG GIÂY CHẠY NƯỚC RÚT, KHÔNG BẰNG QUÃNG ĐƯỜNG
+    // ================================================================
+    // Bảng này bị viết lại một lần sau khi một thí nghiệm có kiểm soát bác bỏ bản
+    // đầu. Bản đầu cho kẻ nhanh sức chứa LỚN HƠN (kỵ xạ 175 ô, bộ binh 130) theo
+    // lối nghĩ "ngựa thì bền hơn người". Chạy mô hình thật: kỵ xạ bỏ chạy khỏi bộ
+    // binh, khoảng cách nở ra 56,8 ô rồi ĐÓNG BĂNG ở đó tới vô tận — vì cả hai
+    // cùng chạm sàn kiệt sức và từ đó đi đúng cùng một tốc độ. Cơ chế không bắt
+    // được ai cả; nó chỉ dời cuộc rượt sang một khoảng cách cố định khác.
+    //
+    // Điều kiện để một cuộc rượt KẾT THÚC được, đọc thẳng ra từ mô hình: kẻ chạy
+    // phải kiệt sức SỚM HƠN (tính bằng TICK) kẻ đuổi, và khoảng thời gian giữa hai
+    // mốc kiệt sức phải đủ dài để nuốt hết khoảng cách đã nở ra. Sức chứa tính
+    // bằng Ô thì kẻ nhanh tự động được nhiều tick hơn ở cùng một con số — nên bảng
+    // phải nghĩ bằng GIÂY: mỗi dòng dưới đây là "chạy hết sức được bao nhiêu tick",
+    // rồi mới nhân với tốc độ của loài đó.
+    //
+    //   kỵ binh ~45 tick · bộ binh ~130 tick · dân thường ~45 tick · cỗ máy ~55
+    //
+    // Đọc thành lời: **ngựa nước rút rất nhanh nhưng rất ngắn.** Lợi thế tốc độ
+    // của kỵ binh còn nguyên trong mọi pha giao tranh bình thường (45 tick là dài
+    // hơn 90% các cuộc rượt) — nó chỉ mất đi ở đúng cái đuôi dài, tức là đúng chỗ
+    // yêu cầu gốc trỏ tới.
+    //
+    // ĐO LẠI TRÊN MÔ HÌNH (bắt kịp = khoảng cách về ≤1 ô):
+    //     kỵ xạ 175 vs lính 130 (bản đầu)  KHÔNG BAO GIỜ, đỉnh 56,8 ô
+    //     kỵ xạ  70 vs lính 130            bắt kịp ở tick 104, đỉnh 24,7 ô
+    //     kỵ sĩ  77 vs lính 130            bắt kịp ở tick 115, đỉnh 26,8 ô
+    //     lính  130 vs lính 130            không bao giờ — ĐÚNG, hai kẻ ngang sức
+    //                                      thì không ai bắt được ai, đó không phải
+    //                                      một cuộc chạy trốn mà là một thế hoà.
+    // Và vì thế bộ binh KHÔNG được hạ xuống dưới 130: thử 110 thì kẻ đuổi kiệt sức
+    // trước kẻ chạy và cả cơ chế lật ngược.
+    CAP: {
+      villager: 45,                 // thấp nhất bảng, đúng yêu cầu — và ngắn hơn hẳn cơn hoảng loạn (FLEE_TICKS)
+      soldier: 130, archer: 120, medic: 100, quarter: 110, standard: 110,
+      knight: 77, horsearcher: 70,  // ~45 tick nước rút — xem bảng đo ngay trên
+      elephant: 70,                 // ~61 tick: voi không nước rút, nó đè
+      catapult: 55, ballista: 55,   // cỗ máy: nặng, gần như không được phép chạy xa
+      // Anh hùng 200 ô ở tốc ~1,35 là ~148 tick — DÀI HƠN bộ binh (130) một cách
+      // có chủ ý, và đó là con số giữ cho cơ chế rút lui của anh hùng còn sống: cả
+      // quyết định đánh-hay-lui giả định anh ta về được tới sân nhà. Cho anh hùng
+      // kiệt sức trước kẻ truy đuổi là lặng lẽ xoá luôn một nửa cây quyết định đó.
+      hero: 200,
+      _default: 130
+    },
+    // Quái: "có thể lực nhưng rất dồi dào". 900 ô là ~4 lần một người lính, đủ để
+    // cả một cuộc đi săn xuyên bản đồ (480 ô ngang) diễn ra ở tốc độ đầy đủ. Nghĩa
+    // là thể lực của quái gần như chỉ hiện ra ở đúng một tình huống: con mồi chạy
+    // vòng quanh mãi không chịu chết. Đó cũng đúng là tình huống nó cần hiện ra.
+    MONSTER_CAP: 900,
+    BOSS_CAP: 4000,
+    DRAIN: 1,          // thể lực mất cho mỗi Ô đi được
+    // HỒI NHANH LÀ CÓ CHỦ Ý — và con số này đã bị đo lại một lần rồi mới đúng.
+    //
+    // Bản đầu để 0,0075 (~135 tick từ cạn lên đầy) theo lối nghĩ "thể lực là một
+    // khoản tài nguyên phải quản". Đo 1.200 tick thì người dân sống ở mức 58% sức
+    // chứa và KIỆT SỨC 32,8% thời gian — không phải vì họ chạy nhiều (chỉ 29,7% số
+    // tick là có bước chân) mà vì nhịp làm việc của họ toàn những quãng nghỉ 3
+    // tick, quá ngắn để hồi kịp. Nghĩa là cơ chế đang đánh vào cả nền KINH TẾ,
+    // trong khi thứ nó sinh ra để chạm tới là những cuộc rượt đuổi.
+    //
+    // 0,02 (~50 tick từ cạn lên đầy) đổi bản chất của cơ chế từ KẾ TOÁN sang TÍNH
+    // LIÊN TỤC: quãng nghỉ nào cũng đủ để hồi gần đầy, nên đi làm, hành quân, đánh
+    // trận đều không chạm tới nó. Thứ duy nhất không có quãng nghỉ nào là một cuộc
+    // chạy trốn hoặc một cuộc rượt — và đó đúng là hai chữ trong yêu cầu gốc.
+    // Nói cách khác: thể lực không đo bạn đã đi bao xa, nó đo bạn đã chạy bao lâu
+    // MÀ KHÔNG DỪNG. Rẻ hơn, dễ đọc hơn, và chỉ hiện ra ở đúng cảnh cần nó hiện.
+    REGEN_FRAC: 0.02,
+    // Dưới ngưỡng này mới bắt đầu chậm lại. 0,35 chứ không phải 1,0 là chỗ giữ cho
+    // cơ chế không đụng vào 90% các trận đánh: trung vị một cuộc rượt là 30 tick,
+    // mà một người lính chạy được 130 ô trước khi chạm ngưỡng 0,35×130 = 45 ô còn
+    // lại. Nghĩa là mọi cuộc rượt ngắn diễn ra y hệt như trước bản này; chỉ đúng
+    // cái đuôi dài — thứ người xem thấy và gọi là "đuổi mãi không kịp" — mới đổi.
+    TIRED: 0.35,
+    // ================================================================
+    // TỐC ĐỘ KHI KIỆT SỨC LÀ MỘT SỐ TUYỆT ĐỐI, KHÔNG PHẢI MỘT HỆ SỐ NHÂN
+    // ================================================================
+    // Bản đầu để `FLOOR: 0.5` nhân vào tốc độ cơ bản, và phép đo bác bỏ nó thẳng
+    // thừng: 20.798 cuộc rượt, tỉ lệ thời gian rượt đuổi 13,2% → **27,7%**, p90 từ
+    // 70 lên 93 tick, dài nhất từ 1.206 lên 2.232. Đúng ngược điều cần làm.
+    //
+    // Vì sao: nhân cùng một hệ số vào CẢ HAI bên thì tỉ số tốc độ giữ nguyên. Kỵ xạ
+    // 1,65 kiệt sức còn 0,825, bộ binh 1,0 kiệt sức còn 0,5 — kẻ chạy vẫn nhanh gấp
+    // 1,65 lần kẻ đuổi, y như lúc cả hai còn sung sức. Cơ chế không rút ngắn khoảng
+    // cách, nó chỉ kéo dài thời gian. Một hệ số nhân KHÔNG BAO GIỜ đóng được một
+    // khoảng cách tỉ lệ; chỉ một cái TRẦN mới làm được.
+    //
+    // 0,55 ô/tick là trần chung cho mọi loài đã kiệt sức. Đọc thành lời: **một con
+    // ngựa mệt không còn là một con ngựa nhanh.** Kỵ xạ chạy trốn đủ lâu sẽ tụt về
+    // 0,55 trong khi người lính vừa tới còn nguyên 1,0 — và đó là lần đầu tiên
+    // trong mô phỏng này một đơn vị chậm hơn bắt kịp được một đơn vị nhanh hơn.
+    // Lợi thế tốc độ vẫn còn nguyên, nó chỉ không còn VÔ HẠN nữa.
+    EXHAUST_SPEED: 0.55
+  },
+
   // ------------------------------------------------------------------
   // PHASE 3.16 — GIÁP (`defense`) và vì sao nó phải có mặt trước cả kỵ binh
   //
@@ -1864,7 +1992,28 @@ const CONFIG = {
     // đúng vai "cái vòi tiêu đá đầu tiên có mặt ngay từ Đồ Đá" — bỏ vàng mà không
     // nâng đá thì tháp thành thứ rẻ nhất bảng và gen `stoneWeight` mất luôn hậu quả
     // sớm mà chính dòng này vừa tạo ra cho nó ở bản trước.
-    tower:    { hp: 640, size: 2, cost: { wood: 85, stone: 45 }, buildTicks: 130, pop: 0, label: 'Tháp canh', range: 10, attack: 16, cooldown: 11 },
+    //
+    // ---- Phase 3.35: ĐÁ 45 → 23, vì HẠN NGẠCH vừa gấp đôi ----
+    //
+    // Đây là hệ quả bắt buộc của NEED_TOWERS ×2, không phải một đợt hạ giá riêng.
+    // Tháp là VÒI TIÊU ĐÁ chính của cả trò chơi, mà đá cũng là thứ gác cửa lên đời —
+    // hai cái cổng cùng rút một cái ví. Nhân đôi số tháp mà giữ nguyên đơn giá là
+    // nhân đôi khoản thuế đá đúng ở quãng đường mà bộ lạc phải dành 520 đá cho bậc
+    // Thiên Triều.
+    //
+    // ĐO ĐƯỢC: với đơn giá cũ, trong 373 mẫu "một bộ lạc đã qua mọi cửa cứng và chỉ
+    // còn chờ đủ tiền để lên đời", ĐÁ chặn 373 mẫu — một trăm phần trăm, trong khi
+    // vàng và gỗ chặn 0. Bậc Thiên Triều gần như biến mất khỏi kỷ nguyên (không bộ
+    // lạc nào tới nơi trong 28.000 tick), và vì Kỳ quan khoá sau bậc đó (Phase 3.34)
+    // nên cả đường thắng bằng công trình chết theo, và kỷ nguyên chạm trần "hết giờ"
+    // — đúng cái thế bí mà Kỳ quan sinh ra để phá.
+    //
+    // 23 giữ TỔNG lượng đá cho cả hạn ngạch gần như không đổi (7×45 = 315 → 14×23 =
+    // 322), nên yêu cầu "gấp đôi số tháp" được thi hành đầy đủ trên BẢN ĐỒ — thứ
+    // người xem nhìn thấy — mà không lặng lẽ nhân đôi một khoản thuế mà yêu cầu đó
+    // không nói tới. GỖ giữ nguyên 85, tức là tổng gỗ CÓ gấp đôi thật: gỗ đo được
+    // chặn 0/373 và bản đồ còn 425.000 đơn vị, nên nó gánh được sức nặng mới.
+    tower:    { hp: 640, size: 2, cost: { wood: 85, stone: 23 }, buildTicks: 130, pop: 0, label: 'Tháp canh', range: 10, attack: 16, cooldown: 11 },
     // Xưởng thợ (Đồ Đồng) — nơi ra cung thủ và máy bắn đá. Một bộ lạc không xây nó
     // thì vĩnh viễn chỉ có bộ binh, kể cả khi đã lên Đồ Sắt: thời đại MỞ KHOÁ chứ
     // không TỰ CHO, và khoảng cách giữa hai thứ đó chính là chỗ cho chiến lược.
@@ -1933,10 +2082,64 @@ const CONFIG = {
     // kéo dài — đo thật ở Phase 3.4 là 2/4 kỷ nguyên chạm trần 30.000 tick. Kỳ quan
     // đặt một CÁI ĐỒNG HỒ lên bàn cờ: kẻ dẫn đầu buộc phải phơi mình ra, ba bên
     // còn lại buộc phải bỏ mọi mâu thuẫn để lao vào phá. Thế bí tự tan.
-    wonder:   { hp: 2600, size: 5, cost: { wood: 430, stone: 470, gold: 270 }, buildTicks: 820, pop: 0, label: 'Kỳ quan' },
-    BUILD_RATE: 1,       // tiến độ/tick cho mỗi dân thường đang xây
+    // ---- Phase 3.35: GIÁ GẤP ĐÔI, THỜI GIAN GẤP BA ----
+    //
+    // Đo 4 kỷ nguyên: từ lúc đặt móng tới lúc khánh thành là 110 / 122 / 125 tick.
+    // Ở nhịp 12 tick/giây đó là MƯỜI GIÂY. Cả cơ chế "kẻ dẫn đầu buộc phải phơi
+    // mình ra" viết ngay bên trên chưa từng xảy ra một lần nào: toà nhà mọc lên và
+    // xong trước khi đạo quân gần nhất kịp đi hết nửa quãng đường tới đó.
+    //
+    // Thủ phạm không phải buildTicks mà là WONDER_BUILDERS = 8 (820 / 8 ≈ 103).
+    // Vẫn giữ 8 thợ — hạ số thợ thì công trường lại đứng im như bản trước Phase 3.16
+    // — và kéo dài chính cái đồng hồ: 2460 / 8 / 0,6 ≈ 512 tick. Cộng thêm việc từ
+    // bản này MÓNG ĐÃ ĐỦ để cả bàn cờ tuyên chiến (xem updateWonderRace), 512 tick
+    // là một cửa sổ thật để ba bộ lạc kia kéo tới.
+    //
+    // Giá gấp đôi là vế thứ hai, và nó nhắm vào thứ khác: 430 gỗ + 470 đá + 270 vàng
+    // là khoản mà một bộ lạc đang dẫn đầu gom được gần như không cần hy sinh gì. Gấp
+    // đôi thì nó phải NGỪNG tuyển quân một quãng để dồn kho — nghĩa là lúc cả bàn cờ
+    // kéo tới cũng đúng là lúc nó yếu nhất. Đó mới là cái giá của một đường thắng.
+    //
+    // GIỮ ĐÚNG ×2 TRÊN CẢ BA DÒNG — sau khi một bản thử dời sức nặng sang đá/gỗ bị
+    // chính phép đo bác bỏ. Bản thử đó dựa vào MỘT ảnh chụp kho của MỘT bộ lạc (đá
+    // 3.290 · gỗ 2.235 · vàng 4) và kết luận vàng là thứ gác cửa. Đếm lại trên 373
+    // mẫu "đã đủ điều kiện cứng, chỉ còn chờ tiền" thì ra ngược hẳn:
+    //     ĐÁ chặn 373/373 (100%)   ·   lương 200/373   ·   vàng 0   ·   gỗ 0
+    // Một ảnh chụp một bộ lạc ở một khoảnh khắc không phải một phép đo. Cái kho vàng
+    // cạn kia là của một bộ lạc vừa dốc sạch vào quân đội trong một trận đánh, không
+    // phải trạng thái chung. Đá mới là cổ hẹp — và dồn thêm 530 đá vào Kỳ quan là
+    // xiết đúng cái cổ đang nghẹn.
+    wonder:   { hp: 2600, size: 5, cost: { wood: 860, stone: 940, gold: 540 }, buildTicks: 2460, pop: 0, label: 'Kỳ quan' },
+    // ================================================================
+    // TỐC ĐỘ XÂY — hạ 1 → 0,6 (Phase 3.35)
+    // ================================================================
+    // Một căn nhà ở 70 tick chia cho 3 thợ là 23 tick — chưa tới hai giây thật. Ở
+    // nhịp đó, quyết định xây dựng không có ĐỘ TRỄ, mà không có độ trễ thì nó cũng
+    // không có rủi ro: bộ lạc không bao giờ phải trả lời câu "có kịp xong trước khi
+    // địch tới không". Hạ xuống 0,6 làm mọi công trình mất thêm 2/3 thời gian, và
+    // cái nó mua là cửa sổ tổn thương — công trường trở thành một thứ đứng trên bản
+    // đồ đủ lâu để bị nhìn thấy, bị đánh, và bị bỏ dở.
+    BUILD_RATE: 0.6,     // tiến độ/tick cho mỗi dân thường đang xây
     MAX_BUILDERS: 3,
-    WONDER_BUILDERS: 8,  // Kỳ quan được huy động nhiều thợ hơn hẳn — nếu không, 820 tick chia cho 3 thợ là quá dài để kịp xảy ra bất cứ chuyện gì
+    WONDER_BUILDERS: 8,  // Kỳ quan được huy động nhiều thợ hơn hẳn — nếu không, 2460 tick chia cho 3 thợ là quá dài để kịp xảy ra bất cứ chuyện gì
+    // ================================================================
+    // MÓNG PHẢI CÓ NGƯỜI — Phase 3.35
+    // ================================================================
+    // Trước bản này queueBuild trả tiền và đặt móng NGAY, rồi mới đi tìm thợ; tìm
+    // không ra cũng không sao, móng vẫn nằm đó. Đo 42.000 tick: 21% thời gian-móng
+    // là công trường KHÔNG CÓ MỘT NGƯỜI THỢ NÀO. Vì `bcount` đếm cả móng dở nên bộ
+    // não tin là mình đã có công trình đó — tức là một khoản tài nguyên bốc hơi và
+    // một quyết định xây dựng bị nuốt mất, cả hai đều im lặng.
+    //
+    // Hai cánh cửa, cố ý tách đôi vì chúng chặn hai chuyện khác nhau:
+    //   · KHÔNG CÓ THỢ RẢNH thì không đặt móng, không trả tiền (queueBuild).
+    //   · Đã đặt móng mà ABANDON_TICKS trôi qua vẫn 0% và không ai đứng đó thì DỠ
+    //     MÓNG, HOÀN TIỀN. Đây là vế mà cơ chế cứu công trường (rescueOrphanSites)
+    //     không làm được: nó cứu tối đa 5 lượt rồi bỏ mặc, và cái móng nằm lại vĩnh
+    //     viễn khoá đúng một suất trong bcount.
+    // Hoàn ĐỦ chứ không hoàn một phần: chưa có một tick lao động nào đổ vào đó, nên
+    // trừ tiền là phạt bộ lạc vì một chỗ đặt móng mà chính bộ não đã chọn sai.
+    ABANDON_TICKS: 420,
 
     // ================================================================
     // XÂY CHỒNG THÁP CANH (Phase 3.29) — cái tháp thứ hai đặt LÊN cái thứ nhất
@@ -2647,6 +2850,43 @@ const CONFIG = {
       { hp: 1.6, atk: 1.7, gather: 1.3 },
       { hp: 2, atk: 2.1, gather: 1.45 },
       { hp: 2.5, atk: 2.6, gather: 1.6 }],
+    // ================================================================
+    // MÁU CÔNG TRÌNH THEO THỜI ĐẠI (Phase 3.35) — lỗ hổng có từ ngày đầu
+    // ================================================================
+    // Bảng BONUS ngay trên cho ĐƠN VỊ một đường leo đầy đủ (máu 1 → 2,5 · đòn
+    // 1 → 2,6). Công trình thì KHÔNG CÓ GÌ: một căn nhà ở thời Thiên Triều dày đúng
+    // 200 máu như căn nhà thời Đồ Đá, trong khi kẻ đang đập nó đánh mạnh gấp 2,6
+    // lần. Nghĩa là mỗi bậc thời đại, thành phố lại tan nhanh hơn — thời đại càng
+    // cao thì công trình càng gần với đồ trang trí.
+    //
+    // Không có dòng lỗi nào cho chuyện này vì nó không phải một lỗi, nó là một
+    // TRỤC BỊ BỎ QUÊN: `masonryMult` (nhánh nghiên cứu Nề đá) là đường DUY NHẤT
+    // làm nhà dày lên, mà nó là một lựa chọn — nên bộ lạc không chọn nó thì cả
+    // thành phố đứng yên trong khi thế giới quanh nó leo dốc.
+    //
+    // 1,0 → 1,4 chứ không phải 1,0 → 2,5 như đơn vị, và độ dốc thấp hơn hẳn đó là
+    // có chủ ý: công trình KHÔNG né được, không phản đòn (trừ tháp và kinh đô), và
+    // không hồi máu. Cho nó leo ngang với quân đội thì công thành ở hậu kỳ sẽ dài
+    // gấp đôi bây giờ, và cái dài ra là quãng đứng gõ tường — phần chán nhất.
+    BUILD_HP: [1, 1, 1.1, 1.2, 1.3, 1.4],
+    // ================================================================
+    // SỨC ĐÁNH THÁP CANH THEO THỜI ĐẠI (Phase 3.35) — hạ 40%, bò về 100% ở đời 5
+    // ================================================================
+    // Tháp là công trình DUY NHẤT vừa bắt buộc (NEED_TOWERS) vừa bắn trả, và ở
+    // Phase 3.27 nó được nâng lên 16 sát thương / hồi 11 = 1,45/tick — bằng đúng
+    // hai người lính đứng gác vĩnh viễn, ngay từ Đồ Đá. Đó là quá sớm: hai đạo bộ
+    // binh Đồ Đá đánh nhau thì bên nào có tháp gần như tự động thắng, và trận đánh
+    // đáng xem nhất của cả kỷ nguyên — trận đầu tiên — bị một công trình quyết định.
+    //
+    // Nhân vào SÁT THƯƠNG chứ không vào tầm bắn hay máu: tầm 10 là thứ giữ cho tháp
+    // không bị phá miễn phí từ ngoài tầm với (xem BUILD.tower), và hạ nó xuống là
+    // xoá luôn lý do tháp tồn tại. Hạ sát thương thì cái tháp vẫn CÓ MẶT ở đúng chỗ
+    // nó phải có mặt, chỉ là nó chưa đủ sức tự mình quyết định một trận đánh.
+    //
+    // Bước 10% mỗi đời, đúng cùng nhịp với BUILD_HP ngay trên, và về đúng 1,0 ở
+    // Thiên Triều: tới bậc đó thì mọi bên đều có máy bắn đá tầm 12 và voi chiến,
+    // nên một cái tháp đủ mạnh không còn là thứ định đoạt trận đánh nữa.
+    TOWER_ATK: [1, 0.6, 0.7, 0.8, 0.9, 1],
     // Cổng mở khoá. Đọc một chỗ là biết cả cây công nghệ.
     //
     // Luật đọc thành lời: ĐỒ ĐÁ chỉ có bộ binh — không cung, không ngựa, không
@@ -2703,7 +2943,19 @@ const CONFIG = {
     //
     // Chỉ số = thời đại SẮP TỚI. NEED_TOWERS[3] = 2 nghĩa là muốn lên Đồ Sắt phải
     // có sẵn 2 tháp ĐÃ XÂY XONG.
-    NEED_TOWERS: [0, 0, 0, 2, 4, 7],
+    // ---- Phase 3.35: GẤP ĐÔI hạn ngạch ----
+    // Đi kèm việc hạ sát thương tháp 40% (xem TOWER_ATK) và hai thứ phải đọc CÙNG
+    // NHAU, vì tách ra thì mỗi cái đều sai: hạ sức mạnh mà giữ nguyên hạn ngạch là
+    // biến tháp thành thuần thuế; gấp đôi hạn ngạch mà giữ nguyên sức mạnh là bắt
+    // mọi bộ lạc dựng 14 khẩu pháo phòng thủ quanh nhà. Cùng nhau thì tháp đổi VAI:
+    // từ "vũ khí" thành "hạ tầng" — thứ phải có nhiều, mỗi cái không quyết định gì,
+    // và tổng của chúng vẽ ra hình dạng của một đế chế trên bản đồ.
+    //
+    // 14 cái để lên Thiên Triều là 1.190 gỗ + 630 đá đông cứng thành công trình.
+    // Đá là thứ đắt nhất trong đó và cũng chính là thứ gác cửa Kỳ quan — nên đây là
+    // một cái cổng THẬT, không phải một khoản phí. Nếu phép đo cho thấy Thiên Triều
+    // biến mất khỏi các kỷ nguyên thì đây là con số phải xét lại trước tiên.
+    NEED_TOWERS: [0, 0, 0, 4, 8, 14],
     // ================================================================
     // TRẦN DÂN THƯỜNG THEO THỜI ĐẠI — mắt xích còn thiếu của cả Phase 3.24
     // ================================================================
@@ -2735,6 +2987,35 @@ const CONFIG = {
 
   BRAIN_INTERVAL: 20,     // mỗi N tick bộ não bộ lạc chạy 1 lần (quyết định xây/tuyển/tuyên chiến)
   WAR_MIN_ARMY: 10,       // dưới ngần này lính thì không đi đánh ai, chỉ thủ
+
+  // ============================================================
+  // MẤT KINH ĐÔ = ĐỒNG HỒ ĐẾM NGƯỢC (Phase 3.35)
+  // ============================================================
+  // Luật diệt vong cũ hỏi đúng một câu: "còn đơn vị nào không, và có đủ điều kiện
+  // ra dân mới không". Một bộ lạc mất sạch nhà chính nhưng còn 40 người lính lang
+  // thang thì hoàn toàn hợp lệ — và nó sống như thế tới hết kỷ nguyên. Đo 4 kỷ
+  // nguyên: 10 lần một bộ lạc mất kinh đô, chỉ 5 lần dẫn tới diệt vong (sau
+  // 103-299 tick, và chỉ vì họ mất luôn cả dân); kỷ nguyên 1 kết thúc với MỘT
+  // TRONG BA bộ lạc còn sống đang không sở hữu một cái kinh đô nào.
+  //
+  // Vì sao đó là một lỗi thiết kế chứ không phải một kết cục hợp lệ: cả bàn cờ có
+  // đúng một mục tiêu chiến lược mà ai cũng đồng ý là quyết định — kinh đô. Nếu san
+  // phẳng nó KHÔNG kết thúc được gì, thì phần thưởng của cuộc công thành đắt nhất
+  // trong game chỉ là "đối phương bất tiện hơn một chút", và người xem thấy một
+  // đoàn quân thắng trận đứng giữa đống đổ nát mà không có gì xảy ra.
+  //
+  // Đồng hồ chứ không phải xử thua NGAY, vì bộ lạc CÓ đường gỡ thật: nhánh sống
+  // còn trong tribeBrain dồn toàn lực dựng lại nhà chính ở chỗ người dân đầu tiên
+  // tìm được. GRACE phải đủ dài để đường gỡ đó chạy được thật — 260 tick xây chia
+  // 3 thợ ở nhịp 0,6 là ~145 tick, cộng quãng đi và quãng gom 250 gỗ — nhưng đủ
+  // ngắn để một đạo quân thắng trận thấy được kết quả của việc mình vừa làm.
+  // Đồng hồ ĐÓNG BĂNG nếu đã có móng nhà chính đang dựng: kẻ đang xây dở không
+  // phải kẻ đang chạy rông, và phạt họ vì thợ đi chậm là phạt sai người.
+  CAPITAL: {
+    GRACE: 600,
+    WARN_AT: 300,     // dưới mốc này thì đồng hồ chuyển sang cảnh báo đỏ trên bảng bộ lạc
+    CAMERA_W: 14      // trọng số điểm nóng để camera đạo diễn quay về nơi sắp diệt vong
+  },
 
   ERA: {
     MAX_TICKS: 30000,

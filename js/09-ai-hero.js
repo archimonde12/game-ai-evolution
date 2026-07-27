@@ -294,17 +294,13 @@ function tickHero(u, tribe) {
     return;
   }
 
-  // Tốc độ phân số: rút phần nguyên ra khỏi tín dụng tích luỹ (xem spawnUnit).
-  // Đường cái nhân vào TÍN DỤNG chứ không vào tốc độ đã làm tròn — cùng lý do đã
-  // viết ở tickSoldier.
-  u.speedCredit += roadSpeed(u, u.speedMult);
-  u.speed = Math.floor(u.speedCredit);
-  u.speedCredit -= u.speed;
-  // Nọc Mãng Xà không chừa anh hùng. Đây cũng là chỗ nó cắn đau nhất về mặt cơ
-  // chế: quyết định đánh-hay-lui của anh hùng giả định anh ta rút được: xem
-  // `retreating`. Bị cắn xong thì đường về nhà dài gấp đôi, và một quyết định
-  // đúng ở lúc ra quyết định có thể sai ở lúc thi hành.
-  u.speed = slowedSpeed(u, u.speed);
+  // Tốc độ phân số, đường cái, thể lực, nọc Mãng Xà — cùng một cửa với mọi thứ
+  // biết đi (xem tickSpeed). Nọc rắn cắn đau nhất ở đây về mặt cơ chế: quyết định
+  // đánh-hay-lui của anh hùng giả định anh ta rút được (xem `retreating`), và một
+  // quyết định đúng ở lúc ra quyết định có thể sai ở lúc thi hành. Thể lực nay là
+  // nguồn thứ hai của đúng cái rủi ro đó — sức chứa 260 ô là lớn nhất bảng, nhưng
+  // anh hùng cũng là kẻ chạy nhiều nhất bản đồ.
+  u.speed = tickSpeed(u, u.speedMult);
 
   applyHeroAura(u);
 

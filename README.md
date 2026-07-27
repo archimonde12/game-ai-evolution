@@ -30,7 +30,32 @@ Có hai thế cuộc: **Chinh Phạt** (các bộ lạc đánh nhau, thắng b�
 
 Kỳ quan **không mua được bằng kho**: phải lên tới **Thiên Triều** (đời 5), phải hạ được kinh đô của một
 bộ lạc khác trước (*Thiên mệnh*), và cả bản đồ chỉ được có **một** Kỳ quan — kể cả đang xây dở. Nghĩa là
-đường thắng bằng công trình đi *xuyên qua* chiến tranh chứ không vòng qua nó.
+đường thắng bằng công trình đi *xuyên qua* chiến tranh chứ không vòng qua nó. Và **khởi công là một lời
+tuyên bố, không phải một bí mật**: ngay từ tick đặt móng, ba bộ lạc kia bỏ mọi mâu thuẫn để kéo tới công
+trường, còn chủ nhân thì triệu hồi toàn quân về giữ. Đo bản cũ, từ móng tới khánh thành chỉ **110–125
+tick** — mười giây thật, ngắn hơn quãng đường đạo quân gần nhất đi tới đó, nên cửa sổ ấy chưa từng tồn tại.
+Nay là **2.460 tick** (đo thật: 527 và 667 tick từ móng tới khánh thành).
+
+Mất **sạch** kinh đô khởi động một **đồng hồ đếm ngược 600 tick** tới diệt vong — dựng lại được một cái
+trước khi hết giờ thì thoát. Đồng hồ *đứng yên* trong lúc đang có thợ dựng móng nhà chính, nên nó chấm
+dứt việc **chạy rông** chứ không phạt kẻ đang gượng dậy.
+
+## Thể lực — chạy thì hao, đi thì không
+
+Trước đây tốc độ là hằng số của loài, và hệ quả không phải "kỵ xạ mạnh" mà là: **một đơn vị nhanh hơn thì
+không bao giờ bị bắt** — theo đúng nghĩa số học, vì khoảng cách giữa kẻ chạy và kẻ đuổi tăng đơn điệu.
+
+Thể lực chỉ vơi khi đơn vị **chạy dưới áp lực** (đuổi ai · bỏ chạy khỏi ai · rút lui · đi săn). Đi làm,
+gánh hàng và hành quân thì không tốn gì, nên cơ chế vô hình với cả nền kinh tế lẫn mọi trận đánh ngắn.
+Cạn sạch thì tốc độ bị chặn ở **0,55 ô/tick** — một cái **trần tuyệt đối**, không phải hệ số nhân. Đó là
+điểm mấu chốt: *một con ngựa mệt không còn là một con ngựa nhanh.* Bản đầu dùng hệ số nhân và bị chính
+phép đo bác bỏ — nhân cùng một số vào cả hai bên thì tỉ số tốc độ giữ nguyên, khoảng cách nở ra 56,8 ô
+rồi **đóng băng** ở đó mãi mãi.
+
+Sức chứa đo bằng **giây chạy nước rút**, không bằng quãng đường: kỵ binh ~45 tick, bộ binh ~130, dân
+thường ~45 (thấp nhất), quái vật 900 ô (gần như không bao giờ đuối). Nhờ vậy kẻ chạy nhanh kiệt sức
+*trước* kẻ đuổi, và cuộc rượt kết thúc được — đo trên mô hình: kỵ xạ bỏ chạy khỏi bộ binh bị bắt kịp ở
+tick 97 sau khi khoảng cách đã nở ra 23 ô.
 
 Quyền năng của Chúa Tể **mạnh dần theo đồng hồ kỷ nguyên** — một cái kho cuối kỷ nguyên lớn gấp hàng chục
 lần cái kho đầu kỷ nguyên, nên một quyền năng đứng yên là một quyền năng tan biến. Riêng **Thiên Ma** bị

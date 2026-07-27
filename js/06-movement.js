@@ -27,9 +27,113 @@
 // Đơn vị speed 1 không thể "đi nửa ô", nên nó đi một tick nghỉ một tick. Lệch
 // pha theo id để một hàng lính bị cắn không giật cùng nhịp như một cái máy.
 function slowedSpeed(u, base) {
+  // CỬA CHẶN SỐ 0 — thêm ở Phase 3.35, và nó là một lỗi TIỀM ẨN được vũ trang chứ
+  // không phải một dòng phòng xa. Nhánh dưới đọc thành lời là "tốc độ dưới 1 thì
+  // đi một tick nghỉ một tick", mà với base = 0 nó trả về 1 ở nửa số tick — tức là
+  // một đơn vị lẽ ra ĐỨNG IM lại nhích được. Trước bản này không đường nào truyền
+  // 0 vào đây (mọi lời gọi đều bắt đầu từ hằng số 1 hoặc từ speedMult ≥ 1), nên nó
+  // nằm im. Thể lực là thứ đầu tiên tạo ra tốc độ cơ bản < 1.
+  if (base <= 0) return 0;
   if (!(u.slowUntil > tick)) return base;
   const s = base * (u.slowMult || 0.5);
   return s >= 1 ? Math.floor(s) : ((tick + u.id) & 1) ? 0 : 1;
+}
+
+// ============================================================
+// THỂ LỰC — xem CONFIG.STAMINA để biết vì sao cơ chế này tồn tại
+// ============================================================
+// Sức chứa tra theo LOẠI ĐƠN VỊ chứ không lưu trên spec, vì quái vật và đơn vị bộ
+// lạc đi qua hai đường sinh hoàn toàn khác nhau (spawnUnit / spawnMonster) và một
+// bảng tra thì cả hai cùng đọc được mà không phải sửa hai chỗ.
+function staminaCap(u) {
+  const S = CONFIG.STAMINA;
+  if (u.tribeId < 0) return u.mType === 'worldboss' ? S.BOSS_CAP : S.MONSTER_CAP;
+  return S.CAP[u.type] || S.CAP._default;
+}
+
+// Nhận tốc độ CƠ BẢN, trả về tốc độ sau khi tính thể lực. TRẦN TUYỆT ĐỐI chứ không
+// phải hệ số nhân — xem CONFIG.STAMINA.EXHAUST_SPEED để biết vì sao bản nhân hệ số
+// đã bị chính phép đo bác bỏ.
+//
+// Nội suy giữa `base` (còn sung sức) và `EXHAUST_SPEED` (kiệt hẳn), nên một đơn vị
+// vốn đã chậm hơn trần thì không bao giờ bị cơ chế này làm nhanh lên: `base` nhỏ
+// hơn 0,55 thì phép nội suy chạy ngược lên, và Math.min chặn đúng chỗ đó.
+function staminaSpeed(u, base) {
+  const S = CONFIG.STAMINA;
+  const cap = u.maxStam || 1;
+  const frac = (u.stam === undefined ? cap : u.stam) / cap;
+  if (frac >= S.TIRED) return base;
+  const t = 1 - frac / S.TIRED;                       // 0 ở ngưỡng mệt, 1 khi cạn sạch
+  return Math.min(base, base + (S.EXHAUST_SPEED - base) * t);
+}
+
+// THỂ LỰC CHỈ TIÊU HAO KHI CHẠY DƯỚI ÁP LỰC, không phải khi đi lại bình thường.
+// Đây là điều kiện quan trọng nhất của cả cơ chế, và nó là kết quả của một phép đo
+// bác bỏ bản đầu: khi mọi bước chân đều tiêu hao, thứ mệt nhất bản đồ hoá ra là
+// người dân đi gánh hàng (76% thời gian của họ là đi bộ) và đạo quân đang HÀNH
+// QUÂN — hai đối tượng chẳng liên quan gì tới "hit and run" hay "bỏ trốn". Đo
+// được: lính kiệt sức 39,8% thời gian, dân 28,8%, và hai kỷ nguyên liền chạm trần
+// 30.000 tick vì mọi thứ đều chậm lại cùng nhau.
+//
+// Bốn cờ dưới đây đều đã tồn tại sẵn và mỗi cờ nghĩa là "đang có kẻ thù trong
+// chuyện này": đuổi theo ai đó, bỏ chạy khỏi ai đó, rút lui khỏi ai đó, đi săn ai
+// đó. Cộng lại chúng vẽ đúng ranh giới cần vẽ — CHẠY khác ĐI — mà không cần thêm
+// một lượt quét tìm địch nào cho mỗi đơn vị mỗi tick.
+function staminaPressed(u) {
+  if (u.fleeTimer > 0 || u.retreating) return true;
+  if (u.combatTarget && u.combatTarget.hp > 0) return true;
+  return !!(u.huntTarget && u.huntTarget.hp > 0);
+}
+
+// Đo quãng vừa đi được rồi trừ/hồi. Đặt ở ĐẦU tick của đơn vị nên nó đo bước chân
+// của tick TRƯỚC — và đó chính là lý do cách này đúng: mọi con đường di chuyển
+// trong game (moveToward · stepDownField · moveAwayFrom · nhánh riêng của quái)
+// đều kết thúc bằng việc dời `u.x`/`u.y`, nên đo VỊ TRÍ là cách duy nhất không bỏ
+// sót đường nào. Thử trừ ngay trong tryStep thì hụt stepDownField — đúng cái bẫy
+// đã ghi ở slowedSpeed ngay trên, và lần này hậu quả nặng hơn: cả một đạo quân
+// hành quân bằng flow field sẽ không bao giờ mệt.
+//
+// HỒI ở MỌI tick không tiêu hao, kể cả khi đang đi. Không phải để rộng lượng: nếu
+// chỉ hồi lúc đứng im thì một đạo quân vừa đánh xong rồi hành quân sang mặt trận
+// khác sẽ tới nơi vẫn kiệt sức, và cơ chế lại rò ra ngoài đúng cái ranh giới mà
+// `staminaPressed` vừa vẽ. Thể lực là bể chứa cho một cuộc RƯỢT, và giữa hai cuộc
+// rượt thì nó đầy lại — dù chân có đang bước hay không.
+function tickStamina(u) {
+  const S = CONFIG.STAMINA;
+  if (!u.maxStam) { u.maxStam = staminaCap(u); u.stam = u.maxStam; }
+  if (u.stamX === undefined) { u.stamX = u.x; u.stamY = u.y; return; }
+  const moved = cheb(u.x, u.y, u.stamX, u.stamY);
+  u.stamX = u.x; u.stamY = u.y;
+  if (moved > 0 && staminaPressed(u)) u.stam = Math.max(0, u.stam - moved * S.DRAIN);
+  else u.stam = Math.min(u.maxStam, u.stam + u.maxStam * S.REGEN_FRAC);
+}
+
+// MỘT đường tính tốc độ cho MỌI thứ biết đi, thay cho bảy dòng chép tay gần giống
+// nhau rải khắp bốn file. Gộp lại vì Phase 3.35 thêm nguồn nhân thứ TƯ (thể lực)
+// vào một phép nhân vốn đã có ba (ngựa · đường cái · cổ vũ), và bảy bản chép tay
+// thì bảy chỗ phải nhớ thêm cùng một thừa số — bài học đã trả giá ở chính hàm
+// tickSoldier, nơi hai nhánh cũ làm phần cổ vũ của bộ binh bốc hơi vì làm tròn.
+//
+// THỨ TỰ là một quyết định: đường cái nhân trước, thể lực nhân sau, rồi mới tới cỗ
+// máy tín dụng, rồi cuối cùng là nọc rắn. Nghĩa là đường cái KHÔNG cứu được kẻ
+// kiệt sức (2 × 0,5 = 1, vẫn chậm hơn người khoẻ chạy trên đường), nhưng nó vẫn là
+// đường thoát tốt nhất mà kẻ kiệt sức có. Đó đúng là vai trò một con đường nên có.
+function tickSpeed(u, base) {
+  tickStamina(u);
+  // QUÁI KHÔNG HƯỞNG ĐƯỜNG CÁI — luật đã viết đầy đủ ở roadSpeed. Mệnh đề nằm ở
+  // ĐÂY chứ không ở bốn chỗ gọi, vì gộp bảy đường tính tốc độ làm một mà để mỗi
+  // chỗ gọi tự nhớ luật thì đúng một chỗ quên là đủ để bộ lạc tự lát một đường ray
+  // chở quái tới cửa nhà mình — và không có dòng lỗi nào cho chuyện đó.
+  if (u.tribeId >= 0) base = roadSpeed(u, base);
+  // Thể lực SAU đường cái: con đường nhân vào tốc độ khi còn sức, nhưng cái trần
+  // kiệt sức thì đè lên cả kết quả đó. Kỵ xạ kiệt sức chạy trên ngự đạo vẫn chỉ
+  // được 0,55 ô/tick — nếu không, đường cái sẽ trở thành cách vô hiệu hoá đúng cơ
+  // chế vừa thêm, và bộ lạc nào có hạ tầng tốt thì miễn nhiễm với việc bị bắt.
+  base = staminaSpeed(u, base);
+  u.speedCredit += base;
+  const s = Math.floor(u.speedCredit);
+  u.speedCredit -= s;
+  return slowedSpeed(u, s);
 }
 
 // ============================================================

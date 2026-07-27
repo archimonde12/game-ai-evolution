@@ -495,7 +495,15 @@ function buildingSpriteOverhang(b) {
 // Chớp trắng khi ăn đòn + một vòng xung nở ra. Vẽ ĐÈ lên sprite chứ không đổi
 // màu sprite: làm cách sau thì mỗi loại quân (người, quái, máy bắn đá, anh hùng)
 // phải tự biết cách tự tô trắng mình, tức là năm chỗ phải nhớ cùng một luật.
+// Đây là CỬA RA CHUNG của drawUnit — cả mười hai nhánh theo loại quân, kể cả nhánh
+// quái vật và nhánh bộ binh mặc định, đều kết thúc bằng đúng lời gọi này. Nên dấu
+// kiệt sức được móc vào đây thay vì vào drawUnit: gọi ở drawUnit thì nó nằm DƯỚI
+// hình vẽ (mọi nhánh đều vẽ xong rồi mới return), mà ba giọt mồ hôi bị cái mũ sắt
+// che thì không phải một dấu hiệu. Tên hàm không còn tả đúng nội dung — đổi lại là
+// một chỗ duy nhất phải nhớ, thay vì mười hai chỗ có thể quên. Cùng đánh đổi đã
+// chọn ở `tickSpeed`.
 function drawHitFlash(u, px, py, cs) {
+  drawExhaustion(u, px + cs / 2, py + cs / 2, cs);
   if (!(u.flash > 0)) return;
   const a = clamp(u.flash / 9, 0, 1);
   const cx = px + cs / 2, cy = py + cs / 2;
@@ -1941,6 +1949,41 @@ function drawCarriedLoad(u, cx, loadY, cs, bob) {
     ctx.fillStyle = '#a7c96b'; ctx.fillRect(cx - cs * 0.24, topY + cs * 0.08, cs * 0.48, cs * 0.09);
     ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1;
     ctx.strokeRect(cx - cs * 0.24, topY + cs * 0.08, cs * 0.48, cs * 0.26);
+  }
+}
+
+// ============================================================
+// DẤU KIỆT SỨC — ba giọt mồ hôi bắn ra từ đầu, nhịp thở gấp
+// ============================================================
+// Đặt Ở ĐÂY, trong hàm điều phối, TRƯỚC mọi nhánh `return` theo loại quân — và đó
+// là toàn bộ lý do nó nằm ngoài drawUnit thay vì bên trong nhánh bộ binh như dấu
+// nọc Mãng Xà. Hàm dưới có mười một nhánh thoát sớm; một dấu trạng thái vẽ trong
+// một nhánh sẽ vô hình với mười loại còn lại, mà thể lực thì đúng là thứ chạm tới
+// kỵ binh và anh hùng nhiều nhất.
+//
+// Vì sao phải vẽ ra: một cơ chế làm đổi HÀNH VI mà không có hình thì người xem đọc
+// thành lỗi chứ không đọc thành luật — bài học đã trả giá đúng ở dấu nọc rắn ("đám
+// lính bỗng đi chậm hẳn trông y hệt một cú tụt khung hình"). Ở đây còn nặng hơn:
+// cảnh mà cơ chế này sinh ra để tạo là một con ngựa bị bộ binh bắt kịp, và không
+// có dấu thì đó chỉ là một cảnh vô lý.
+//
+// Chỉ hiện khi ĐÃ ĐUỐI (dưới ngưỡng TIRED), không vẽ thanh thể lực đầy đủ: ở mức
+// zoom thường có hàng trăm đơn vị trên màn, và một chỉ số chỉ đáng chiếm chỗ khi
+// nó đang nói ra điều gì đó khác thường.
+function drawExhaustion(u, cx, cy, cs) {
+  if (cs < 7 || !u.maxStam) return;
+  const f = u.stam / u.maxStam;
+  if (f >= CONFIG.STAMINA.TIRED) return;
+  const deep = 1 - f / CONFIG.STAMINA.TIRED;         // 0 ở ngưỡng, 1 khi cạn sạch
+  const ph = aTick * 0.22 + u.id;
+  ctx.fillStyle = `rgba(150,200,225,${(0.3 + 0.45 * deep).toFixed(3)})`;
+  for (let i = 0; i < 3; i++) {
+    const a = -0.9 + i * 0.9;                        // ba hướng bắn ra quanh đỉnh đầu
+    const r = cs * (0.34 + 0.16 * (0.5 + 0.5 * Math.sin(ph + i * 2.1)));
+    ctx.beginPath();
+    ctx.ellipse(cx + Math.cos(a) * r, cy - cs * 0.78 + Math.sin(a) * r * 0.5,
+                cs * 0.055, cs * 0.09, a, 0, Math.PI * 2);
+    ctx.fill();
   }
 }
 
@@ -6849,10 +6892,16 @@ function renderWorld() {
   // Đặt trên CANVAS chứ không trong bảng bên phải, và đó là cả điểm của nó: khi
   // đồng hồ chạy thì mọi thứ đáng xem đều đang xảy ra trong khung hình, và người
   // xem không được phải rời mắt khỏi trận đánh để biết còn bao lâu.
+  // HAI ĐOẠN, HAI CÂU KHÁC NHAU (Phase 3.35). Dải này nay bật lên ngay từ lúc đặt
+  // móng, nên nó phải nói được hai chuyện: "công trường đang lên tới đâu" và "còn
+  // bao lâu là thua". Dùng chung một thanh tiến độ cho cả hai mà không đổi chữ thì
+  // người xem đọc một cái đồng hồ đếm ngược trong khi thật ra chưa có gì để đếm —
+  // tệ hơn hẳn so với không hiện gì.
   if (wonderWatch && eraState === 'playing') {
     const owner = tribes[wonderWatch.tribeId];
-    const left = Math.max(0, CONFIG.WONDER.HOLD_TICKS - (tick - wonderWatch.doneAt));
-    const prog = 1 - left / CONFIG.WONDER.HOLD_TICKS;
+    const building = wonderWatch.phase === 'building';
+    const left = building ? 0 : Math.max(0, CONFIG.WONDER.HOLD_TICKS - (tick - wonderWatch.doneAt));
+    const prog = building ? wonderWatch.progress : 1 - left / CONFIG.WONDER.HOLD_TICKS;
     const W = simCanvas.width, barH = HUD_BAR_H;
     ctx.fillStyle = 'rgba(11,9,7,0.86)';
     ctx.fillRect(0, 0, W, barH);
@@ -6862,11 +6911,13 @@ function renderWorld() {
     ctx.fillRect(0, barH - 2, W * prog, 2);
     ctx.textAlign = 'center';
     ctx.font = `14px ${F_DISPLAY}`;
-    ctx.fillStyle = '#f0cf85';
+    ctx.fillStyle = building ? '#d9b06a' : '#f0cf85';
     // Thanh này chiếm trọn bề ngang và minimap/nút đã dịch xuống dưới nó (biến
     // --hud-top), nên căn giữa khung hình giờ đúng nghĩa là giữa chỗ trống. Vẫn
     // cắt cho vừa: ở cửa sổ hẹp, câu đầy đủ dài hơn cả khung.
-    ctx.fillText(fitText(`🏛 KỲ QUAN của ${owner.name} — còn ${left} tick là thống nhất thiên hạ`, W - 24),
+    ctx.fillText(fitText(building
+      ? `🏗 ${owner.name} ĐANG DỰNG KỲ QUAN — ${Math.round(prog * 100)}% · cả thiên hạ kéo tới chặn`
+      : `🏛 KỲ QUAN của ${owner.name} — còn ${left} tick là thống nhất thiên hạ`, W - 24),
                  W / 2, barH - 8);
     ctx.textAlign = 'left';
   }

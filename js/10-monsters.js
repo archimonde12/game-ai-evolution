@@ -188,6 +188,7 @@ function spawnMonster(lair, forceKey) {
     hp: Math.round(spec.hp * m), maxHp: Math.round(spec.hp * m),
     attack: spec.attack * m, defense: spec.defense || 0,
     speedMult: spec.speedMult, speedCredit: 0, speed: 1,
+    maxStam: 0, stam: 0, stamX: undefined, stamY: undefined,   // thể lực — xem tickStamina
     cooldown: 0, cd: spec.cooldown, born: tick,
     facingX: 1, facingY: 0, lungeUntil: 0, swingAt: 0,
     lairId: lair.id, lairX: lair.x, lairY: lair.y,
@@ -463,14 +464,15 @@ function tickMonster(u) {
   // được câu hỏi của chế độ thủ thành: một đợt sóng không còn tràn thẳng vào giữa
   // làng nữa, nó phải dừng lại ở vành ngoài và ăn đạn tháp canh trong lúc đục.
   bashWall(u);
-  u.speedCredit += u.speedMult;
-  u.speed = Math.floor(u.speedCredit);
-  u.speedCredit -= u.speed;
-  // Quái cũng dính nọc Mãng Xà: nó cắn theo phe, mà quái thì cùng phe với nhau,
-  // nên trên thực tế dòng này gần như không bao giờ chạy. Vẫn để, vì thần lực của
-  // người chơi và các đường sát thương khác đều có thể gắn `slowUntil` lên bất kỳ
-  // ai — một trạng thái chỉ đúng cho một nửa số đơn vị là một cái bẫy để dành.
-  u.speed = slowedSpeed(u, u.speed);
+  // Cùng một cửa tính tốc độ với đơn vị bộ lạc (xem tickSpeed), và tickSpeed tự
+  // biết bỏ qua đường cái cho `tribeId < 0` — luật "quái không hưởng đường" nằm
+  // đúng MỘT chỗ thay vì được nhớ ở mỗi chỗ gọi.
+  //
+  // Thể lực của quái là 900 ô (Thiên Ma 4.000): gấp gần bảy lần một người lính,
+  // nên trong gần hết các tình huống nó vô hình. Nó chỉ hiện ra ở đúng cảnh mà
+  // người xem cũng thấy vô lý — một con sói đuổi một người dân vòng quanh bản đồ
+  // tới hết kỷ nguyên. Giờ cả hai cùng đuối, và kẻ có sức chứa lớn hơn thắng.
+  u.speed = tickSpeed(u, u.speedMult);
   if (u.aura && (tick + u.id) % 4 === 0) applyLordAura(u);
   if (u.heal && (tick + u.id) % u.heal.every === 0) applyMonsterHeal(u);
 
@@ -1051,6 +1053,7 @@ function spawnWave() {
       // đó, nó bay đường thẳng, nên ép nó chậm lại chẳng giữ được đội hình nào cả,
       // chỉ làm mất đúng cái đặc điểm khiến người xem nhận ra nó.
       speedMult: spec.fly ? spec.speedMult : 1.0, speedCredit: 0, speed: 1,
+      maxStam: 0, stam: 0, stamX: undefined, stamY: undefined,   // thể lực — xem tickStamina
       cooldown: 0, cd: spec.cooldown, born: tick,
       facingX: 1, facingY: 0, lungeUntil: 0, swingAt: 0,
       // assault = quái của sóng: KHÔNG có dây xích về hang, đi bằng trường dẫn đường
@@ -1128,7 +1131,13 @@ function tickDefender(b, tribe) {
   // đây thì công trình phòng thủ trở thành đường duy nhất trong game không bị luật
   // giáp chi phối — và kỵ sĩ giáp 4, thứ được thiết kế để lao vào chỗ nguy hiểm
   // nhất, sẽ bị chính cái nó khắc chế được đốn hạ y như một người lính trần.
-  const raw = spec.attack * stack * CONFIG.AGE.BONUS[tribe.age].atk;
+  // HỆ SỐ THÁP THEO THỜI ĐẠI (Phase 3.35) — chỉ tháp canh, KHÔNG kinh đô.
+  // Yêu cầu nói "chòi", và ranh giới đó có nghĩa: kinh đô bắn trả là thứ giữ cho
+  // công thành là một chiến dịch chứ không phải vài người lính gõ cửa (xem chú
+  // thích đầu hàm này). Hạ cả hai thì cái vế đó cũng đổ theo, mà nó không nằm
+  // trong điều đang cần sửa.
+  const ageAtk = b.type === 'tower' ? CONFIG.AGE.TOWER_ATK[clamp(tribe.age || 1, 1, CONFIG.AGE.TOWER_ATK.length - 1)] : 1;
+  const raw = spec.attack * stack * ageAtk * CONFIG.AGE.BONUS[tribe.age].atk;
   enemy.hp -= Math.max(raw * CONFIG.UNIT.ARMOR_FLOOR, raw - effDefense(enemy));
   // AI VỪA CHẠM VÀO NÓ. Dòng này tồn tại vì tháp canh là đường sát thương DUY
   // NHẤT trong game không đi qua `dealDamage` — nó trừ thẳng vào máu ở ngay trên.

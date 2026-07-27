@@ -69,6 +69,7 @@ function codexUnit(type, tribe) {
     hp: base.hp, maxHp: base.hp,
     attack: base.attack, defense: base.defense || 0,
     speed: 1, speedMult: base.speedMult || 0, speedCredit: 0,
+    maxStam: 130, stam: 130, stamX: 0, stamY: 0,
     range: base.range || 0, minRange: base.minRange || 0, splash: base.splash || 0,
     // BA NĂNG LỰC THIÊN TRIỀU. Bỏ sót chúng thì luật của file này ("dựng đủ số
     // trường mà ĐƯỜNG VẼ đọc tới") bị vi phạm mà không ném lỗi nào, và nó đã sai
@@ -108,6 +109,7 @@ function codexMonster(mType) {
     hp: spec.hp, maxHp: spec.hp,
     attack: spec.attack, defense: spec.defense || 0,
     speedMult: spec.speedMult, speed: 1, speedCredit: 0,
+    maxStam: 900, stam: 900, stamX: 0, stamY: 0,
     cooldown: 0, cd: spec.cooldown, born: 0, threat: spec.threat,
     facingX: 1, facingY: 0, lungeUntil: 0, swingAt: 0,
     combatTarget: null, auraUntil: 0, auraMult: 1,
@@ -458,6 +460,13 @@ function codexTabUnits() {
         s.defense ? `giáp <b>${s.defense}</b>` : '',
         s.range ? `tầm <b>${s.range}</b> ô` : '',
         s.speedMult ? `tốc <b>${s.speedMult}</b> ô/tick` : '',
+        // THỂ LỰC in bằng SỐ TICK NƯỚC RÚT, không bằng sức chứa thô. Sức chứa là ô,
+        // mà cái người đọc cần so sánh là "chạy hết sức được bao lâu" — và hai đơn
+        // vị đó không cùng thứ tự: kỵ sĩ 77 ô lớn hơn dân thường 45, nhưng vì nó
+        // chạy 1,7 ô/tick nên nó đuối SỚM HƠN. In con số thô ở đây là dạy đúng cái
+        // trực giác sai mà bản đầu của chính cơ chế này đã mắc phải.
+        (() => { const cap = CONFIG.STAMINA.CAP[k] || CONFIG.STAMINA.CAP._default;
+                 return `thể lực <b>${Math.round(cap / (s.speedMult || 1))}</b> tick chạy`; })(),
         // GIÁ ĐỌC QUA trainCost — cùng con số mà bộ não thật sự trả, không phải
         // bảng gốc. Từ 3.30 phần lương thực của giá quân được hoàn phần lớn vì
         // suất đó đã nuốt một dân thường; in bảng gốc ở đây là dạy người đọc một
@@ -486,7 +495,18 @@ function codexTabUnits() {
     <b>${Math.round(CONFIG.UNIT.BUILD_PENALTY * 100)}%</b> sức đánh của mình vào công trình; <b>vũ khí công thành</b>
     thì ngược lại, đánh <b>${CONFIG.UNIT.BUILDING_DAMAGE_MULT}×</b>. Một cỗ máy bắn đá đập tường bằng <b>60</b>,
     một kỵ sĩ bằng <b>2,6</b> — nhìn hai ô &ldquo;đánh&rdquo; (20 với 13) thì không đoán ra khoảng cách 23 lần đó.
-    Muốn <b>phá thành</b> thì phải dựng Xưởng thợ; một đạo quân đông tới mấy cũng chỉ gặm được tường rất chậm.</div>
+    Muốn <b>phá thành</b> thì phải dựng Xưởng thợ; một đạo quân đông tới mấy cũng chỉ gặm được tường rất chậm.
+    <br><br><b>THỂ LỰC — CHẠY THÌ HAO, ĐI THÌ KHÔNG.</b> Thể lực chỉ vơi khi đơn vị <b>chạy dưới áp lực</b>:
+    đang đuổi ai, đang bỏ chạy khỏi ai, đang rút lui, đang đi săn. Đi làm, gánh hàng và <b>hành quân</b> thì
+    không tốn một điểm nào — nên cơ chế này vô hình với cả nền kinh tế và với mọi trận đánh ngắn.
+    Cạn sạch thì tốc độ bị chặn ở <b>${CONFIG.STAMINA.EXHAUST_SPEED} ô/tick</b> — một cái <b>trần tuyệt đối</b>,
+    không phải một hệ số nhân. Đó là điểm mấu chốt: <b>một con ngựa mệt không còn là một con ngựa nhanh</b>.
+    Kỵ xạ chạy 1,65 ô/tick nhưng chỉ nước rút được <b>${Math.round(CONFIG.STAMINA.CAP.horsearcher / CONFIG.UNIT.HORSEARCHER.speedMult)} tick</b>,
+    trong khi bộ binh bền <b>${CONFIG.STAMINA.CAP.soldier} tick</b> — nên đuổi mãi thì bộ binh <b>bắt kịp</b>
+    (đo trên mô hình: bắt kịp ở tick 97, sau khi khoảng cách đã nở ra 23 ô). Lợi thế tốc độ vẫn còn nguyên,
+    nó chỉ không còn <b>vô hạn</b> nữa. Quái vật có <b>${CONFIG.STAMINA.MONSTER_CAP} ô</b> — dồi dào tới mức
+    gần như không bao giờ đuối; dân thường <b>${CONFIG.STAMINA.CAP.villager}</b>, thấp nhất bảng.
+    Đơn vị đã đuối bốc <b>ba giọt mồ hôi</b> trên đầu.</div>
     <div class="cx-grid">${cards}</div>`;
 }
 
@@ -494,20 +514,20 @@ function codexTabUnits() {
 // TỜ 3 — CÔNG TRÌNH
 // ============================================================
 const CX_BUILD_BLURB = {
-  town: 'Kinh đô. Ra dân, nhận hàng, tự bắn trả, và là thứ mất đi thì thua kỷ nguyên. <b>San phẳng kinh đô địch</b> thì được <b>quyền lập đô</b> trên chính nền đất đó — một bộ lạc có thể có tới <b>3</b> kinh đô, và biên giới chuyển chủ ngay tại chỗ vừa đánh xong. Quyền đó <b>hết hạn sau 5.000 tick</b>, và dám dùng hay không thì do gen <b>lập đô</b> quyết.',
+  town: 'Kinh đô. Ra dân, nhận hàng, tự bắn trả. Mất <b>sạch</b> kinh đô là một <b>đồng hồ đếm ngược ' + CONFIG.CAPITAL.GRACE + ' tick</b> tới diệt vong — dựng lại được một cái trước khi hết giờ thì thoát, còn không thì bộ lạc bị xoá sổ dù quân vẫn còn sống. Đồng hồ <b>đứng yên</b> trong lúc đang có thợ dựng móng nhà chính, nên nó phạt kẻ <b>chạy rông</b> chứ không phạt kẻ đang gượng dậy. Sức bắn của kinh đô <b>không</b> bị hạ theo thời đại như tháp canh. <b>San phẳng kinh đô địch</b> thì được <b>quyền lập đô</b> trên chính nền đất đó — một bộ lạc có thể có tới <b>3</b> kinh đô, và biên giới chuyển chủ ngay tại chỗ vừa đánh xong. Quyền đó <b>hết hạn sau 5.000 tick</b>, và dám dùng hay không thì do gen <b>lập đô</b> quyết.',
   house: 'Nới trần dân số. Không có nó thì mọi thứ khác đều vô nghĩa: không có chỗ ở là không tuyển được ai.',
   farm: 'Đổi gỗ lấy một dòng lương thực <b>ổn định nhưng rất nhỏ</b>: 9 ô × 0,085 = <b>0,77 lương/tick</b>, thấp hơn cả mức MỘT người hái được. Nó là cái <b>đệm</b> giữ bộ lạc không chết đói giữa hai chuyến đi xa, không phải cái vòi — phần lớn lương thực vẫn phải đi kiếm về. Khoá tới <b>Đồ Đồng</b>, nên trọn giai đoạn Đồ Đá chỉ có một nguồn ăn: bụi quả ngoài kia.',
   depot: 'Nơi nhận hàng thứ hai ngoài kinh đô. Mỏ nào cũng nằm ngoài vành 16 ô quanh nhà, nên quãng gánh mặc định là 22-35 ô mỗi chiều; một cái kho đặt đúng chỗ cắt nó xuống còn 3. Giá trị của nó nằm ở <b>vị trí</b>, không ở số lượng — hai cái kho cạnh kinh đô đúng bằng không có cái nào.',
   barracks: 'Ra bộ binh và quân kỳ. Cửa vào của gần như mọi thứ còn lại trong bảng này. Từ bản này <b>mỗi công trình là một cái lò riêng chạy song song</b> — cái trại thứ hai thật sự rút đôi thời gian ra quân, và đó là lý do gen <b>số lò quân</b> tồn tại.',
   heroHall: 'Cửa <b>duy nhất</b> ra Anh hùng — trước bản này anh hùng ra lò từ trại lính, tức là ai muốn đánh nhau đều tự động có tướng. Tách riêng thì "có nuôi tướng không" mới là một <b>quyết định</b>: 110 gỗ + 70 vàng bằng gần một trại lính thứ hai. Bộ lạc gen <b>đầu tư anh hùng</b> thấp đi hết kỷ nguyên không có tướng, và đó là một ván chơi hợp lệ. Phá được nó là cắt đứt dòng dõi của địch tới hết kỷ nguyên.',
-  tower: 'Bắn trả trong <b>10</b> ô — xa hơn máy bắn đá (9), nên không còn bị phá miễn phí từ ngoài tầm với. Cũng là <b>điều kiện lên đời</b>: cần <b>2</b> tháp để lên Đồ Sắt, <b>4</b> cho Hoàng Kim, <b>7</b> cho Thiên Triều. Từ bản này còn <b>xây chồng được</b>: đặt một cái tháp lên chính cái tháp cũ, tối đa <b>3 tầng</b>, mỗi tầng ×<b>1,5</b> cả <b>máu · tầm bắn · sức đánh</b> — tầng 3 bắn xa <b>22,5</b> ô và cao gấp đôi trên bản đồ. Giá leo ×1,7 mỗi tầng nên xây chồng luôn <b>lỗ</b> nếu tính bằng sức mạnh trên mỗi đồng: cái nó mua là <b>sự tập trung</b>. Suốt lúc lên tầng thì tháp <b>ngừng bắn</b> và không tính vào hạn ngạch lên đời.',
+  tower: 'Bắn trả trong <b>10</b> ô — xa hơn máy bắn đá (9), nên không còn bị phá miễn phí từ ngoài tầm với. Sức đánh <b>leo theo thời đại</b>: chỉ <b>60%</b> ở Đồ Đá rồi +10% mỗi bậc, về đúng <b>100%</b> ở Thiên Triều — nên một cái tháp không còn tự mình quyết định được trận đánh đầu tiên của kỷ nguyên, thứ đáng xem nhất. Cũng là <b>điều kiện lên đời</b>, và hạn ngạch đã <b>gấp đôi</b>: cần <b>4</b> tháp để lên Đồ Sắt, <b>8</b> cho Hoàng Kim, <b>14</b> cho Thiên Triều. Đơn giá đá hạ 45 → 23 để tổng lượng đá cho cả hạn ngạch không đổi — tháp là vòi tiêu đá chính, mà đá cũng gác cửa lên đời, nên nhân đôi cả hai là xiết một cái cổ đã nghẹn. Từ bản này còn <b>xây chồng được</b>: đặt một cái tháp lên chính cái tháp cũ, tối đa <b>3 tầng</b>, mỗi tầng ×<b>1,5</b> cả <b>máu · tầm bắn · sức đánh</b> — tầng 3 bắn xa <b>22,5</b> ô và cao gấp đôi trên bản đồ. Giá leo ×1,7 mỗi tầng nên xây chồng luôn <b>lỗ</b> nếu tính bằng sức mạnh trên mỗi đồng: cái nó mua là <b>sự tập trung</b>. Suốt lúc lên tầng thì tháp <b>ngừng bắn</b> và không tính vào hạn ngạch lên đời.',
   workshop: 'Mở nhánh tầm xa: cung thủ, rồi máy bắn đá. Một bộ lạc không xây nó thì vĩnh viễn chỉ có bộ binh.',
   stable: 'Mở nhánh kỵ binh. Cùng khuôn với xưởng thợ nhưng đọc gen KHÁC — nên cây công nghệ tách đôi theo hai hướng độc lập.',
   infirmary: 'Vừa là bệnh viện hậu phương (hồi máu cho quân đứng quanh, chỉ khi sạch địch), vừa là lò ra <b>Thầy lang</b>. Phá được nó là cắt cả hai.',
   shrine: 'Tín ngưỡng dân gian — rẻ, nhỏ, có ngay từ Đồ Đá. Sinh Đức Tin cho Chúa Tể. Từ Phase 3.33 nó còn là <b>lò ra Đội hậu cần</b> và là nhà chủ quản của nhánh <b>Quân nhu</b>: cái cổng rẻ nhất trong cả bảng, và cố tình thế — cơ chế quân lương chạy từ tick đầu tiên, nên cách chữa nó không được phép khoá sau nửa cây công nghệ.',
   camp: 'Không do dân xây, không có móng, không cần thợ: một <b>Đội hậu cần</b> cắm nó xuống trong <b>một tick</b> giữa đất địch, và nó <b>tự nhổ</b> sau khi hết hạn. Đó là cả thiết kế — bỏ hạn dùng thì sau ba trận đánh cả bản đồ rải trại và cơ chế quân lương tắt ngóm. Mềm nhất bản đồ (130 máu, không giáp), nên phá nó là cắt đường tiếp tế của cả một chiến dịch.',
   temple: 'Quốc giáo. Tính bằng hai nhà cầu nguyện khi đếm nhịp dâng tế, và là nơi <b>cất thánh vật</b> để truyền cho anh hùng đời sau.',
-  wonder: 'Đường thắng thứ hai của cả trò chơi: xây xong rồi <b>giữ</b> được nó đứng là thắng ngay, bất kể quân đội ai mạnh hơn. Nhưng tài nguyên <b>không đủ để được xây</b>: phải <b>san phẳng kinh đô của một bộ lạc khác</b> trước đã (Thiên mệnh), và cả bản đồ <b>chỉ được có một Kỳ quan</b> — ai đặt móng trước thì ba bên kia muốn xây phải phá cái đó xuống.'
+  wonder: 'Đường thắng thứ hai của cả trò chơi: xây xong rồi <b>giữ</b> được nó đứng là thắng ngay, bất kể quân đội ai mạnh hơn. Nhưng tài nguyên <b>không đủ để được xây</b>: phải tới <b>Thiên Triều</b>, phải <b>san phẳng kinh đô của một bộ lạc khác</b> trước đã (Thiên mệnh), và cả bản đồ <b>chỉ được có một Kỳ quan</b> — ai đặt móng trước thì ba bên kia muốn xây phải phá cái đó xuống. Giá <b>gấp đôi</b> và thời gian dựng <b>gấp ba</b> (2.460 tick) là để có một thứ trước đây chưa từng tồn tại: một <b>cửa sổ</b>. Đo bản cũ, từ móng tới khánh thành chỉ <b>110-125 tick</b> — mười giây thật, ngắn hơn quãng đường đạo quân gần nhất đi tới đó. Và <b>ngay từ tick đặt móng</b>, cả bàn cờ đã biết: ba bộ lạc kia bỏ mọi mâu thuẫn để kéo tới công trường, còn chủ nhân thì triệu hồi toàn quân về giữ. Khởi công là một <b>lời tuyên bố</b>, không phải một bí mật.'
 };
 
 // Hoisted để con số trên nút tờ đọc CÙNG một danh sách với nội dung tờ. Bản cũ
@@ -534,10 +554,17 @@ function codexTabBuilds() {
           : s.pop ? `+<b>${s.pop}</b> dân` : '',
         s.range ? `bắn <b>${s.attack}</b> trong <b>${s.range}</b> ô` : '',
         `giá ${cxCost(s.cost)}`,
+        // MÁU CÔNG TRÌNH LEO THEO THỜI ĐẠI từ Phase 3.35. In cả dãy chứ không in
+        // con số Đồ Đá, đúng cùng lý do đã viết cho `popByAge` ngay trên: một con
+        // số duy nhất ở đây là một lời nói dối với bốn phần năm ván chơi.
+        `→ máu theo đời <b>${CONFIG.AGE.BUILD_HP.slice(1).map(m => Math.round(s.hp * m)).join('/')}</b>`,
         // "xây 0 tick" là một câu vô nghĩa, và trại tiếp tế là công trình duy nhất
         // rơi vào đó. Nói thẳng ra "dựng tức thì" thì con số 0 trở thành một LUẬT
         // đọc được, thay vì một chỗ trông như quên điền.
-        s.buildTicks > 0 ? `xây <b>${s.buildTicks}</b> tick`
+        // THỜI GIAN THẬT, không phải `buildTicks` thô. Người đọc không quy đổi được
+        // từ 260 sang "bao lâu" nếu không biết có mấy thợ và mỗi thợ đóng góp bao
+        // nhiêu mỗi tick — mà cả hai con số đó đều nằm ở file khác.
+        s.buildTicks > 0 ? `xây <b>${Math.round(s.buildTicks / (CONFIG.BUILD.BUILD_RATE * (k === 'wonder' ? CONFIG.BUILD.WONDER_BUILDERS : CONFIG.BUILD.MAX_BUILDERS)))}</b> tick với đủ thợ`
                          : `dựng <b style="color:var(--gold)">tức thì</b>, không cần thợ`,
         k === 'camp' ? `sống <b>${CONFIG.SUPPLY.CAMP.TTL}</b> tick rồi tự nhổ` : ''
       ].filter(Boolean),

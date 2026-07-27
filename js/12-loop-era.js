@@ -177,10 +177,11 @@ function simulationTick() {
     const hasUnit = units.some(u => u.tribeId === t.id);
     const canRecover = buildings.some(b => b.tribeId === t.id && b.type === 'town' && b.done && b.hp > 0)
                        && t.res.food >= CONFIG.UNIT.VILLAGER.cost.food;
-    if (!hasUnit && !canRecover) {
+    if (!hasUnit && !canRecover || tickCapitalClock(t)) {
       t.alive = false;
       t.diedAtTick = tick;   // thước đo duy nhất của chế độ thủ thành
       t.warTarget = null;
+      t.capitalLeft = 0;
       // Nhà cửa của bộ lạc đã diệt vong sụp thành phế tích và biến mất — nếu để
       // lại, lính các bộ lạc khác vẫn kéo tới "công thành" một kẻ đã chết.
       for (const b of buildings) if (b.tribeId === t.id) destroyBuilding(b);
@@ -205,6 +206,61 @@ function simulationTick() {
   if (tick % CONFIG.CHART_SAMPLE_INTERVAL === 0) sampleHistory();
 
   checkEraEnd();
+}
+
+// ============================================================
+// ĐỒNG HỒ MẤT KINH ĐÔ (Phase 3.35) — xem CONFIG.CAPITAL
+// ============================================================
+// Trả về TRUE khi đồng hồ chạy hết, tức "bộ lạc này phải bị xử thua ngay bây giờ".
+// Trả về boolean chứ không tự giết ở trong: khối diệt vong ở simulationTick đã có
+// sẵn cả quy trình dọn dẹp (nhà sụp, warTarget, nhật ký), và có HAI đường vào cùng
+// một cái chết thì hai đường đó phải gặp nhau ở đúng một chỗ. Bài học "một cờ phải
+// đặt ở n chỗ thì sẽ có n-1 chỗ quên" — đã trả giá ở cờ `diedOfAge` của anh hùng.
+//
+// KHÔNG chạy ở chế độ Thủ Thành: ở đó thước đo là số tick sống sót và các bộ lạc
+// không đánh nhau, nên mất kinh đô là do quái — một luật xử thua tự động sẽ cắt
+// ngắn chính con số mà cả chế độ sinh ra để đo.
+function tickCapitalClock(t) {
+  if (gameMode === 'defend') { t.capitalLeft = 0; return false; }
+  const C = CONFIG.CAPITAL;
+  // Ba trạng thái, không phải hai — và cái thứ ba là chỗ dễ bỏ sót nhất: có kinh
+  // đô XONG, có MÓNG kinh đô đang dựng, và không có gì cả.
+  let done = false, working = false;
+  for (const b of buildings) {
+    if (b.tribeId !== t.id || b.type !== 'town' || b.hp <= 0) continue;
+    if (b.done) { done = true; break; }
+    // "Đang dựng" đo bằng dấu tay thợ chứ không bằng sự tồn tại của cái móng: một
+    // móng đứng im 0% suốt 420 tick sẽ bị dỡ (xem abandonDeadSites), nhưng một
+    // móng đã 30% mà thợ chết hết thì nằm lại vĩnh viễn — và nếu chỉ hỏi "có móng
+    // không" thì nó ĐÓNG BĂNG đồng hồ vĩnh viễn, tức là luật này tự tạo ra một
+    // cách chạy rông mới ngay trong lúc xoá cách cũ.
+    if (tick - (b.tendedAt || 0) < 60) working = true;
+  }
+  if (done) {
+    if (t.capitalLeft > 0) {
+      logEvent(`🏯 ${t.name} dựng xong kinh đô mới — thoát diệt vong`, t.color, true);
+      t.capitalLeft = 0;
+    }
+    return false;
+  }
+  if (!t.capitalLeft) {
+    t.capitalLeft = C.GRACE;
+    logEvent(`⏳ ${t.name} MẤT KINH ĐÔ — ${C.GRACE} tick để dựng lại, hoặc diệt vong`, '#d05a44', true);
+    addHotspot(t.home.x, t.home.y, C.CAMERA_W, `${t.name} mất kinh đô`);
+    return false;
+  }
+  // Đang có thợ đứng dựng thì đồng hồ ĐỨNG YÊN. Đếm ngược NGƯỢC (một biến `left`
+  // giảm dần) thay vì lưu mốc bắt đầu rồi trừ, chính là để cái đóng băng này viết
+  // được bằng một dòng "không làm gì". Lưu mốc thì "đóng băng" phải dịch mốc theo
+  // mỗi tick, và mọi cách dịch đều lặng lẽ đổi số tick còn lại — bản đầu của hàm
+  // này dịch mốc về WARN_AT và vô tình PHẠT kẻ vừa khởi công mất một nửa thời gian.
+  if (working) return false;
+  t.capitalLeft--;
+  if (t.capitalLeft === C.WARN_AT) {
+    logEvent(`⏳ ${t.name} còn ${C.WARN_AT} tick để có lại kinh đô`, '#d05a44', true);
+    addHotspot(t.home.x, t.home.y, C.CAMERA_W, `${t.name} sắp diệt vong`);
+  }
+  return t.capitalLeft <= 0;
 }
 
 function sampleHistory() {
@@ -237,19 +293,50 @@ function tribeScore(t) {
 // cùng tồn tại" đều đúng mà không có dòng nào viết riêng cho từng trường hợp.
 // Đây là bài học đắt nhất của Phase 3.1 và 3.3: bản sao trạng thái thì phải đồng
 // bộ ở MỌI đường ra, còn dẫn xuất thì không bao giờ lệch.
+// ---- Phase 3.35: ĐỒNG HỒ BẮT ĐẦU CHẠY TỪ LÚC ĐẶT MÓNG ----
+//
+// Trước bản này `wonderWatch` chỉ nhìn thấy Kỳ quan ĐÃ KHÁNH THÀNH. Đo 4 kỷ nguyên:
+// từ móng tới khánh thành là 110-125 tick, nên "cả bàn cờ phải phản ứng" luôn bắt
+// đầu SAU khi toà nhà đã đứng vững — và ba bộ lạc kia nhận được đúng một mệnh lệnh
+// duy nhất: đi phá một công trình 2.600 máu tự hồi máu. Cửa sổ mà kẻ dẫn đầu phải
+// phơi mình ra, thứ cả cơ chế sinh ra để tạo, chưa từng tồn tại.
+//
+// Giờ `phase` phân biệt hai đoạn của cùng một cuộc đua:
+//   · 'building' — móng đã đặt, chưa xong. Cả bàn cờ ĐÃ tuyên chiến (tribeBrain
+//     đọc `wonderWatch.tribeId`), quân dồn thẳng vào công trường (warField gieo
+//     mầm từ đúng toà nhà đó), nhưng chưa có đồng hồ thắng nào chạy.
+//   · 'holding' — đã khánh thành, HOLD_TICKS bắt đầu đếm.
+// Một trường thay vì hai biến toàn cục, vì mọi chỗ đọc đều cần biết CẢ HAI điều
+// (ai đang xây, và đã tới đoạn nào) — tách ra là mở đường cho hai nguồn sự thật.
+//
+// Ưu tiên: toà ĐÃ KHÁNH THÀNH luôn thắng toà đang xây, và trong cùng một nhóm thì
+// toà tới trước thắng. Không có luật này thì một bộ lạc đặt móng thứ hai ở góc bản
+// đồ có thể kéo cả bàn cờ rời khỏi cái Kỳ quan đang đếm ngược tới chiến thắng.
 function updateWonderRace() {
   if (gameMode === 'defend') { wonderWatch = null; return; }
-  let lead = null;
+  let lead = null, site = null;
   for (const b of buildings) {
-    if (b.type !== 'wonder' || !b.done || b.hp <= 0) continue;
+    if (b.type !== 'wonder' || b.hp <= 0) continue;
     if (!tribes[b.tribeId] || !tribes[b.tribeId].alive) continue;
+    if (!b.done) {
+      // Móng sớm nhất — cùng một luật "kẻ tới trước" với nhánh khánh thành.
+      if (!site || b.id < site.id) site = b;
+      continue;
+    }
     if (b.hp < b.maxHp) b.hp = Math.min(b.maxHp, b.hp + CONFIG.WONDER.HEAL);
     // Toà nào khánh thành TRƯỚC thì đồng hồ của nó gần điểm thắng hơn — đó mới là
     // toà mà cả bàn cờ phải phản ứng.
     if (!lead || b.wonderDoneAt < lead.wonderDoneAt) lead = b;
   }
-  wonderWatch = lead ? { buildingId: lead.id, tribeId: lead.tribeId, doneAt: lead.wonderDoneAt } : null;
-  if (lead && tick - lead.wonderDoneAt >= CONFIG.WONDER.HOLD_TICKS) wonderWinnerTribe = lead.tribeId;
+  if (lead) {
+    wonderWatch = { buildingId: lead.id, tribeId: lead.tribeId, doneAt: lead.wonderDoneAt, phase: 'holding', progress: 1 };
+    if (tick - lead.wonderDoneAt >= CONFIG.WONDER.HOLD_TICKS) wonderWinnerTribe = lead.tribeId;
+  } else if (site) {
+    wonderWatch = { buildingId: site.id, tribeId: site.tribeId, doneAt: null, phase: 'building',
+                    progress: clamp(site.progress / site.buildTicks, 0, 1) };
+  } else {
+    wonderWatch = null;
+  }
 }
 
 function checkEraEnd() {

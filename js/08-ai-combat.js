@@ -592,21 +592,12 @@ function tickSoldier(u, tribe) {
   // đường được cổ vũ ra 1 × 2 × 1,2 = 2,4 rồi bị làm tròn xuống 2, tức là phần cổ
   // vũ bốc hơi hoàn toàn với đúng loại quân đông nhất chiến trường. Cỗ máy tín
   // dụng vốn đã có sẵn để giải đúng chuyện đó; nó chỉ chưa được dùng cho bộ binh.
+  // Từ Phase 3.35 cả khối này là MỘT lời gọi: đường cái, thể lực, cỗ máy tín dụng
+  // và nọc Mãng Xà đều nằm trong tickSpeed, cùng một thứ tự cho mọi thứ biết đi.
+  // Nguồn nhân thứ tư (thể lực) chính là lý do phải gộp — xem chú thích ở tickSpeed.
   let base = u.speedMult > 0 ? u.speedMult : 1;
   if (u.rallyUntil >= tick) base *= 1 + u.rallySpd;
-  base = roadSpeed(u, base);
-  if (base !== 1) {
-    u.speedCredit += base;
-    u.speed = Math.floor(u.speedCredit);
-    u.speedCredit -= u.speed;
-  } else {
-    u.speed = 1;
-  }
-  // NỌC MÃNG XÀ. Tính từ tốc độ vừa dựng lại ở trên chứ không nhân dồn lên
-  // `u.speed` của tick trước — nếu không thì một tick bị ép về 0 sẽ giữ nguyên 0
-  // mãi mãi kể cả sau khi nọc đã tan, vì không có ai gán lại tốc độ cho họ nữa.
-  // Khối trên nay gán `u.speed` ở CẢ HAI nhánh, nên điều kiện đó được giữ.
-  u.speed = slowedSpeed(u, u.speed);
+  u.speed = tickSpeed(u, base);
 
   // VOI CHIẾN — GIẪM ĐẠP. Chạy ở đây, TRƯỚC mọi logic chọn mục tiêu, và đó là cả
   // nội dung của động từ này: voi gây sát thương vì nó CÓ MẶT, không vì nó quyết
@@ -1024,6 +1015,12 @@ function tickMedic(u, tribe) {
   const H = CONFIG.HEALER;
   const S = healerStats(tribe);
   u.healing = null;
+  // Thầy lang là loại DUY NHẤT chưa từng tính lại tốc độ mỗi tick: nó giữ nguyên
+  // `speed = 1` gán lúc sinh ra, nên suốt bốn bản nó chạy trên đường cái đúng bằng
+  // tốc độ đi bộ và nọc Mãng Xà không chạm được vào nó. Không ai phát hiện vì cả
+  // hai sai lệch đều nghiêng về phía "chậm hơn đáng lẽ" ở đúng một đơn vị không
+  // đánh nhau. Nối vào cửa chung là sửa luôn cả ba chuyện cùng lúc.
+  u.speed = tickSpeed(u, 1);
 
   // 1. KIỆT SỨC THÌ BỎ TRẬN VỀ TRẠM XÁ. Thầy lang không có ô sát thương: nếu nó
   //    nán lại thì nó chết, và cả đạo quân mất phần vá máu chứ không chỉ mất một
@@ -1168,7 +1165,7 @@ function applyRally(u) {
 // Ngắn hơn tickMedic rất nhiều vì nó không có một việc riêng nào: cả tác dụng của
 // nó là ở chỗ nó đứng, nên hàm này chỉ phải trả lời đúng một câu — đứng đâu.
 function tickStandard(u, tribe) {
-  u.speed = slowedSpeed(u, roadSpeed(u, 1));
+  u.speed = tickSpeed(u, 1);
   applyRally(u);
 
   // 1. Địch sát sườn thì lùi. Không đánh trả (ô sát thương = 0), và giáp 2 chỉ đủ
@@ -1323,7 +1320,7 @@ function plantCamp(u, tribe) {
 // hai câu: đứng đâu, và có cắm trại ở đây không.
 function tickQuarter(u, tribe) {
   const C = CONFIG.SUPPLY.CAMP;
-  u.speed = slowedSpeed(u, roadSpeed(u, 1));
+  u.speed = tickSpeed(u, 1);
   // Trại đã chết (bị phá hoặc hết hạn) thì buông tham chiếu. Kiểm ở đây chứ không
   // ở chỗ cái trại chết: `buildings` bị lọc ở cuối tick và không ai báo cho chủ nó.
   if (u.camp && u.camp.hp <= 0) u.camp = null;

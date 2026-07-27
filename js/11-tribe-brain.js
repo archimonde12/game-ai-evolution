@@ -451,14 +451,38 @@ function tickRoads(tribe, s) {
   tribe.roadPlan = { cells, idx: 0, toId: best.id };
 }
 
+// NGƯỜI TRƯỚC, MÓNG SAU (Phase 3.35). Thứ tự cũ là: trả tiền → đặt móng → đi tìm
+// thợ → tìm không ra cũng thôi. Đo 42.000 tick: 21% thời gian-móng là công trường
+// không có một người thợ nào. Vì `bcount` đếm cả móng dở, bộ não tin rằng mình ĐÃ
+// CÓ công trình đó và không bao giờ đặt lại — nên mỗi lần như vậy vừa mất tài
+// nguyên vừa nuốt luôn một quyết định xây dựng, cả hai đều không báo gì.
+//
+// `freeBuilders` hỏi ĐÚNG câu mà assignBuilders sẽ hỏi vài dòng sau, không phải
+// một câu gần giống: một bộ lọc thứ hai lệch một điều kiện là cánh cửa lại mở ra
+// đúng cái nó vừa đóng. Đó là lý do hai chỗ dùng chung một hàm chứ không chép.
+function freeBuilders(tribe) {
+  let n = 0;
+  for (const u of units) {
+    if (u.tribeId === tribe.id && u.type === 'villager' && u.hp > 0 && u.task !== 'build') n++;
+  }
+  return n;
+}
+
 function queueBuild(tribe, type, biasX, biasY, forceR) {
   const spec = CONFIG.BUILD[type];
   if (!unlockedBuild(tribe, type)) return false;
   if (!canAfford(tribe, spec.cost)) return false;
+  // Không có ai rảnh để đi xây thì KHÔNG đặt móng và KHÔNG trả tiền. Hỏi trước cả
+  // findBuildSpot vì đây là câu rẻ hơn nhiều và nó phủ định cả hai câu còn lại.
+  if (freeBuilders(tribe) === 0) return false;
   const spot = findBuildSpot(tribe, type, biasX, biasY, forceR);
   if (!spot) return false;
   pay(tribe, spec.cost);
   const b = spawnBuilding(tribe, type, spot.x, spot.y, false);
+  // Tick mà công trường này lần cuối có người đứng xây. Khởi tạo bằng `tick` chứ
+  // không phải 0: khai bằng 0 thì mọi móng vừa đặt đều đã "bỏ hoang 420 tick" ngay
+  // ở giây đầu — cùng một cái bẫy mà `hitTick: -99999` đã phải tránh ở spawnBuilding.
+  b.tendedAt = tick;
   assignBuilders(tribe, b);
   return true;
 }
@@ -524,6 +548,61 @@ function rescueOrphanSites(tribe) {
     if ((b.rescues || 0) >= 5) continue;
     if (assignBuilders(tribe, b) > 0) b.rescues = (b.rescues || 0) + 1;
   }
+  abandonDeadSites(tribe, sites);
+}
+
+// ------------------------------------------------------------------
+// DỠ MÓNG, HOÀN TIỀN — vế thứ hai của "móng phải có người" (Phase 3.35)
+// ------------------------------------------------------------------
+// Cơ chế cứu công trường ngay trên chỉ cứu tối đa 5 lượt rồi BỎ MẶC, và cái nó bỏ
+// mặc thì nằm lại vĩnh viễn: móng không tự mất, `bcount` vẫn đếm nó, nên bộ lạc
+// vừa mất tài nguyên vừa mất luôn quyền đặt lại công trình đó tới hết kỷ nguyên.
+// Trần 5 lượt là đúng — nó chặn vòng lặp "chạy vòng mãi mãi" — nhưng nó chỉ giải
+// nửa bài toán, và nửa còn lại đứng im ở đó suốt bốn bản.
+//
+// Đo bằng `tendedAt` (lần cuối có người ĐỨNG trên công trường) chứ không bằng
+// "có ai được cử tới không": một cái móng đặt sau một dải rừng kín luôn có người
+// được cử, họ chỉ không bao giờ tới nơi. Phân biệt hai chuyện đó chính là toàn bộ
+// giá trị của dấu `tendedAt`.
+//
+// Chỉ dỡ móng ở 0% — đã có một tick lao động nào đổ vào thì đó là một công trường
+// thật đang bị gián đoạn, và dỡ nó là ném đi phần đã làm.
+function abandonDeadSites(tribe, sites) {
+  const LIMIT = CONFIG.BUILD.ABANDON_TICKS;
+  for (const b of sites) {
+    if (b.progress > 0 || tick - (b.tendedAt || tick) < LIMIT) continue;
+    if (b.stacking) {
+      // Tháp đang xây chồng thì KHÔNG phá — nó là một cái tháp đang đứng. Trả nó về
+      // trạng thái hoạt động ở đúng cấp cũ: một cái tháp tắt điện vĩnh viễn vì công
+      // trường tầng hai không ai tới là hậu quả tệ hơn hẳn cái nó đang sửa.
+      b.stacking = false;
+      b.done = true;
+      b.progress = b.buildTicks;
+      b.buildTicks = CONFIG.BUILD.tower.buildTicks;
+      b.hp = Math.min(b.maxHp, Math.max(b.hp, b.maxHp * 0.5));
+      refund(tribe, towerStackCost(b.level || 1));
+      logEvent(`🏯 ${tribe.name} bỏ dở tầng tháp — tháp cũ trở lại canh gác`, tribe.color);
+      continue;
+    }
+    refund(tribe, CONFIG.BUILD[b.type].cost);
+    // GỌI destroyBuilding TRƯỚC khi hạ máu, và thứ tự đó làm đúng hai việc cùng lúc:
+    //   · Nó dọn những thứ chỉ hàm này biết — quan trọng nhất là `wonderStarted`.
+    //     Bỏ qua thì một móng Kỳ quan bị dỡ sẽ khoá bộ lạc đó khỏi Kỳ quan tới hết
+    //     kỷ nguyên, và không có gì nói ra điều đó.
+    //   · Ở thời điểm gọi, `hp > 0` và `done === false`, nên nhánh phế tích + tiếng
+    //     nổ bên trong nó KHÔNG chạy. Đúng như phải thế: một cái móng được dỡ đi
+    //     không để lại đống đổ nát, nó chỉ biến mất cùng đám cọc.
+    destroyBuilding(b);
+    b.hp = 0;                       // vòng lọc cuối tick dọn nó đi, đúng đường mà mọi công trình chết đi qua
+    logEvent(`🚧 ${tribe.name} dỡ móng ${CONFIG.BUILD[b.type].label} bỏ hoang — hoàn lại vật liệu`, tribe.color);
+  }
+}
+
+// Ngược của `pay`. Viết ra thành hàm riêng dù chỉ có ba dòng, vì mọi đường hoàn
+// tiền sau này phải cộng vào ĐÚNG những khoá mà bảng giá có — cộng tay ở chỗ gọi
+// là cách chắc chắn nhất để một loại tài nguyên bị bỏ quên khi bảng giá đổi.
+function refund(tribe, cost) {
+  for (const k in cost) tribe.res[k] = (tribe.res[k] || 0) + cost[k];
 }
 
 // ============================================================
@@ -892,6 +971,14 @@ function tribeBrain(tribe) {
       pay(tribe, ageCost);
       tribe.age++;
       tribe.ageUpAt.push(tick);
+      // MÁU CÔNG TRÌNH LEO THEO THỜI ĐẠI TỪ PHASE 3.35 — và nó phải được rót vào
+      // những toà nhà ĐANG ĐỨNG, không chỉ những toà xây sau. Bỏ dòng này thì thành
+      // phố cũ giữ nguyên máu cũ và cả cơ chế chỉ chạm được vào phần mở rộng: một
+      // bộ lạc lên đời rồi ngừng xây sẽ không nhận được gì cả. `refreshBuildingHp`
+      // đã giải đúng bài này cho nhánh Nề đá (cộng THẲNG vào máu hiện tại, không
+      // chỉ nới trần), nên ở đây chỉ cần gọi đúng nó — và đợt trùng tu sáng loá
+      // ngay dưới trở thành thứ NÓI RA điều vừa xảy ra thay vì chỉ là hiệu ứng.
+      refreshBuildingHp(tribe);
       // Đợt TRÙNG TU: một dải sáng chạy từ kinh đô ra khắp lãnh thổ, quét qua từng
       // mái nhà theo đúng thứ tự xa gần (xem drawAgeUpSweep). Trước bản này việc lên
       // thời đại đổi diện mạo TOÀN BỘ nhà cửa cùng một khung hình, mà không có gì
@@ -1371,10 +1458,18 @@ function tribeBrain(tribe) {
   // Kéo luôn cờ tập kết về chân Kỳ quan: `rally` là nơi lính RẢNH đứng, mà từ giờ
   // tới hết đồng hồ thì không có chỗ nào khác đáng đứng. Cờ cũ được cất lại để
   // trả về nếu Kỳ quan đổ (`baseRally`).
+  // TỪ PHASE 3.35 KHỐI NÀY CHẠY NGAY TỪ LÚC ĐẶT MÓNG, không đợi khánh thành —
+  // `wonderWatch` nay có cả đoạn 'building' (xem updateWonderRace). Hệ quả là toàn
+  // bộ cơ chế "kẻ dẫn đầu phơi mình ra, ba bên còn lại bỏ mọi mâu thuẫn để lao vào"
+  // dịch lên sớm hơn ~500 tick, đúng bằng thời gian dựng. Đó là cả điểm của việc
+  // kéo dài thời gian xây gấp ba: một cửa sổ chỉ đáng gọi là cửa sổ khi cả hai bên
+  // đều biết nó đang mở.
   if (gameMode !== 'defend' && wonderWatch && wonderWatch.tribeId === tribe.id) {
     if (tribe.warTarget !== null) {
       tribe.warTarget = null;
-      logEvent(`🛡 ${tribe.name} triệu hồi toàn quân về giữ Kỳ quan`, tribe.color, true);
+      logEvent(wonderWatch.phase === 'building'
+        ? `🛡 ${tribe.name} triệu hồi toàn quân về giữ công trường Kỳ quan`
+        : `🛡 ${tribe.name} triệu hồi toàn quân về giữ Kỳ quan`, tribe.color, true);
     }
     const w = buildings.find(b => b.id === wonderWatch.buildingId && b.hp > 0);
     if (w) {
@@ -1385,7 +1480,9 @@ function tribeBrain(tribe) {
       && tribes[wonderWatch.tribeId].alive && s.soldiers >= 3) {
     if (tribe.warTarget !== wonderWatch.tribeId) {
       tribe.warTarget = wonderWatch.tribeId;
-      logEvent(`⚔ ${tribe.name} dốc toàn lực chặn Kỳ quan của ${tribes[wonderWatch.tribeId].name}`, tribe.color, true);
+      logEvent(wonderWatch.phase === 'building'
+        ? `⚔ ${tribe.name} kéo quân san phẳng công trường Kỳ quan của ${tribes[wonderWatch.tribeId].name}`
+        : `⚔ ${tribe.name} dốc toàn lực chặn Kỳ quan của ${tribes[wonderWatch.tribeId].name}`, tribe.color, true);
     }
   } else if (gameMode !== 'defend' && s.soldiers >= CONFIG.WAR_MIN_ARMY) {
     // Ngưỡng dám đánh do gen aggression quyết định: hiếu chiến ~1 thì đánh cả khi

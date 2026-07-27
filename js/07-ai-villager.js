@@ -190,15 +190,13 @@ function pickJob(tribe) {
 }
 
 function tickVillager(u, tribe) {
-  // Dân thường là loại duy nhất KHÔNG tính lại tốc độ mỗi tick — `speed = 1` gán
-  // một lần lúc sinh ra rồi thôi. Nên nọc Mãng Xà phải tính từ hằng số 1 chứ
-  // không từ `u.speed`: lấy `u.speed` thì tick đầu bị ép về 0 sẽ dính 0 vĩnh viễn.
-  // Bị cắn lúc đang bỏ chạy là án tử — và đó đúng là điều loài rắn nói ra.
-  // Đường cái nhân TRƯỚC, nọc rắn ăn lên kết quả — xem roadSpeed. Người dân là
-  // đối tượng hưởng lợi lớn nhất của đường cái, và đó là chủ ý: cả nền kinh tế của
-  // bộ lạc là những chuyến gánh hàng 22-35 ô mỗi chiều (xem BUILD.depot), nên gấp
-  // đôi tốc độ đi bộ là gấp đôi năng suất của mỗi người trên đúng quãng đường đó.
-  u.speed = slowedSpeed(u, roadSpeed(u, 1));
+  // Đường cái nhân TRƯỚC, thể lực nhân sau, nọc rắn ăn lên kết quả — cả ba thứ tự
+  // đó nay nằm trong tickSpeed. Người dân là đối tượng hưởng lợi lớn nhất của đường
+  // cái, và đó là chủ ý: cả nền kinh tế của bộ lạc là những chuyến gánh hàng 22-35
+  // ô mỗi chiều (xem BUILD.depot), nên gấp đôi tốc độ đi bộ là gấp đôi năng suất.
+  // Cũng là đối tượng THIỆT nhất vì thể lực: sức chứa 70 ô là thấp nhất bảng, đúng
+  // theo thiết kế — một người dân bỏ chạy sẽ đuối trước khi hết cơn hoảng loạn.
+  u.speed = tickSpeed(u, 1);
   if (u.fleeTimer > 0) {
     u.fleeTimer--;
     const threat = findNearestEnemyUnit(u.x, u.y, u.tribeId, CONFIG.UNIT.FLEE_RANGE + 3, true);
@@ -219,6 +217,12 @@ function tickVillager(u, tribe) {
       const b = u.buildTarget;
       if (!b || b.hp <= 0 || b.done) { u.buildTarget = null; u.task = 'idle'; break; }
       if (cheb(u.x, u.y, b.x, b.y) <= b.size) {
+        // ĐÓNG DẤU "CÓ NGƯỜI ĐỨNG ĐÂY". Đây là chỗ DUY NHẤT trong game biết chắc
+        // một người thợ đang thực sự đứng trên công trường — `task === 'build'`
+        // thì chưa đủ, vì suốt quãng đi bộ tới nơi (có thể là 40 tick, có thể là
+        // mãi mãi nếu kẹt) cờ đó đã bật rồi. Cơ chế dỡ móng hoàn tiền đọc đúng dấu
+        // này, nên nó phạt "không ai TỚI ĐƯỢC" chứ không phạt "không ai được cử".
+        b.tendedAt = tick;
         b.progress += CONFIG.BUILD.BUILD_RATE;
         b.hp = Math.min(b.maxHp, b.maxHp * (0.25 + 0.75 * b.progress / b.buildTicks));
         if (b.progress >= b.buildTicks) {

@@ -276,6 +276,7 @@ function heroRetreat(u, tribe) {
 
 function tickHero(u, tribe) {
   if (u.cooldown > 0) u.cooldown--;
+  bashWall(u);   // xem 08-ai-combat: anh hùng đâm phải tường thì cũng phải đục được
 
   // Chết già. Đặt ở đầu hàm và đi qua hp = 0 như mọi cái chết khác, để vòng dọn
   // xác trong simulationTick gọi onHeroDeath() đúng một lần — không tự gọi ở đây,
@@ -287,9 +288,16 @@ function tickHero(u, tribe) {
   }
 
   // Tốc độ phân số: rút phần nguyên ra khỏi tín dụng tích luỹ (xem spawnUnit).
-  u.speedCredit += u.speedMult;
+  // Đường cái nhân vào TÍN DỤNG chứ không vào tốc độ đã làm tròn — cùng lý do đã
+  // viết ở tickSoldier.
+  u.speedCredit += roadSpeed(u, u.speedMult);
   u.speed = Math.floor(u.speedCredit);
   u.speedCredit -= u.speed;
+  // Nọc Mãng Xà không chừa anh hùng. Đây cũng là chỗ nó cắn đau nhất về mặt cơ
+  // chế: quyết định đánh-hay-lui của anh hùng giả định anh ta rút được: xem
+  // `retreating`. Bị cắn xong thì đường về nhà dài gấp đôi, và một quyết định
+  // đúng ở lúc ra quyết định có thể sai ở lúc thi hành.
+  u.speed = slowedSpeed(u, u.speed);
 
   applyHeroAura(u);
 

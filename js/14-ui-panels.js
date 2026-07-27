@@ -168,7 +168,7 @@ function setTab(name) {
 // Không có nhánh 'god': renderPrayerPanel() phải chạy ở MỌI tờ vì nó nuôi con dấu
 // trên hàng tờ (xem cuối hàm đó). Không có nhánh 'tune': toàn ô nhập tay.
 function renderActiveTab() {
-  if (activeTab === 'tribe') { renderTribeBoard(); renderUpgradePanel(); }
+  if (activeTab === 'tribe') { renderTribeBoard(); renderGenomePanel(); renderUpgradePanel(); }
   else if (activeTab === 'hero') { renderHeroPanel(); }
   else if (activeTab === 'chron') { renderLog(); renderEraHistory(); renderCharts(); renderGeneChart(); }
 }
@@ -290,30 +290,41 @@ function renderPrayerPanel() {
 // lưới thì một cột toàn chấm vàng đọc ra ngay là "cả thiên hạ đang chạy đua rèn
 // binh khí", còn một ô sáng lẻ loi là một bộ lạc đang đi đường riêng — và đó
 // chính là thứ mà gen chiến lược đang quyết định, hiện ra thành hình.
+// ============================================================
+// BẢNG NÂNG CẤP — vì sao cột "Đang nghiên cứu" đã bị XOÁ (Phase 3.30)
+// ============================================================
+// Đo thật: bảng rộng 478px nằm trong một panel 374px — TRÀN 117px ra ngoài, câm
+// lặng, vì cột phải có overflow ẩn. Nguyên nhân là số học đơn giản: 8 nhánh × 36px
+// (nhánh thứ tám, Nề đá, mới thêm ở 3.29) + tên bộ lạc 81 + "Đang nghiên cứu" 109.
+//
+// Cách chữa KHÔNG phải thu nhỏ chữ mà là bỏ hẳn cột cuối, vì nó chở một thông tin
+// đã có chỗ tốt hơn: nhánh đang chạy vốn đã được tô nền vàng ngay trong lưới. Đưa
+// thanh tiến độ vào CHÍNH Ô ĐÓ thì cùng một dữ liệu nằm đúng chỗ nó nói về, và
+// bảng gọn lại còn 9 cột. Một cột nói "Rèn binh khí 2" trong khi ô Rèn binh khí
+// đang sáng vàng ngay bên trái là một câu lặp lại, không phải một cột.
 function renderUpgradePanel() {
   const anyResearch = tribes.some(t => t.alive && t.research);
   const head = UPGRADE_LINES.map(k => {
     const L = CONFIG.UPGRADE.LINES[k];
     return `<th title="${L.label} — ${L.scope}. Mở ở ${CONFIG.AGE.NAMES[L.age]}, nghiên cứu tại ${CONFIG.BUILD[L.build].label}.">${L.icon}</th>`;
   }).join('');
-  let html = `<table class="board"><tr><th>Bộ lạc</th>${head}<th>Đang nghiên cứu</th></tr>`;
+  let html = `<table class="board up-board"><tr><th>Bộ lạc</th>${head}</tr>`;
   for (const t of tribes) {
     const cells = UPGRADE_LINES.map(k => {
       const running = t.research && t.research.line === k;
-      return `<td style="text-align:center;${running ? 'background:rgba(216,165,68,0.12);' : ''}">${pipHTML(t.upgrades[k])}</td>`;
+      let inner = pipHTML(t.upgrades[k]);
+      if (running) {
+        const total = CONFIG.UPGRADE.TICKS[t.research.level] || 1;
+        const left = Math.max(0, t.research.until - tick);
+        const pct = ((1 - left / total) * 100).toFixed(0);
+        inner += `<span class="bar up-bar" title="đang nghiên cứu ${CONFIG.UPGRADE.LINES[k].label} cấp ${t.research.level} — ${pct}%">
+          <div style="width:${pct}%;background:var(--gold)"></div></span>`;
+      }
+      return `<td class="up-cell${running ? ' on' : ''}">${inner}</td>`;
     }).join('');
-    let now = '<span style="color:var(--bone-3)">—</span>';
-    if (t.research) {
-      const L = CONFIG.UPGRADE.LINES[t.research.line];
-      const total = CONFIG.UPGRADE.TICKS[t.research.level] || 1;
-      const left = Math.max(0, t.research.until - tick);
-      now = `<span style="color:var(--gold)">${L.short} ${t.research.level}</span>
-        <span class="bar" style="display:block;margin-top:2px;">
-          <div style="width:${((1 - left / total) * 100).toFixed(0)}%;background:var(--gold)"></div></span>`;
-    }
     html += `<tr class="${t.alive ? '' : 'dead'}" data-tribe="${t.id}">
       <td><span class="swatch" style="background:${t.color}"></span><span class="tribe-name">${t.name}</span></td>
-      ${cells}<td>${now}</td></tr>`;
+      ${cells}</tr>`;
   }
   html += '</table>';
   // Trạng thái rỗng: không có nó thì trong ~1.500 tick đầu của mọi kỷ nguyên bảng
@@ -326,7 +337,25 @@ function renderUpgradePanel() {
 }
 
 function renderTribeBoard() {
-  const rows = [`<tr><th>Bộ lạc</th><th>Thời đại</th><th>Dân</th><th title="bộ binh / cung thủ / kỵ binh / máy bắn đá">Quân</th><th>Lương</th><th>Gỗ</th><th>Vàng</th><th>Đá</th><th>Điểm</th></tr>`];
+  // MỘT CỘT CHO CẢ DÂN LẪN QUÂN (Phase 3.30), và nó không chỉ là chuyện chỗ:
+  // từ bản này mỗi người lính được ĐỔI RA từ một dân thường, nên "dân" và "quân"
+  // là hai phần của CÙNG một cái trần. Để chúng ở hai cột rời là vẽ ra hai cái ví
+  // trong khi thực tế chỉ có một, và người xem không đọc được đánh đổi trung tâm
+  // của cả nền kinh tế. Ba con số `dân/quân/trần` đọc một lượt bằng một đường mắt.
+  //
+  // Nhãn tài nguyên đổi thành BIỂU TƯỢNG: bốn chữ "Lương/Gỗ/Vàng/Đá" chiếm bề
+  // ngang nhiều hơn chính con số bên dưới chúng, mà đây là bảng bị bó cứng trong
+  // 420px. Biểu tượng giữ nguyên nghĩa (giữ `title` cho người chưa quen) và trả
+  // lại bề ngang cho thứ đang thực sự thay đổi mỗi tick.
+  // Cột thời đại hiện SỐ + ô màu mái, không hiện tên. Tên đầy đủ ("Thiên Triều")
+  // rộng hơn cả cột tài nguyên bên cạnh mà nó chỉ chở đúng một con số từ 1 tới 5;
+  // ô màu mái là cùng ngôn ngữ hình mà bảng phủ trên khung hình đang dùng, nên hai
+  // bảng đọc giống nhau. Tên đầy đủ vẫn còn trong `title`.
+  const rows = [`<tr><th>Bộ lạc</th><th title="thời đại 1-5">Đại</th>` +
+    `<th title="dân thường / quân đội / trần dân số — cùng MỘT cái trần, vì mỗi người lính được đổi ra từ một dân thường">👥</th>` +
+    `<th title="cơ cấu quân: bộ binh / cung thủ / kỵ binh + voi / máy bắn đá + nỏ thần">⚔</th>` +
+    `<th title="lương thực">🌾</th><th title="gỗ">🪵</th><th title="vàng">🪙</th><th title="đá">🪨</th>` +
+    `<th title="điểm bộ lạc">Điểm</th></tr>`];
   const ranked = tribes.slice().sort((a, b) => tribeScore(b) - tribeScore(a));
   for (const t of ranked) {
     const s = t.stats || { villagers: 0, soldiers: 0, melee: 0, archers: 0, catapults: 0, cavalry: 0, popCap: 0, bcount: {} };
@@ -335,20 +364,65 @@ function renderTribeBoard() {
     const war = t.warTarget !== null && t.alive ? `<span class="tag" style="color:var(--cinnabar-hi)" title="đang chinh phạt ${tribes[t.warTarget].name}">⚔</span>` : '';
     const starve = t.starving && t.alive ? `<span class="tag" style="color:var(--cinnabar-hi)" title="nạn đói">✖</span>` : '';
     const wonder = s.bcount && s.bcount.wonder ? `<span class="tag" style="color:var(--gold)" title="đang có Kỳ quan">🏛</span>` : '';
+    // THIÊN MỆNH — huy hiệu này trả lời một câu mà không có nó thì người xem không
+    // có cách nào đọc ra: vì sao bộ lạc giàu nhất bản đồ vẫn không khởi công Kỳ
+    // quan. Điều kiện mới (hạ được kinh đô địch) xảy ra ở một trận đánh có thể diễn
+    // ra ở góc bản đồ khác, hàng nghìn tick trước.
+    const mandate = (gameMode !== 'defend' && t.alive && t.townsRazed >= CONFIG.WONDER.NEED_TOWNS)
+      ? `<span class="tag" style="color:var(--gold-hi)" title="đã hạ ${t.townsRazed} kinh đô địch — đủ Thiên mệnh để khởi công Kỳ quan">👑</span>` : '';
     const pray = t.prayer ? `<span class="tag" style="color:var(--gold)" title="đang khẩn cầu: ${PRAYERS[t.prayer.kind].label}">🙏</span>` : '';
     const blessed = t.blessUntil >= tick ? `<span class="tag" style="color:var(--gold-hi)" title="đang mang phước lành">✨</span>` : '';
-    const tags = (war || starve || wonder || pray || blessed) ? `<span class="tags">${war}${starve}${wonder}${pray}${blessed}</span>` : '';
+    // Thầy lang vào cụm HUY HIỆU chứ không thành con số thứ năm của cột quân đội.
+    // Cột đó tồn tại để đọc CƠ CẤU quân — thứ mà hai gen rangedRatio/militaryRatio
+    // đang điều khiển; nhét vào đó một loại không đánh nhau, trần cứng ở 5, là làm
+    // loãng đúng cái tín hiệu nó sinh ra để chở. Ở đây nó trả lời một câu khác:
+    // "bộ lạc này có hệ thống y tế chưa", và đó đúng là một trạng thái, như đói
+    // hay như đang khẩn cầu. Dùng lá thuốc chứ không dùng chữ thập đỏ — cùng lý do
+    // đã viết ở hình vẽ Nhà y tế.
+    const heal = s.healers ? `<span class="tag" style="color:#7ab27c" title="${s.healers} thầy lang đang theo quân">🌿${s.healers}</span>` : '';
+    // QUÂN KỲ vào cụm huy hiệu cùng thầy lang, và đúng cùng lý lẽ đã viết ngay trên:
+    // nó không đánh nhau, trần cứng ở 3, nên nhét vào cột cơ cấu quân là làm loãng
+    // tín hiệu mà cột đó chở. Ở đây nó trả lời "bộ lạc này có chỉ huy chiến trường
+    // chưa" — một trạng thái, như đói hay như đang khẩn cầu.
+    const rally = s.standards ? `<span class="tag" style="color:var(--gold)" title="${s.standards} quân kỳ đang cổ vũ toàn quân">⚑${s.standards}</span>` : '';
+    // ĐỘI HẬU CẦN + số TRẠI đang đứng, gộp vào MỘT huy hiệu. Hai con số này chỉ có
+    // nghĩa khi đọc cùng nhau: bốn đội hậu cần mà không cái trại nào nghĩa là đạo
+    // quân chưa ra khỏi nhà (hoặc bộ lạc hết lương), còn hai đội với hai cái trại là
+    // một chiến dịch đang thật sự chạy. Tách làm hai huy hiệu thì phải liếc hai lần
+    // để rút ra một kết luận.
+    const camps = s.bcount && s.bcount.camp ? `+${s.bcount.camp}⛺` : '';
+    const supply = s.quarters
+      ? `<span class="tag" style="color:#d8b25c" title="${s.quarters} đội hậu cần${s.bcount && s.bcount.camp ? ` · ${s.bcount.camp} trại tiếp tế đang đứng` : ' · chưa dựng trại nào'}">🎒${s.quarters}${camps}</span>` : '';
+    // CÒN THIẾU GÌ ĐỂ LÊN ĐỜI. Đọc `ageBlock` — cùng một nguồn sự thật mà bộ não
+    // dùng để quyết định (xem khối chú thích ở đó), nên dòng chữ này không thể nói
+    // khác với thứ đang thật sự xảy ra. Chỉ hiện khi CÓ vật cản: một huy hiệu luôn
+    // sáng thì mắt thôi nhìn nó sau vài phút.
+    const abReason = t.alive ? ageBlock(t) : null;
+    const ageWall = abReason && abReason !== 'đã tới bậc cuối'
+      ? `<span class="tag" style="color:#c98f6a" title="chưa lên ${CONFIG.AGE.NAMES[t.age + 1]} được: ${abReason}">⛯</span>` : '';
+    const tags = (war || starve || wonder || mandate || pray || blessed || heal || rally || supply || ageWall)
+      ? `<span class="tags">${war}${starve}${wonder}${mandate}${pray}${blessed}${heal}${rally}${supply}${ageWall}</span>` : '';
     // Quân đội hiện thành BỐN con số chứ không một tổng: cơ cấu quân mới là thứ
     // hai gen rangedRatio và militaryRatio đang điều khiển, mà một cột tổng thì
     // giấu đúng cái đó đi. Kỵ binh tô vàng — nó là cột duy nhất ở đây chỉ xuất
     // hiện từ Đồ Sắt trở đi, nên nó cũng là dấu hiệu "bộ lạc này đã đi xa tới đâu".
+    // VOI CHIẾN gộp vào ô KỴ BINH (cùng ra lò từ Chuồng ngựa, cùng vai "quân nặng
+    // đắt tiền"), NỎ THẦN gộp vào ô MÁY BẮN ĐÁ (cùng Xưởng thợ, cùng vai khí tài).
+    // Cố ý KHÔNG thêm cột thứ năm và thứ sáu: cột này đọc CƠ CẤU quân — thứ mà hai
+    // gen rangedRatio/militaryRatio điều khiển — và sáu con số cạnh nhau thì không
+    // ai đọc ra tỉ lệ nữa, chỉ đọc ra một dãy số. Bốn ô giữ nguyên bốn VAI TRÒ;
+    // loại mới vào đúng vai của nó thay vì mở một ô riêng.
+    const siegeN = (s.catapults || 0) + (s.ballistas || 0);
+    const heavyN = (s.cavalry || 0) + (s.elephants || 0);
     const army = `${s.melee || 0}<span style="color:var(--bone-3)">/</span>${s.archers || 0}`
-      + `<span style="color:var(--bone-3)">/</span><span style="color:${s.cavalry ? 'var(--gold)' : 'inherit'}">${s.cavalry || 0}</span>`
-      + `<span style="color:var(--bone-3)">/</span>${s.catapults || 0}`;
+      + `<span style="color:var(--bone-3)">/</span><span style="color:${heavyN ? 'var(--gold)' : 'inherit'}" title="kỵ binh ${s.cavalry || 0} · voi chiến ${s.elephants || 0}">${heavyN}</span>`
+      + `<span style="color:var(--bone-3)">/</span><span title="máy bắn đá ${s.catapults || 0} · nỏ thần ${s.ballistas || 0}">${siegeN}</span>`;
     rows.push(`<tr class="${t.alive ? '' : 'dead'}" data-tribe="${t.id}" title="Click để camera nhảy tới kinh đô">
       <td><span class="swatch" style="background:${t.color}"></span><span class="tribe-name">${t.name}</span>${tags}</td>
-      <td>${CONFIG.AGE.NAMES[t.age]}</td>
-      <td>${s.villagers}<span style="color:var(--bone-3)">/${s.popCap}</span></td>
+      <td title="${CONFIG.AGE.NAMES[t.age]} — mái ${AGE_MAT[t.age].name}"><span class="swatch" style="background:${AGE_MAT[t.age].roof}"></span>${t.age}</td>
+      <td class="pop3" title="${s.villagers} dân thường · ${s.soldiers} quân · trần ${s.popCap}">${s.villagers}<span
+        class="sl">/</span><span style="color:var(--gold)">${s.soldiers}</span><span
+        class="sl">/</span><span style="color:var(--bone-3)">${s.popCap}</span></td>
       <td>${army}</td>
       <td>${Math.round(t.res.food)}</td>
       <td>${Math.round(t.res.wood)}</td>
@@ -358,6 +432,69 @@ function renderTribeBoard() {
     </tr>`);
   }
   setPanelHTML(el('tribeBoard'), rows.join(''));
+}
+
+// ============================================================
+// BỘ GEN ĐANG SỐNG — hai mươi gen của bốn bộ lạc trước mắt
+// ============================================================
+// Vì sao bảng này đáng tồn tại bên cạnh hai chỗ đã hiện gen: cả hai chỗ kia đều
+// nói về QUÁ KHỨ và đều chỉ nói về MỘT bộ lạc. Thẻ tổng kết kỷ nguyên hiện 6 gen
+// của nhà vô địch rồi tắt; đồ thị ở tờ Biên niên vẽ 6 gen ấy, một điểm mỗi kỷ
+// nguyên. Suốt quãng thời gian người xem thật sự ngồi xem — cả kỷ nguyên đang
+// chạy — không có cách nào biết bốn bộ lạc trên bản đồ khác nhau ở chỗ nào, nên
+// mọi hành vi đều đọc ra như nhau: bốn cái AI giống hệt. Mà cả trò chơi này nằm ở
+// chỗ chúng KHÔNG giống nhau.
+//
+// ĐỦ 20 GEN, không phải 6 như HEADLINE_GENES. Hai bảng trả lời hai câu khác nhau:
+// sáu gen kia được chọn vì đường trôi của chúng qua nhiều kỷ nguyên mang tín hiệu
+// CHỌN LỌC (xem khối chú thích ở HEADLINE_GENES) — đó là tiêu chí của một cái đồ
+// thị. Ở đây câu hỏi là "bốn nhà này là bốn ai", và với câu đó thì gen nào cũng
+// có phần: `expansion` không đáng vẽ đường nhưng nó là thứ giải thích vì sao một
+// bộ lạc có nhà nằm ngoài tường thành.
+//
+// Chuẩn hoá theo `bounds` chứ không theo `range`: `range` là khoảng GIEO ban đầu,
+// còn đột biến được phép đi ra ngoài nó (xem mutatePolicy — nó kẹp vào bounds).
+// Chuẩn hoá theo range thì một gen đã trôi ra ngoài sẽ cho thanh dài hơn 100% và
+// bảng nói dối đúng ở những ca đáng xem nhất.
+function renderGenomePanel() {
+  const keys = Object.keys(POLICY_SPEC);
+  // Mốc so sánh = nhà vô địch kỳ TRƯỚC, tức nguồn gốc của ba trong bốn bộ gen đang
+  // sống. eraHistory lưu mới-nhất-trước nên phần tử 0 là kỷ nguyên vừa khép lại.
+  const parent = eraHistory.length ? eraHistory[0].policy : null;
+  // Bộ lạc đã diệt vong thì mờ cả CỘT, không mờ hàng nào: ở bảng này hàng là gen
+  // còn cột mới là bộ lạc. Vẫn giữ chúng trong bảng chứ không xoá — bộ gen của kẻ
+  // vừa chết là nửa còn lại của câu chuyện chọn lọc đang diễn ra.
+  const head = [`<tr><th></th>` + tribes.map(t =>
+    `<th class="${t.alive ? '' : 'dead'}" title="${t.name} — dòng dõi: ${t.lineage}">` +
+    `<span class="swatch" style="background:${t.color}"></span>${t.name}` +
+    `<span class="lin">${t.lineage}</span></th>`).join('') + `</tr>`];
+  for (const k of keys) {
+    const spec = POLICY_SPEC[k];
+    const span = spec.bounds[1] - spec.bounds[0] || 1;
+    const norm = (v) => clamp((v - spec.bounds[0]) / span, 0, 1);
+    const mark = parent && parent[k] !== undefined
+      ? `<i class="gmark" style="left:${(norm(parent[k]) * 100).toFixed(1)}%"></i>` : '';
+    const cells = tribes.map(t => {
+      const v = t.policy[k];
+      // Số chữ số thập phân theo ĐỘ LỚN của gen, không phải một hằng số: `expansion`
+      // chạy 12..140 nên "56,00" tốn hai ký tự để nói không thêm gì, còn `piety`
+      // chạy 0..1 nên "0,4" thì mất đúng phần đang biến thiên.
+      //
+      // Ngưỡng 20 chứ không 10, và bản đầu để 10 rồi bị chính màn hình bác bỏ: ở
+      // ngưỡng đó `farmTarget` (0..12) làm tròn thành "4" trong khi `towerTarget`
+      // (0..8) ngay dưới nó hiện "2,01" — hai gen ĐẾM CÙNG MỘT THỨ mà đọc ra như hai
+      // loại đại lượng khác nhau. Phần lẻ ở đây không phải nhiễu: nó chính là bước
+      // đột biến đang trôi, tức là thứ duy nhất bảng này sinh ra để cho thấy.
+      const txt = spec.bounds[1] > 20 ? v.toFixed(0) : v.toFixed(2);
+      return `<td class="${t.alive ? '' : 'dead'}"><span class="gcell" title="${GENE_LABELS[k]} — ${t.name}: ${v.toFixed(3)}` +
+        (parent ? ` · nhà vô địch kỳ trước: ${parent[k].toFixed(3)}` : '') +
+        ` · khoảng cho phép ${spec.bounds[0]}–${spec.bounds[1]}">` +
+        `<i class="gbar" style="width:${(norm(v) * 100).toFixed(1)}%;background:${t.color}"></i>${mark}` +
+        `<span class="gv">${txt}</span></span></td>`;
+    }).join('');
+    head.push(`<tr><td title="${GENE_LABELS[k]}">${GENE_LABELS[k]}</td>${cells}</tr>`);
+  }
+  setPanelHTML(el('genomeBody'), head.join(''));
 }
 
 // ------------------------------------------------------------
@@ -522,8 +659,15 @@ function renderHeroPanel() {
                 · sống ${tick - h.born} tick · ${h.heroKills} mạng, ${h.heroRazed} nhà`;
     } else if (tick < t.heroCooldownUntil) {
       status = `<span style="color:var(--bone-3)">đang tìm người kế nhiệm — còn ${Math.max(0, Math.round(t.heroCooldownUntil - tick))} tick</span>`;
-    } else if (!t.stats || t.stats.bcount.barracks === 0) {
-      status = '<span style="color:var(--bone-3)">chưa có trại lính</span>';
+    } else if (!t.stats || t.stats.bcount.heroHall === 0) {
+      // Từ Phase 3.28 cửa ra anh hùng là TƯỚNG PHỦ, và dòng này phải nói ra hai
+      // trạng thái khác nhau chứ không một: "chưa xây" và "gen không muốn xây".
+      // Cái thứ hai không phải một thiếu sót đang chờ được lấp — nó là một lựa
+      // chọn chiến lược, và nếu ô này vẫn viết "chưa có" thì người xem sẽ ngồi đợi
+      // một thứ không bao giờ tới mà không hiểu vì sao.
+      status = t.policy.heroDrive > 0.3
+        ? '<span style="color:var(--bone-3)">chưa dựng xong Tướng phủ</span>'
+        : `<span style="color:var(--bone-3)">không nuôi tướng (đầu tư anh hùng ${t.policy.heroDrive.toFixed(2)})</span>`;
     } else {
       status = '<span style="color:var(--bone-3)">chưa đủ lương/vàng để chiêu mộ</span>';
     }
@@ -554,6 +698,10 @@ function getSelected() {
   if (!selected) return null;
   if (selected.kind === 'unit') return units.find(u => u.id === selected.id) || null;
   if (selected.kind === 'lair') return lairs.find(l => l.id === selected.id) || null;
+  // Tường tra bằng KHOÁ Ô, không phải id — nó sống trong một Map (xem selectAt).
+  // Ô đã thủng vẫn trả về: "chỗ này vỡ rồi, còn ngần này tick nữa mới lành" đúng
+  // là câu người xem hỏi khi họ bấm vào một lỗ thủng.
+  if (selected.kind === 'wall') return wallCells.get(selected.key) || null;
   return buildings.find(b => b.id === selected.id) || null;
 }
 
@@ -563,7 +711,9 @@ function policyTable(p) {
     militaryRatio: 'tỉ lệ lính', aggression: 'hiếu chiến', expansion: 'bán kính bành trướng',
     houseBuffer: 'đệm chỗ ở', farmTarget: 'số ruộng muốn', towerTarget: 'số tháp muốn', ageRush: 'vội lên thời đại',
     stoneWeight: 'ưu tiên đá', rangedRatio: 'tỉ lệ quân tầm xa', wonderDrive: 'khao khát Kỳ quan',
-    piety: 'thành tâm (thờ cúng)', discipline: 'kỷ luật đội hình', cityPlan: 'quy hoạch xây dựng'
+    piety: 'thành tâm (thờ cúng)', discipline: 'kỷ luật đội hình', cityPlan: 'quy hoạch xây dựng',
+    garrison: 'số lò quân', roadDrive: 'ưu tiên đường cái', colonize: 'dám lập đô', heroDrive: 'đầu tư anh hùng',
+    fortify: 'thiên về phòng thủ', expedition: 'viễn chinh (hậu cần)'
   };
   let html = '<div class="kv" style="margin-top:6px;">';
   for (const k in labels) {
@@ -609,7 +759,32 @@ function combatRows(u) {
   return `<span class="label" title="sát thương mỗi đòn, đã tính nâng cấp và hào quang">Công</span>
     <span class="value">${atk.toFixed(1)}${plus(upAtk)}${auraTag}</span>
     <span class="label" title="trừ thẳng vào mỗi đòn ăn vào người này (sàn ${Math.round(CONFIG.UNIT.ARMOR_FLOOR * 100)}% đòn gốc)">Thủ</span>
-    <span class="value">${def.toFixed(1)}${plus(upDef)}</span>`;
+    <span class="value">${def.toFixed(1)}${plus(upDef)}</span>
+    ${buildDmgRow(u, atk)}`;
+}
+
+// SÁT THƯƠNG LÊN TƯỜNG — một hàng riêng, không gộp vào ô "Công".
+//
+// Đây là con số duy nhất trong thẻ mà người xem KHÔNG suy ra được từ những con số
+// còn lại: nó không tỉ lệ với "Công", nó nhảy bậc theo việc đơn vị này có phải vũ
+// khí công thành hay không. Một cỗ máy bắn đá đánh 20 đập tường bằng 60, một kỵ sĩ
+// đánh 13 đập tường bằng 2,6 — nhìn hai ô "Công" 20 với 13 thì không ai đoán ra
+// khoảng cách 23 lần đó.
+//
+// Bỏ qua với quái vật và với thứ không có ô sát thương: quái đi đường hệ số riêng
+// (MONSTER.BUILD_DMG) mà thẻ của chúng đã có dòng CÔNG THÀNH bằng chữ, còn thầy
+// lang thì mọi phép nhân đều ra 0.
+function buildDmgRow(u, atk) {
+  if (u.type === 'monster' || !atk) return '';
+  const siege = isSiege(u.type);
+  const v = atk * (siege ? CONFIG.UNIT.BUILDING_DAMAGE_MULT : CONFIG.UNIT.BUILD_PENALTY);
+  return `<span class="label" title="${siege
+    ? 'Vũ khí công thành: đánh vào công trình mạnh gấp ' + CONFIG.UNIT.BUILDING_DAMAGE_MULT + ' lần sức đánh thường.'
+    : 'Không phải vũ khí công thành: chỉ ' + Math.round(CONFIG.UNIT.BUILD_PENALTY * 100) + '% sức đánh chạm được vào tường. Muốn phá thành nhanh thì phải có máy bắn đá.'
+    }">Đập tường</span>
+    <span class="value" style="color:${siege ? 'var(--gold)' : 'var(--bone-3)'}">${v.toFixed(1)}${
+      siege ? ` <span style="color:var(--gold)">×${CONFIG.UNIT.BUILDING_DAMAGE_MULT} công thành</span>`
+            : ` <span style="color:var(--bone-3)">(−${Math.round((1 - CONFIG.UNIT.BUILD_PENALTY) * 100)}%)</span>`}</span>`;
 }
 
 // Nâng cấp nào đang chảy vào chính đơn vị này. Chỉ liệt kê nhánh CÓ tác dụng lên
@@ -625,6 +800,13 @@ function upgradeCreditHTML(u, tribe) {
     if (L.atk) parts.push(`+${(L.atk * lv).toFixed(1)} công`);
     if (L.def) parts.push(`+${(L.def * lv).toFixed(1)} thủ`);
     if (L.hp) parts.push(`+${L.hp * lv} máu`);
+    // Nhánh Y thuật không cộng một điểm công/thủ nào, nên nếu chỉ đọc ba trường
+    // trên thì ô của nó ra một chuỗi RỖNG: bảng vẫn hiện "🌿 Y thuật 3" rồi im
+    // lặng, và người xem kết luận là nâng cấp không có tác dụng gì.
+    if (L.heal)  parts.push(`+${(L.heal * lv).toFixed(2)} máu/tick`);
+    if (L.heals) parts.push(`+${L.heals * lv} bệnh nhân cùng lúc`);
+    if (L.reach) parts.push(`+${(L.reach * lv).toFixed(1)} ô tầm chữa`);
+    if (L.seek)  parts.push(`+${L.seek * lv} ô tầm tìm`);
     rows.push(`<span style="color:var(--bone-2)">${L.icon} ${L.short} ${lv}</span>
       <span style="color:var(--bone-3)"> ${parts.join(' · ')}</span>`);
   }
@@ -682,23 +864,52 @@ function pipHTML(level) {
 
 function renderSelected() {
   const sel = getSelected();
-  // Thẻ chi tiết KHÔNG thuộc tờ nào — nó ghim ngay dưới hàng tờ và hiện ở mọi tờ.
-  // Click một quân trên bản đồ trong khi đang mở tờ "Biên niên" mà bảng chi tiết
-  // nằm sau tờ khác thì cú click đó đọc ra là hỏng, chứ không đọc ra là "sai tab".
-  const dock = el('selectedDock');
+  // Thẻ chi tiết buông xuống từ dải "Đang chọn" dưới bảng điều khiển (Phase 3.30).
+  // Trước đó nó ghim trên đầu cột dữ liệu bên phải; xem chú thích #inspectBar
+  // trong civilization.html để biết vì sao hai chỗ cùng nói một chuyện là hỏng.
+  const dock = el('selectedPanel');
   if (!sel) {
     if (dock.__selKey !== null) { dock.__selKey = null; dock.style.display = 'none'; }
     if (selected) selected = null;
     return;
   }
-  // Kéo cột về đỉnh đúng MỘT lần cho mỗi lần chọn mới: thẻ nằm ở đầu cột, nên
-  // nếu đang cuộn dở thì nó xuất hiện ngoài tầm nhìn. Đặt điều kiện theo id chứ
-  // không theo "dock đang ẩn hay hiện" — đổi từ quân này sang quân khác cũng phải
-  // kéo về, mà lúc đó dock vẫn đang hiện.
-  if (dock.__selKey !== sel.id) {
-    dock.__selKey = sel.id;
+  // Kéo về đỉnh đúng MỘT lần cho mỗi lần chọn mới: tấm thẻ tự cuộn bên trong, nên
+  // nếu đang cuộn dở thì thẻ của con quân MỚI hiện ra ở giữa chừng. Đặt điều kiện
+  // theo id chứ không theo "dock đang ẩn hay hiện" — đổi từ quân này sang quân
+  // khác cũng phải kéo về, mà lúc đó dock vẫn đang hiện.
+  // Danh tính của tường là KHOÁ Ô ("x,y"), của mọi thứ khác là `id`. Dùng thẳng
+  // `sel.id` thì mọi ô tường đều mang cùng một khoá `undefined`, và bấm từ ô tường
+  // này sang ô tường khác sẽ không kéo về đỉnh — thẻ mới hiện ra ngoài tầm nhìn.
+  const selKey = sel.key !== undefined ? sel.key : sel.id;
+  if (dock.__selKey !== selKey) {
+    dock.__selKey = selKey;
     dock.style.display = '';
-    sidePane.scrollTop = 0;
+    dock.scrollTop = 0;
+    // Bỏ trần cũ khi đổi thứ đang chọn: trần được đo cho một tấm thẻ CỤ THỂ, và
+    // giữ nguyên nó cho tấm thẻ tiếp theo là chèn một thanh cuộn vào một tấm thẻ
+    // ngắn hơn hẳn.
+    dock.style.maxHeight = ''; dock.__room = null;
+  }
+  // TRẦN CHIỀU CAO ĐO TỪ THỰC TẾ, không phải một con số trong CSS.
+  //
+  // Tấm thẻ buông xuống từ dải, mà dải nằm trong #world-pane — cột có
+  // `overflow:hidden`. Một trần cứng (min(210px,30vh)) thì đúng ở cỡ cửa sổ mình
+  // vừa thử và SAI ở cỡ khác, và cái sai đó hoàn toàn im lặng: không thanh cuộn,
+  // không dấu hiệu, chỉ là vài dòng cuối biến mất. Đo thật ở cửa sổ 900px cao:
+  // thẻ anh hùng chạm 916px, tức 16px cuối bị nuốt. Đây đúng cái bẫy mà chú thích
+  // CANVAS_PX_W đã ghi ra cho cột bên phải, lần này ở cột trái.
+  //
+  // Đo phần TRÀN chứ không đo `top`, và bản đầu đã làm ngược lại rồi phải sửa:
+  // hàng tóm tắt phía trên được dựng ở renderOverlaySelected — CHẠY SAU hàm này
+  // trong cùng một khung hình — nên lúc đọc `top` thì dải còn đang mang nội dung
+  // của khung hình trước và cao thiếu 24px. Trần tính ra thừa đúng 24px, và tấm
+  // thẻ vẫn tràn khỏi màn hình y như trước khi có dòng này. Đo phần tràn thì phép
+  // đo TỰ SỬA: khung hình sau nó thấy phần tràn thật rồi kẹp lại, và khi không
+  // còn tràn thì nó không đụng vào gì nữa.
+  const over = Math.round(dock.getBoundingClientRect().bottom - window.innerHeight + 8);
+  if (over > 0) {
+    const cap = Math.max(90, dock.clientHeight - over);
+    if (dock.__room !== cap) { dock.__room = cap; dock.style.maxHeight = cap + 'px'; }
   }
 
   // Quái vật và hang ổ không thuộc bộ lạc nào, nên phải thoát ra TRƯỚC dòng tra
@@ -746,7 +957,13 @@ function renderSelected() {
     if (sel.venom) traits.push(`nọc độc ${sel.venom.dps}/tick × ${sel.venom.ticks}`);
     if (sel.splash > 0) traits.push(`sát thương lan ${sel.splash} ô`);
     if (sel.aura) traits.push(`hào quang +${Math.round((sel.aura.mult - 1) * 100)}% trong ${sel.aura.r} ô`);
-    const doing = sel.raidTribe >= 0 ? `ĐI CƯỚP ${tribes[sel.raidTribe].name}`
+    if (sel.split) traits.push(`PHÂN ĐÔI khi chết → ${sel.split.count} con ${Math.round(sel.split.scale * 100)}%`);
+    if (sel.ambush) traits.push(`PHỤC KÍCH — vùi đất, đòn đầu ×${sel.ambush.mult}`);
+    if (sel.slow) traits.push(`cắn LÀM CHẬM ×${sel.slow.mult} trong ${sel.slow.ticks} tick`);
+    if (sel.heal) traits.push(`HỒI ${sel.heal.amount} máu/${sel.heal.every} tick cho quái trong ${sel.heal.r} ô`);
+    if (sel.siege > 0) traits.push(`CÔNG THÀNH ×${sel.siege} sát thương lên công trình`);
+    const doing = sel.buried ? 'NẰM VÙI CHỜ MỒI'
+                : sel.raidTribe >= 0 ? `ĐI CƯỚP ${tribes[sel.raidTribe].name}`
                 : sel.assault ? 'tràn theo sóng'
                 : sel.combatTarget ? 'đang săn' : 'quanh quẩn giữ hang';
     setPanelHTML(el('selectedBody'), `<div style="font-weight:600;color:${spec.color};margin-bottom:6px;">${spec.label} (quái vật hoang dã)</div>
@@ -763,24 +980,136 @@ function renderSelected() {
   }
 
   const t = tribes[sel.tribeId];
+
+  // TƯỜNG THÀNH phải thoát ra TRƯỚC nhánh công trình bên dưới. Ô tường có `size`
+  // nên `sel.size !== undefined` là đúng với nó, mà nó lại KHÔNG có `type` — rơi
+  // xuống dưới là `CONFIG.BUILD[undefined].label` và cả bảng điều khiển tắt ngóm.
+  // Lần thứ ba một vật "có máu, có size, không phải công trình" phải được đón ở
+  // cửa (hang ổ · quái · tường); xem cùng chú thích trong dealDamage.
+  if (sel.isWall) {
+    const R = CONFIG.WALL;
+    const brokenFor = Math.max(0, sel.downUntil - tick);
+    const spec = R.TIERS[clamp(sel.tier || 1, 1, R.TIERS.length - 1)];
+    const kind = sel.corner ? 'Tháp góc' : sel.door ? 'Cánh cổng' : sel.gate ? 'Lầu cổng' : 'Thân tường';
+    // ĐỦ ĐÁ HAY KHÔNG là câu hỏi đắt nhất về bức tường từ Phase 3.30, và nó phải
+    // đọc lại ĐÚNG điều kiện mà tickWalls dùng — không phải một câu diễn giải gần
+    // đúng. Hai chỗ nói hai ngưỡng khác nhau thì tấm thẻ này thành một lời nói dối
+    // có thẩm quyền, đúng họ lỗi foodTarget/wealth của Phase 3.27.
+    const rich = t.res.stone - R.REGEN_RESERVE >= R.REGEN_STONE;
+    const rate = sel.maxHp * R.REGEN_FRAC * (rich ? 1 : R.REGEN_POOR);
+    setPanelHTML(el('selectedBody'), `<div style="font-weight:600;color:${t.color};margin-bottom:6px;">Tường thành ${t.name} — ${kind}</div>
+      <div class="kv">
+        <span class="label">Máu ô này</span><span class="value">${sel.hp <= 0
+          ? `<span style="color:#d05a44">ĐÃ VỠ — lành lại sau ${brokenFor} tick</span>`
+          : `${Math.round(sel.hp)} / ${sel.maxHp}${sel.door ? ` <span style="color:#d05a44">(cánh cổng ${Math.round(R.GATE_HP * 100)}%)</span>` : sel.gate ? ' <span style="color:var(--gold)">(lầu cổng — dày như tường thường)</span>' : ''}`}</span>
+        <span class="label">Bậc thành</span><span class="value"><span style="color:var(--gold)">${spec.name}</span> · ${CONFIG.AGE.NAMES[t.age]}</span>
+        <span class="label">Vành thành</span><span class="value">bán kính ${wallRadius(t)} ô quanh kinh đô</span>
+        <span class="label">Tự sửa</span><span class="value">${rate.toFixed(2)} máu/tick${rich
+          ? ` · <span style="color:var(--gold)">đang trả ${R.REGEN_STONE} đá/ô</span>`
+          : ` · <span style="color:#d05a44">thiếu đá, còn ${Math.round(R.REGEN_POOR * 100)}%</span>`} · sau ${R.REGEN_DELAY} tick không bị đánh</span>
+        <span class="label">Vị trí</span><span class="value">${sel.x}, ${sel.y}</span>
+      </div>
+      <div class="hint" style="margin-top:8px;">Không ai xây, không ai đặt móng — nó <b>tự mọc</b> quanh kinh đô ngay từ ${CONFIG.AGE.NAMES[R.MIN_AGE]}, rộng ra và <b>đổi hình</b> mỗi đời (5 bậc). Chặn <b>quân địch và quái vật</b>, không chặn quân nhà. <b>${R.GATE_SPAN} ô giữa mỗi cạnh là cổng thành</b>: ${R.GATE_DOOR_SPAN} ô <b>cánh cửa</b> ở giữa (chỉ ${Math.round(R.GATE_HP * 100)}% máu — chỗ mỏng nhất của cả vành) kẹp giữa <b>hai lầu cổng</b> cao vượt lên, dày như tường thường. Bộ binh gõ vào tường gần như vô hại (×${CONFIG.UNIT.BUILD_PENALTY}); phá thành là việc của <b>máy bắn đá</b> (×${CONFIG.UNIT.BUILDING_DAMAGE_MULT}). Thủng một ô là mở một cửa trong ${R.RUBBLE} tick. Vá tường <b>tốn đá</b>, và dưới ${R.REGEN_RESERVE} đá trong kho thì chỉ vá bằng ${Math.round(R.REGEN_POOR * 100)}% tốc độ.</div>`);
+    return;
+  }
+
   let html = `<div style="font-weight:600;color:${t.color};margin-bottom:6px;">${t.name} — `;
 
   if (sel.size !== undefined) {
-    html += `${CONFIG.BUILD[sel.type].label}</div><div class="kv">
-      <span class="label">Máu</span><span class="value">${Math.round(sel.hp)} / ${sel.maxHp}</span>
-      <span class="label">Trạng thái</span><span class="value">${sel.done ? 'hoàn thành' : 'đang xây ' + Math.round(sel.progress / sel.buildTicks * 100) + '%'}</span>
+    const mLv = t.upgrades.masonry || 0;
+    html += `${CONFIG.BUILD[sel.type].label}${sel.type === 'tower' && (sel.level || 1) > 1 ? ` tầng ${sel.level}` : ''}</div><div class="kv">
+      <span class="label">Máu</span><span class="value">${Math.round(sel.hp)} / ${sel.maxHp}${mLv ? ` <span style="color:var(--gold)">(Nề đá +${Math.round((masonryMult(t) - 1) * 100)}%)</span>` : ''}</span>
+      <span class="label">Trạng thái</span><span class="value">${sel.done ? 'hoàn thành'
+        : (sel.stacking ? 'đang lên tầng ' : 'đang xây ') + Math.round(sel.progress / sel.buildTicks * 100) + '%'}</span>
       <span class="label">Vị trí</span><span class="value">${sel.x}, ${sel.y}</span>`;
+    // CÔNG TRƯỜNG: ai đang làm, còn bao lâu. Đây là câu hỏi mà người xem hỏi nhiều
+    // nhất khi bấm vào một cái móng nhà, và cho tới bản này thẻ chỉ trả lời được
+    // "đang xây 34%" — một con số không nói được nó có ĐANG NHÍCH hay không. Số
+    // thợ bằng 0 là chẩn đoán trực tiếp cho "công trường mồ côi", đúng con lỗi đã
+    // phải viết hẳn một cơ chế nhặt lại ở Phase 3.16.
+    if (!sel.done) {
+      let crew = 0;
+      for (const u of units) if (u.hp > 0 && u.buildTarget === sel) crew++;
+      const left = Math.max(0, sel.buildTicks - sel.progress);
+      html += `<span class="label">Thợ tại công trường</span><span class="value" style="color:${crew ? 'var(--gold)' : '#d05a44'}">${crew} người</span>
+      <span class="label">Còn lại</span><span class="value">${crew
+        ? Math.ceil(left / (CONFIG.BUILD.BUILD_RATE * crew)) + ' tick'
+        : '<span style="color:#d05a44">đứng im — chưa ai tới</span>'}</span>`;
+    }
     if (sel.type === 'wonder' && sel.done) {
       const left = Math.max(0, CONFIG.WONDER.HOLD_TICKS - (tick - sel.wonderDoneAt));
       html += `<span class="label">Còn phải giữ</span><span class="value" style="color:var(--gold)">${left} tick</span>`;
     }
-    if (sel.type === 'workshop') {
-      html += `<span class="label">Ra lò</span><span class="value">Cung thủ${t.age >= 3 ? ' · Máy bắn đá' : ''}</span>`;
+    // Dựng danh sách bằng cách LỌC BẢNG MỞ KHOÁ, không nối chuỗi tam nguyên như bản
+    // cũ. Ba loại quân mới vừa cho thấy vì sao: bản cũ viết tay `t.age >= 3` và
+    // `t.age >= 4` ngay tại đây, nên mỗi lần bảng UNLOCK_UNIT đổi thì hai dòng này
+    // lặng lẽ nói sai — không phải sai một chút, mà là bỏ sót nguyên một binh chủng
+    // khỏi cái ô sinh ra để liệt kê binh chủng. Lọc bảng thì nó không thể lệch.
+    const madeHere = (bType) => TRAINABLE_TYPES
+      .filter(k => TRAIN_SOURCE[k] === bType && k !== 'hero' && t.age >= (CONFIG.AGE.UNLOCK_UNIT[k] || 1))
+      .map(k => UNIT_LABEL[k] || k).join(' · ');
+    if (sel.type === 'workshop' || sel.type === 'stable' || sel.type === 'barracks') {
+      html += `<span class="label">Ra lò</span><span class="value">${madeHere(sel.type) || '—'}</span>`;
     }
-    if (sel.type === 'stable') {
-      html += `<span class="label">Ra lò</span><span class="value">Kỵ sĩ${t.age >= 4 ? ' · Kỵ xạ' : ''}</span>`;
+    if (sel.type === 'heroHall') {
+      html += `<span class="label">Ra lò</span><span class="value">Anh hùng (tối đa 1 người còn sống)</span>`;
+    }
+    // ĐANG NẤU — dòng này là chỗ duy nhất cơ chế "mỗi công trình một cái lò riêng"
+    // (Phase 3.28) hiện ra thành chữ. Không có nó thì người xem thấy bộ lạc dựng
+    // ba cái trại lính mà không có cách nào biết được vì sao ba cái lại hơn một —
+    // và một cơ chế không đọc được thì với người xem nó không tồn tại.
+    if (sel.done && TRAIN_BY_SOURCE[sel.type]) {
+      const busy = sel.trainType;
+      html += `<span class="label">Đang nấu</span><span class="value">${busy
+        ? `${UNIT_LABEL[busy] || busy} — ${Math.round(sel.trainTimer)}/${unitSpec(busy).trainTicks} tick`
+        : '<span style="color:var(--bone-3)">lò rảnh</span>'}</span>`;
+    }
+    if (sel.type === 'tower') {
+      // TẦNG THÁP: nói ra cả ba chỉ số đã nhân, không chỉ cái tầng. "Tầng 2" là một
+      // con số không có ý nghĩa với người xem cho tới khi họ thấy tầm bắn 10 → 15 —
+      // và tầm bắn mới là thứ đổi cục diện (xem chú thích TOWER_STACK).
+      const spec = CONFIG.BUILD.tower;
+      const st = towerStackMult(sel.level);
+      const lv = sel.level || 1;
+      html += `<span class="label">Tầng</span><span class="value" style="color:var(--gold)">${lv} / ${CONFIG.BUILD.TOWER_STACK.MAX}${sel.stacking ? ' — đang xây tầng trên, NGỪNG BẮN' : ''}</span>
+      <span class="label">Tầm bắn</span><span class="value">${(spec.range * st).toFixed(1)} ô${lv > 1 ? ` <span style="color:var(--bone-3)">(gốc ${spec.range})</span>` : ''}</span>
+      <span class="label">Sức đánh</span><span class="value">${(spec.attack * st * CONFIG.AGE.BONUS[t.age].atk).toFixed(1)} mỗi ${spec.cooldown} tick</span>`;
+      if (lv < CONFIG.BUILD.TOWER_STACK.MAX && sel.done) {
+        const c = towerStackCost(lv);
+        html += `<span class="label">Chồng tầng ${lv + 1}</span><span class="value">${Object.keys(c).map(k => `${c[k]} ${k}`).join(' · ')} · ×${CONFIG.BUILD.TOWER_STACK.MULT} sức mạnh</span>`;
+      }
+      // Tháp canh giờ là ĐIỀU KIỆN lên đời, nên cái thẻ của nó phải nói ra hạn ngạch
+      // — nếu không thì người xem thấy bộ lạc xây tháp mà không hiểu vì sao.
+      const need = CONFIG.AGE.NEED_TOWERS[t.age + 1] || 0;
+      const have = t.stats ? t.stats.towersDone : 0;
+      if (need > 0) {
+        html += `<span class="label">Hạn ngạch lên đời</span><span class="value" style="color:${have >= need ? 'var(--gold)' : '#c98f6a'}">${have}/${need} tháp cho ${CONFIG.AGE.NAMES[t.age + 1]}</span>`;
+      }
+    }
+    if (sel.type === 'infirmary') {
+      const live = t.healers ? t.healers.length : 0;
+      html += `<span class="label">Ra lò</span><span class="value">Thầy lang (${live}/${Math.min(CONFIG.HEALER.MAX, (t.stats ? t.stats.bcount.infirmary : 1) * CONFIG.HEALER.PER_INFIRMARY)})</span>
+      <span class="label">Chữa tại chỗ</span><span class="value">${CONFIG.MEDIC.RATE} máu/tick trong ${CONFIG.MEDIC.RANGE} ô</span>
+      <span class="label">Chỉ khi</span><span class="value">không có địch trong ${CONFIG.MEDIC.SAFE_R} ô</span>`;
+    }
+    if (sel.type === 'shrine') {
+      // Nhà cầu nguyện nay có HAI nghề, và nghề thứ hai không đọc ra được từ hình
+      // vẽ. Thẻ này là chỗ duy nhất nói ra nó.
+      const q = t.stats ? t.stats.quarters : 0;
+      html += `<span class="label">Ra lò</span><span class="value">Đội hậu cần (${q} đang có)</span>
+      <span class="label">Đức tin</span><span class="value">+0,12 mỗi nhịp hồi</span>`;
+    }
+    if (sel.type === 'camp') {
+      const QS = supplyStats(t);
+      const left = Math.max(0, (sel.expireAt || 0) - tick);
+      html += `<span class="label">Còn đứng</span><span class="value" style="color:${left < 300 ? '#e0a33c' : '#d8b25c'}">${left} / ${QS.ttl} tick</span>
+      <span class="label">Đang tiếp tế</span><span class="value">${sel.serving || 0} / ${QS.slots} suất</span>
+      <span class="label">Nhịp</span><span class="value">${QS.rate.toFixed(2)} quân lương/tick · bán kính ${QS.reach.toFixed(1)} ô</span>`;
     }
     html += '</div>';
+    if (sel.type === 'camp') {
+      html += `<div class="hint" style="margin-top:8px;">Không do dân xây và <b>không xây lại được</b>: một <b>Đội hậu cần</b> cắm nó xuống trong một tick, giữa đất địch, rồi nó tự nhổ sau khi hết hạn. Chỉ ${CONFIG.BUILD.camp.hp} máu và không giáp — đây là mục tiêu mềm nhất bản đồ, và phá nó là cắt đường tiếp tế của cả một chiến dịch.</div>`;
+    }
     // Công trình nào cũng có thể là NƠI NGHIÊN CỨU. Liệt kê ngay trong thẻ của nó
     // là câu trả lời cho "tại sao bộ lạc này đang đứng im mà kho vẫn cạn" — và nó
     // chỉ đúng chỗ ở đây, vì mỗi nhánh gắn với đúng một công trình.
@@ -799,6 +1128,36 @@ function renderSelected() {
       html += `<span class="label">Nghề</span><span class="value">${sel.job || '—'}</span>
       <span class="label">Đang làm</span><span class="value">${{ idle: 'rảnh', seek: 'đi tới mỏ', gather: 'thu hoạch', return: 'gánh về', build: 'xây dựng' }[sel.task] || sel.task}${sel.fleeTimer > 0 ? ' (bỏ chạy!)' : ''}</span>
       <span class="label">Đang gánh</span><span class="value">${sel.carry.amount > 0 ? sel.carry.amount.toFixed(1) + ' ' + sel.carry.type : '—'}</span>`;
+    } else if (sel.type === 'medic') {
+      // Thẻ của thầy lang KHÔNG dùng combatRows/nhịp đánh: mọi con số ở đó đều là
+      // 0, và một bảng toàn số 0 đọc ra là "đơn vị hỏng", không đọc ra là "đơn vị
+      // không đánh nhau". Thay bằng đúng ba con số nói được nó có làm việc hay không.
+      const pat = sel.healing;
+      // Đọc chỉ số ĐÃ CỘNG nhánh Y thuật của chính bộ lạc này, không đọc hằng số
+      // gốc trong CONFIG. Một thẻ ghi "0,45 máu/tick trong 2,6 ô" trong khi đơn vị
+      // thật đang chữa 0,90 trong 4,1 ô là một cái đồng hồ chạy sai — mà cả thẻ này
+      // tồn tại chỉ để trả lời "nó có đang làm việc không".
+      const HS = t ? healerStats(t) : { rate: CONFIG.HEALER.RATE, reach: CONFIG.HEALER.HEAL_R, seek: CONFIG.HEALER.SEEK_R, heals: 1, lv: 0 };
+      html += `<span class="label">Đang chữa</span><span class="value">${pat
+        ? `<span style="color:#7ab27c">${UNIT_LABEL[pat.type] || pat.type} · ${Math.round(pat.hp)}/${pat.maxHp} máu</span>`
+        : 'chưa có thương binh trong tầm'}</span>
+      <span class="label">Đã chữa cả đời</span><span class="value" style="color:var(--gold)">${Math.round(sel.healed)} máu</span>
+      <span class="label">Tầm chữa</span><span class="value">${HS.rate.toFixed(2)} máu/tick trong ${HS.reach.toFixed(1)} ô${HS.heals > 1 ? ` · <span style="color:var(--gold)">${HS.heals} người một lúc</span>` : ''}</span>
+      <span class="label">Đi tìm trong</span><span class="value">${HS.seek} ô</span>
+      <span class="label">Tự băng bó</span><span class="value">${CONFIG.HEALER.SELF_RATE} máu/tick khi rảnh tay</span>`;
+    } else if (sel.type === 'quarter') {
+      // Cùng lý do đã viết cho thầy lang ngay trên: ô sát thương bằng 0, nên
+      // combatRows chỉ in ra một bảng toàn số 0 và người xem đọc ra "đơn vị hỏng".
+      // Bốn dòng dưới đây là toàn bộ câu trả lời cho "nó có đang làm việc không".
+      const QS = t ? supplyStats(t) : { rate: CONFIG.SUPPLY.CAMP.RATE, slots: CONFIG.SUPPLY.CAMP.SLOTS, reach: CONFIG.SUPPLY.CAMP.R, ttl: CONFIG.SUPPLY.CAMP.TTL, lv: 0 };
+      const c = sel.camp && sel.camp.hp > 0 ? sel.camp : null;
+      const wait = Math.max(0, sel.campReadyAt - tick);
+      html += `<span class="label">Trại đang dựng</span><span class="value">${c
+        ? `<span style="color:#d8b25c">còn ${Math.max(0, (c.expireAt || 0) - tick)} tick · đang nuôi ${c.serving || 0}/${QS.slots}</span>`
+        : wait > 0 ? `chờ ${wait} tick nữa mới dựng được` : 'chưa có — đang tìm chỗ'}</span>
+      <span class="label">Sức trại</span><span class="value">${QS.rate.toFixed(2)} lương/tick · ${QS.slots} suất · bán kính ${QS.reach.toFixed(1)} ô</span>
+      <span class="label">Tuổi thọ trại</span><span class="value">${QS.ttl} tick <span style="color:var(--bone-3)">(theo thời đại)</span></span>
+      <span class="label">Giá một trại</span><span class="value">${CONFIG.BUILD.camp.cost.food} lương · ${CONFIG.BUILD.camp.cost.wood} gỗ</span>`;
     } else {
       html += `<span class="label">Mục tiêu</span><span class="value">${sel.combatTarget ? (sel.combatTarget.size !== undefined ? 'công thành' : 'giao chiến') : 'chờ lệnh'}</span>`;
       if (sel.range > 0) {
@@ -810,7 +1169,28 @@ function renderSelected() {
       }
     }
     html += '</div>';
-    if (isMilitary(sel.type) || sel.type === 'hero') html += upgradeCreditHTML(sel, t);
+    // QUÂN LƯƠNG — một dòng cho MỌI đơn vị mang nó, đặt ngoài chuỗi if/else ở trên
+    // vì nó đúng với cả lính, cả anh hùng, cả ba loại hỗ trợ. Nhét vào từng nhánh
+    // là bảy bản chép, và bản chép thì lệch từ lần sửa thứ hai.
+    if (sel.maxSupply > 0) {
+      const f = sel.supply / sel.maxSupply;
+      const mult = supplyMult(sel);
+      const col = f <= 0.01 ? 'var(--cinnabar-hi)' : f < CONFIG.SUPPLY.HUNGRY ? '#e0a33c' : '#7ab27c';
+      const src = sel.supplySrc === 'home' ? 'đang trên đất nhà — hồi lại'
+                : sel.supplySrc === 'camp' ? 'đang trong trại tiếp tế'
+                : 'ngoài lãnh thổ — đang hao';
+      html += `<div class="kv" style="margin-top:6px;">
+        <span class="label">Quân lương</span><span class="value" style="color:${col}">${Math.round(sel.supply)} / ${sel.maxSupply} <span style="color:var(--bone-3)">(${src})</span></span>
+        ${mult < 0.999 ? `<span class="label">Đói</span><span class="value" style="color:var(--cinnabar-hi)">sức đánh còn ${Math.round(mult * 100)}%</span>` : ''}
+      </div>`;
+    }
+    if (sel.type === 'quarter') {
+      html += `<div class="hint" style="margin-top:8px;">Ra lò từ <b>Nhà cầu nguyện</b>. Không có vũ khí, không đánh trả — nó đi theo đạo quân và <b>dựng trại tiếp tế</b> ở nơi có ít nhất ${CONFIG.SUPPLY.CAMP.NEED_HUNGRY} người đang đói, <em>bên ngoài lãnh thổ nhà</em> (trong lãnh thổ thì đất nhà đã tiếp tế miễn phí rồi). Mỗi đội nuôi <b>một</b> cái trại một lúc; trại hết hạn thì phải chờ ${CONFIG.SUPPLY.CAMP.COOLDOWN} tick. Nhánh <b>${CONFIG.UPGRADE.LINES.supplyline.icon} Quân nhu</b> ở chính Nhà cầu nguyện nâng cả ba con số của cái trại.</div>`;
+    }
+    if (sel.type === 'medic') {
+      html += `<div class="hint" style="margin-top:8px;">Ra lò từ <b>Nhà y tế</b>. Không có vũ khí, không đánh trả — nó đi tìm thương binh nặng nhất quanh mình và vá lại ngay giữa trận. Có thầy lang trong ${CONFIG.HEALER.COVER_R} ô thì lính bị thương <b>không rút về hậu phương nữa</b>: đó là chỗ đắt nhất của nó, và cũng là lý do bên kia nên đi tìm nó trước.</div>`;
+    }
+    if (isMilitary(sel.type) || sel.type === 'hero' || sel.type === 'medic') html += upgradeCreditHTML(sel, t);
   }
 
   if (sel.type === 'hero') {
@@ -875,17 +1255,25 @@ let showTribes = false, showLog = false;
 
 function renderOverlayTribes() {
   const ranked = tribes.slice().sort((a, b) => tribeScore(b) - tribeScore(a));
-  let html = '<table><tr><th>Bộ lạc</th><th title="thời đại 1-4">Đại</th><th>Dân</th><th title="cận/xa/ngựa/máy">Quân</th><th>Điểm</th></tr>';
+  // Cùng cách gộp với bảng ở cột phải (xem renderTribeBoard): hai bảng nói khác
+  // nhau về cùng một trạng thái thì người xem phải tự đoán bên nào đang nói thật.
+  let html = '<table><tr><th>Bộ lạc</th><th title="thời đại 1-4">Đại</th>'
+    + '<th title="dân thường / quân đội / trần dân số">👥</th>'
+    + '<th title="cận/xa/ngựa/máy">⚔</th><th>Điểm</th></tr>';
   for (const t of ranked) {
-    const s = t.stats || { villagers: 0, popCap: 0, melee: 0, archers: 0, catapults: 0, cavalry: 0 };
+    const s = t.stats || { villagers: 0, soldiers: 0, popCap: 0, melee: 0, archers: 0, catapults: 0, cavalry: 0 };
     const tg = (t.warTarget !== null && t.alive ? '<span class="tg" style="color:var(--cinnabar-hi)" title="đang chinh phạt">⚔</span>' : '')
       + (t.starving && t.alive ? '<span class="tg" style="color:var(--cinnabar-hi)" title="nạn đói">✖</span>' : '')
       + (s.bcount && s.bcount.wonder ? '<span class="tg" style="color:var(--gold)" title="đang có Kỳ quan">🏛</span>' : '')
+      // Cùng huy hiệu Thiên mệnh với bảng ở cột phải — hai bảng nói khác nhau về
+      // cùng một trạng thái thì người xem phải tự đoán bên nào đang nói thật.
+      + (gameMode !== 'defend' && t.alive && t.townsRazed >= CONFIG.WONDER.NEED_TOWNS
+          ? `<span class="tg" style="color:var(--gold-hi)" title="đủ Thiên mệnh — được khởi công Kỳ quan">👑</span>` : '')
       + (t.prayer ? '<span class="tg" style="color:var(--gold)" title="đang khẩn cầu">🙏</span>' : '');
     html += `<tr class="${t.alive ? '' : 'dead'}" data-tribe="${t.id}" title="Click để camera nhảy tới kinh đô">
       <td><span class="sw" style="background:${t.color}"></span>${t.name}${tg}</td>
       <td title="${CONFIG.AGE.NAMES[t.age]} — mái ${AGE_MAT[t.age].name}"><span class="sw" style="background:${AGE_MAT[t.age].roof}"></span>${t.age}</td>
-      <td>${s.villagers}<span style="color:var(--bone-3)">/${s.popCap}</span></td>
+      <td class="pop3" title="${s.villagers} dân · ${s.soldiers || 0} quân · trần ${s.popCap}">${s.villagers}<span class="sl">/</span><span style="color:var(--gold)">${s.soldiers || 0}</span><span class="sl">/</span><span style="color:var(--bone-3)">${s.popCap}</span></td>
       <td>${s.melee || 0}<span style="color:var(--bone-3)">/</span>${s.archers || 0}<span style="color:var(--bone-3)">/</span><span style="color:${s.cavalry ? 'var(--gold)' : 'inherit'}">${s.cavalry || 0}</span><span style="color:var(--bone-3)">/</span>${s.catapults || 0}</td>
       <td>${tribeScore(t)}</td></tr>`;
   }
@@ -926,6 +1314,22 @@ function renderOverlaySelected() {
     kv('Công / Thủ', `${effAttack(sel).toFixed(1)} / ${effDefense(sel).toFixed(1)}`);
     kv('Nguy hiểm', sel.threat.toFixed(1) + '×');
     kv('Đang làm', sel.raidTribe >= 0 ? 'đi cướp' : sel.assault ? 'tràn sóng' : sel.combatTarget ? 'đang săn' : 'giữ hang');
+  } else if (sel.isWall) {
+    // Ô TƯỜNG PHẢI ĐƯỢC ĐÓN Ở CỬA, y như trong renderSelected và trong dealDamage.
+    // Nó có `size` nên `sel.size !== undefined` bên dưới là ĐÚNG với nó, mà nó
+    // không có `type` — rơi xuống đó là `CONFIG.BUILD[undefined].label` và cả dải
+    // này ném lỗi mỗi khi ai bấm vào tường. Lần thứ tư một vật "có máu, có size,
+    // không phải công trình" phải có nhánh riêng (hang ổ · quái · tường ở thẻ đầy
+    // đủ · tường ở đây). Nhánh này thiếu suốt từ lúc tường ra đời: thẻ đầy đủ có,
+    // dải rút gọn không — vì hai chỗ cùng vẽ một thứ thì sửa một chỗ là quên chỗ kia.
+    const t = tribes[sel.tribeId]; if (t) color = t.color;
+    const T = CONFIG.WALL.TIERS[clamp(sel.tier || 1, 1, CONFIG.WALL.TIERS.length - 1)];
+    const kind = sel.corner ? 'Tháp góc' : sel.gate ? 'Cổng thành' : 'Tường thành';
+    title = `${kind} · ${t ? t.name : '?'}`;
+    kv('Bậc', T.name);
+    kv('Trạng thái', sel.hp <= 0
+      ? `<span style="color:#d05a44">ĐÃ VỠ — lành lại sau ${Math.max(0, sel.downUntil - tick)} tick</span>`
+      : 'còn đứng');
   } else {
     const t = tribes[sel.tribeId]; if (t) color = t.color;
     if (sel.size !== undefined) {
@@ -981,7 +1385,9 @@ const GENE_COLORS = {
   aggression: '#e04b32', militaryRatio: '#e09a3c', foodWeight: '#5aa07c',
   woodWeight: '#8d6e63', ageRush: '#63b4ad',
   rangedRatio: '#a86ac6', stoneWeight: '#8d9490', wonderDrive: '#d8a544', piety: '#d4788a',
-  discipline: '#7fa8d9', cityPlan: '#c9a227'
+  discipline: '#7fa8d9', cityPlan: '#c9a227',
+  garrison: '#c96a4a', roadDrive: '#9c8f6a', colonize: '#6fae7a', heroDrive: '#c8a2d8',
+  fortify: '#8fa9b8', expedition: '#d8b25c'
 };
 
 function renderEraHistory() {
@@ -1024,7 +1430,9 @@ const GENE_LABELS = {
   militaryRatio: 'tỉ lệ lính', aggression: 'độ hiếu chiến', expansion: 'bành trướng',
   houseBuffer: 'đệm chỗ ở', farmTarget: 'số ruộng', towerTarget: 'số tháp', ageRush: 'vội lên đời',
   stoneWeight: 'ưu tiên đá', rangedRatio: 'quân tầm xa', wonderDrive: 'khao khát Kỳ quan',
-  piety: 'thành tâm', discipline: 'kỷ luật', cityPlan: 'quy hoạch'
+  piety: 'thành tâm', discipline: 'kỷ luật', cityPlan: 'quy hoạch',
+  garrison: 'số lò quân', roadDrive: 'đường cái', colonize: 'lập đô', heroDrive: 'đầu tư tướng',
+  fortify: 'phòng thủ', expedition: 'viễn chinh'
 };
 // 6 gen đáng kể nhất để đưa lên thẻ tổng kết — hiện đủ 13 thì thành bảng số vô hồn.
 // `woodWeight` bị nhường chỗ cho `rangedRatio`: gỗ đã có mặt từ bản đầu và đường
@@ -1037,7 +1445,15 @@ const GENE_LABELS = {
 // hay không — tức là phần lớn biến thiên của nó là nhiễu địa hình, không phải chọn
 // lọc. Kỷ luật đội hình thì thuộc đúng nhóm đáng vẽ nhất: giá trị tốt nhất của nó
 // phụ thuộc vào việc ba bộ lạc kia đang dàn quân kiểu gì.
-const HEADLINE_GENES = ['aggression', 'militaryRatio', 'rangedRatio', 'discipline', 'wonderDrive', 'piety'];
+// `wonderDrive` nhường chỗ cho `garrison` ở Phase 3.28, và lý lẽ đúng bằng lý lẽ
+// đã dùng hai lần trước: một đường chỉ đáng vẽ nếu biến thiên của nó là CHỌN LỌC
+// chứ không phải nhiễu. Khao khát Kỳ quan chỉ có hậu quả từ Hoàng Kim trở lên, mà
+// từ Phase 3.26 nó còn đòi hạ được kinh đô địch trước — nên ở phần lớn kỷ nguyên
+// gen này chưa bao giờ được HỎI TỚI, và đường trôi của nó là trôi dạt thuần tuý.
+// Số lò quân thì có hậu quả từ tick ~500 của mọi kỷ nguyên, và giá trị tốt nhất của
+// nó phụ thuộc vào việc bản đồ này có bao nhiêu trận đánh — tức là vào ba bộ lạc
+// kia. Đó đúng là nhóm gen dao động thay vì hội tụ, nhóm đáng vẽ nhất.
+const HEADLINE_GENES = ['aggression', 'militaryRatio', 'rangedRatio', 'discipline', 'garrison', 'piety'];
 
 function showEraCard(winner, reason) {
   const s = winner.stats || computeTribeStats(winner);

@@ -28,6 +28,10 @@ hoặc đáp lại lời khẩn cầu của bộ lạc — tuỳ thích, không 
 Có hai thế cuộc: **Chinh Phạt** (các bộ lạc đánh nhau, thắng bằng quân sự hoặc xây xong Kỳ quan) và
 **Thủ Thành** (các bộ lạc thôi đánh nhau, cùng chống các đợt quái vật mỗi lúc một mạnh).
 
+Kỳ quan **không mua được bằng kho**: muốn khởi công thì phải hạ được kinh đô của một bộ lạc khác trước
+(*Thiên mệnh*), và cả bản đồ chỉ được có **một** Kỳ quan — kể cả đang xây dở. Nghĩa là đường thắng bằng
+công trình đi *xuyên qua* chiến tranh chứ không vòng qua nó.
+
 ## Cấu trúc mã nguồn
 
 `civilization.html` từng là **một** file 12.711 dòng. Nay đã tách:
@@ -50,6 +54,7 @@ js/12-loop-era.js      vòng tick, kết/mở kỷ nguyên, thần lực
 js/13-render-world.js  toàn bộ phần vẽ khung hình
 js/14-ui-panels.js     giao diện DOM ngoài canvas
 js/15-input-boot.js    chuột/phím, camera đạo diễn, vòng rAF, boot
+js/16-codex.js         Thư khố — sách tra quái/quân/công trình/anh hùng
 ```
 
 **Script cổ điển, không phải ES module** — và đó là lựa chọn có chủ ý: `<script type="module">` bị chặn

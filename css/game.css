@@ -132,7 +132,35 @@
     background: var(--lac-850); box-shadow: inset 0 0 0 1px var(--rule);
     padding: 0 10px; min-height: 36px; display: flex; align-items: center;
     border-top: 1px solid var(--lac-900);
+    /* Mốc neo cho tấm thẻ đầy đủ buông xuống (Phase 3.30). */
+    position: relative;
   }
+  /* TẤM THẺ ĐẦY ĐỦ — buông xuống từ dải, KHÔNG chen vào dòng chảy bố cục.
+     `position:absolute` là điểm mấu chốt chứ không phải một mẹo trang trí: cột
+     #world-pane có `overflow:hidden` và chiều cao canvas được tính từ
+     `innerHeight - 320` một lần lúc tải trang, nên bất cứ thứ gì CHIẾM CHỖ thêm
+     ở đây đều đẩy phần dưới cùng ra khỏi màn hình trong im lặng — không thanh
+     cuộn, không dấu hiệu, đúng cái bẫy đã ghi ở CANVAS_PX_W. Buông xuống thì nó
+     phủ lên vùng hướng dẫn, thứ duy nhất đáng bị che vào lúc người ta vừa bấm
+     vào một con quân đang chuyển động.
+     Nhiều CỘT chứ không một cột dài: dải này rộng ~900px mà cao chỉ ~210 — hình
+     dạng ngược hẳn với cột dữ liệu bên phải mà thẻ này vốn được viết cho. Xếp
+     một cột thì phải cuộn ba màn hình cho một con anh hùng; ba cột thì gần như
+     mọi thứ nằm gọn trong một lượt nhìn. */
+  #selectedPanel {
+    position: absolute; left: 0; right: 0; top: 100%; z-index: 30;
+    /* max-height ở đây chỉ là giá trị KHỞI ĐIỂM cho khung hình đầu tiên; con số
+       thật do renderSelected đo từ chỗ tấm thẻ đang thật sự đứng — xem chú thích
+       ở đó để biết vì sao một trần cứng trong CSS là sai một cách im lặng. */
+    box-sizing: border-box; max-height: min(210px, 30vh); overflow-y: auto;
+    background: var(--lac-800); box-shadow: 0 10px 22px rgba(0,0,0,.55), inset 0 0 0 1px var(--rule);
+    border-top: 1px solid var(--gold-dim);
+    padding: 9px 12px; margin: 0;
+  }
+  #selectedBody { column-width: 268px; column-gap: 20px; column-rule: 1px solid var(--rule-soft); }
+  /* Không để một khối bị CẮT ĐÔI qua hai cột: một bảng gen bị xé ngang giữa
+     chừng đọc ra là hai bảng khác nhau. */
+  #selectedBody > div, #selectedBody .kv, #selectedBody table { break-inside: avoid; }
   #inspectEmpty { font-size: 11px; color: var(--bone-3); letter-spacing: .03em; }
   #inspectEmpty b { color: var(--bone-2); font-weight: 600; }
   #inspectBody { display: flex; align-items: center; gap: 13px; width: 100%; flex-wrap: wrap; padding: 5px 0; }
@@ -300,9 +328,104 @@
   .mc-go { font-size: 12.5px; letter-spacing: .06em; color: var(--bone-3); margin-top: 16px; transition: color .18s ease; }
   .mode-card:hover .mc-go { color: var(--gold-hi); }
   .menu-foot { font-size: 11.5px; color: var(--bone-3); margin-top: 26px; line-height: 1.7; }
+  /* Thư khố: một dải ngang mảnh, cố tình KHÔNG cùng ngôn ngữ hình với .mode-card.
+     Nếu nó cũng là một cái thẻ có viền, có tiêu đề lớn, có "→", thì mắt đọc hàng
+     trên thành ba lựa chọn ngang hàng — mà nó không ngang hàng: hai cái kia mở một
+     ván, cái này mở một cuốn sách rồi trả người đọc về đúng chỗ cũ. */
+  .menu-codex {
+    display: block; width: 100%; margin-top: 18px; padding: 13px 18px;
+    background: transparent; color: var(--bone-2); cursor: pointer;
+    font: inherit; font-size: 13px; letter-spacing: .03em; text-align: center;
+    box-shadow: inset 0 0 0 1px var(--rule);
+    transition: box-shadow .18s ease, color .18s ease, background .18s ease;
+  }
+  .menu-codex:hover { color: var(--gold-hi); background: rgba(216,165,68,.06); box-shadow: inset 0 0 0 1px var(--gold-dim); }
+  .menu-codex:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
   @media (max-width: 720px) {
     .menu-modes { grid-template-columns: 1fr; }
     .menu-title { font-size: 42px; }
+  }
+
+  /* ============================================================
+     THƯ KHỐ — bách khoa tra cứu
+     ============================================================
+     z-index 60, TRÊN #menuScreen (50): nó được mở TỪ trang bìa và phải đóng lại
+     để trả người đọc về đúng trang bìa đó, nên hai lớp cùng sống một lúc. Dựng nó
+     ngang hàng 50 thì thứ tự chồng lại phụ thuộc vào thứ tự trong DOM — một sự
+     phụ thuộc không ai nhìn thấy khi sửa HTML sau này. */
+  #codexScreen {
+    position: fixed; inset: 0; z-index: 60; display: none;
+    align-items: center; justify-content: center;
+    background: radial-gradient(circle at 50% 30%, rgba(30,24,18,.72), rgba(6,5,4,.985)), var(--lac-900);
+  }
+  #codexScreen.open { display: flex; animation: eraBackdropIn .3s ease both; }
+  .codex-inner {
+    position: relative; width: 1080px; max-width: 94vw; height: 88vh;
+    display: flex; flex-direction: column;
+    background: linear-gradient(180deg, #1a1611, #100e0a);
+    box-shadow: inset 0 0 0 1px var(--rule), 0 22px 60px rgba(0,0,0,.6);
+    animation: eraCardIn .38s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .codex-head {
+    display: flex; align-items: center; gap: 16px;
+    padding: 18px 22px 16px; border-bottom: 1px solid var(--rule); flex: 0 0 auto;
+  }
+  .codex-seal { width: 46px; height: 46px; flex: 0 0 auto; }
+  .codex-seal .k { font-size: 7.5px; }
+  .codex-seal .n { font-size: 19px; }
+  .codex-titles { flex: 1 1 auto; text-align: left; }
+  .codex-eyebrow { font-size: 10px; letter-spacing: .3em; text-transform: uppercase; color: var(--bone-3); }
+  .codex-title { font-family: var(--f-display); font-size: 30px; font-weight: 700; margin: 2px 0 0; color: var(--bone); }
+  .codex-close {
+    flex: 0 0 auto; width: 34px; height: 34px; background: transparent; cursor: pointer;
+    color: var(--bone-3); font: inherit; font-size: 15px;
+    box-shadow: inset 0 0 0 1px var(--rule); transition: color .16s ease, box-shadow .16s ease;
+  }
+  .codex-close:hover { color: var(--cinnabar-hi); box-shadow: inset 0 0 0 1px var(--cinnabar); }
+  .codex-tabs {
+    display: flex; gap: 2px; padding: 0 22px; flex: 0 0 auto;
+    border-bottom: 1px solid var(--rule); background: rgba(0,0,0,.24);
+  }
+  .cx-tab {
+    background: transparent; border: 0; cursor: pointer; font: inherit; font-size: 12.5px;
+    color: var(--bone-3); padding: 12px 16px 11px; letter-spacing: .03em;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: color .16s ease, border-color .16s ease;
+  }
+  .cx-tab:hover { color: var(--bone-2); }
+  .cx-tab.on { color: var(--gold-hi); border-bottom-color: var(--gold); }
+  .cx-tab .cx-n { color: var(--bone-3); font-size: 11px; margin-left: 5px; }
+  /* scrollbar-gutter: cột dữ liệu bên phải đã bị đo ra là GIẬT 9px mỗi lần đổi tờ
+     vì thanh cuộn hiện/biến; cùng cấu trúc "nhiều tờ, một khung cuộn" nên cùng
+     cách chữa, đặt sẵn từ đầu thay vì chờ nó xảy ra lần thứ hai. */
+  .codex-body { flex: 1 1 auto; overflow-y: auto; scrollbar-gutter: stable; padding: 18px 22px 26px; }
+  .cx-intro { font-size: 12.5px; color: var(--bone-2); line-height: 1.7; max-width: 62em; margin-bottom: 18px; }
+  .cx-intro b { color: var(--bone); }
+  .cx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(292px, 1fr)); gap: 12px; }
+  .cx-card {
+    display: flex; gap: 12px; padding: 12px;
+    background: linear-gradient(180deg, #1d1811, #14110c);
+    box-shadow: inset 0 0 0 1px var(--rule);
+  }
+  .cx-card canvas {
+    flex: 0 0 auto; width: 84px; height: 84px; align-self: flex-start;
+    background: radial-gradient(circle at 50% 62%, #3d4a33, #232b1e);
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.5);
+  }
+  .cx-info { flex: 1 1 auto; min-width: 0; }
+  .cx-name { font-family: var(--f-display); font-size: 16px; font-weight: 700; color: var(--bone); line-height: 1.2; }
+  .cx-sub { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--gold-dim); margin-top: 2px; }
+  .cx-stats { display: flex; flex-wrap: wrap; gap: 3px 10px; margin-top: 7px; font-size: 11px; color: var(--bone-2); }
+  .cx-stats span b { color: var(--bone); font-weight: 600; }
+  .cx-verb { margin-top: 7px; font-size: 11.5px; color: var(--jade-hi, #7ab27c); line-height: 1.5; }
+  .cx-blurb { margin-top: 6px; font-size: 11.5px; color: var(--bone-3); line-height: 1.55; }
+  .cx-locked { color: var(--bone-3); }
+  .cx-sect { font-size: 11px; letter-spacing: .26em; text-transform: uppercase; color: var(--bone-3);
+             margin: 22px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--rule); }
+  .cx-sect:first-child { margin-top: 0; }
+  @media (max-width: 720px) {
+    .codex-inner { height: 94vh; }
+    .cx-grid { grid-template-columns: 1fr; }
   }
 
   /* Chú giải là thứ DUY NHẤT được phép cuộn trong khung trái, và nó chiếm nốt
@@ -500,7 +623,7 @@
   .tabpane.on { display: block; }
   /* H2 đầu mỗi tờ không cần khoảng thở 22px như khi nó là một mục thứ n trong một
      cuộn dài — ngay trên nó đã là đường kẻ chân hàng tờ. */
-  .tabpane > h2:first-child, #selectedDock > h2:first-child { margin-top: 13px; }
+  .tabpane > h2:first-child { margin-top: 13px; }
 
   /* Nút gập trong thẻ "đang chọn". Trông như một dòng tiêu đề nhỏ chứ không như
      một cái nút — nó không phải một hành động, nó là một nhan đề bấm được. */
@@ -583,6 +706,99 @@
   table.board tr[data-tribe]:hover td { background: var(--lac-800); }
   table.board tr.dead td { opacity: 0.3; text-decoration: line-through; }
   .swatch { display: inline-block; width: 8px; height: 8px; margin-right: 6px; vertical-align: 0; }
+  /* Cột gộp DÂN / QUÂN / TRẦN. Dấu gạch mờ đi để mắt đọc ra BA CON SỐ chứ không
+     đọc ra một chuỗi ký tự — cùng thủ pháp đã dùng cho cột cơ cấu quân bên cạnh. */
+  .pop3 .sl { color: var(--bone-3); margin: 0 1px; }
+  /* ---- BỀ NGANG BẢNG BỘ LẠC ----
+     Đo thật ở cuối một kỷ nguyên: bảng 471px trong khung 374px, và thủ phạm KHÔNG
+     phải mấy cột số mà là cột TÊN — 146px, vì cụm huy hiệu (tới 9 cái: chinh phạt,
+     đói, Kỳ quan, Thiên mệnh, khẩn cầu, phước, thầy lang, quân kỳ, chặn cửa đời)
+     bị ép nằm cùng dòng với tên. Cho cụm đó xuống dòng riêng thì cột tên co lại
+     còn ~74px và cả bảng vừa khung, đổi lấy hàng cao thêm một dòng — một đánh đổi
+     đúng chiều, vì bảng này được đọc theo CỘT (so bốn bộ lạc với nhau), mà cuộn
+     ngang thì phá đúng cách đọc đó. */
+  #tribeBoard td:first-child, #tribeBoard th:first-child { max-width: 96px; }
+  #tribeBoard .tags { display: block; margin-left: 0; margin-top: 1px; }
+  #tribeBoard th, #tribeBoard td { padding-left: 2px; padding-right: 2px; }
+  /* 11 -> 10,5px cho riêng bảng này. Còn thiếu đúng 14px sau khi cụm huy hiệu đã
+     xuống dòng, và 14px là khoảng cách giữa "vừa khung" với "có thanh cuộn ngang" —
+     không đáng đánh đổi một cột nào để lấy. */
+  #tribeBoard td { font-size: 10.5px; }
+  /* ============================================================
+     BẢNG BỘ GEN — 20 hàng × 4 cột, và cả bảng phải vừa 374px
+     ============================================================
+     Ràng buộc hình thành mọi quyết định dưới đây: một ô phải chở CẢ con số lẫn
+     thanh tỉ lệ, mà 4 ô cộng lại chỉ có ~280px. Đặt thanh cạnh số thì mỗi thứ
+     được 35px và cả hai đều không đọc được. Nên thanh nằm ĐẰNG SAU con số, làm
+     nền của chính ô đó — vẫn là một ô, đọc được hai tầng thông tin.
+
+     `table-layout: fixed` là bắt buộc, cùng lý do đã viết ở bảng nâng cấp: để
+     trình duyệt tự chia thì cột tên gen ("khao khát Kỳ quan") một mình đẩy bảng
+     rộng ra ngoài khung và cả bảng phải cuộn ngang — mà bảng này được đọc theo
+     HÀNG (so bốn bộ lạc trên cùng một gen), đúng cách đọc mà cuộn ngang phá.
+
+     BỀ CAO: 21 gen × 4 bộ lạc không có cách nào vừa một màn hình, và đó là SỐ
+     HỌC chứ không phải chuyện chỉnh cho khéo. Đo thật ở 1512x900: hàng 20px cho
+     bảng 453px và cả tờ ⚔ Bộ lạc thành 1,67 màn hình — đúng cái bệnh mà năm tờ
+     của Phase 3.21 sinh ra để chữa. Hàng bó về 16px (đệm 1px, dòng 1,3) đưa bảng
+     còn 368px và cả tờ về ~1,5 màn hình. Không xuống thấp hơn được nữa mà vẫn
+     đọc ra được con số, nên chỗ này là một khoản NỢ ĐƯỢC GHI NHẬN chứ không phải
+     một chỗ chưa chỉnh xong. Đổi lấy nó: hai bảng "bốn nhà đang làm gì" và "vì
+     sao chúng làm thế" nằm cạnh nhau, đọc bằng một đường mắt.
+
+     MỘT TỜ THỨ SÁU ĐÃ ĐƯỢC THỬ VÀ BỊ PHÉP ĐO LOẠI. Dựng thêm một nút vào #paneTabs
+     rồi đo: sáu nút thì mỗi nút còn 68px và HAI nhãn ("Anh hùng", "Biên niên") bị
+     cắt bằng dấu lửng ngay ở cửa sổ 1512px — chưa nói tới sàn 380px của cột. Hàng
+     tờ hết chỗ ở đúng năm nút, nên mọi thứ thêm vào từ đây phải sống trong một tờ
+     sẵn có. */
+  table.genome { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 11px; }
+  table.genome th {
+    color: var(--bone-3); font-weight: 500; text-align: center; padding: 2px 2px 3px;
+    border-bottom: 1px solid var(--rule); font-size: 10px; white-space: nowrap; overflow: hidden;
+  }
+  table.genome th:first-child, table.genome td:first-child { text-align: left; width: 86px; }
+  table.genome td {
+    padding: 0; border-bottom: 1px solid var(--rule-soft); font-family: var(--f-data);
+    font-size: 10px; white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  table.genome td:first-child {
+    font-family: var(--f-ui); font-size: 10px; color: var(--bone-2); line-height: 1.3;
+    padding: 1px 4px 1px 0; overflow: hidden; text-overflow: ellipsis;
+  }
+  table.genome .gcell {
+    position: relative; display: block; padding: 1px 4px; line-height: 1.3;
+    text-align: right; color: var(--bone);
+  }
+  /* Thanh nền: bề rộng = giá trị đã chuẩn hoá về khoảng CHO PHÉP của gen (bounds),
+     không phải khoảng gieo ban đầu (range) — chuẩn hoá theo range thì một gen đã
+     đột biến vượt ra ngoài sẽ tràn quá 100% và thanh nói dối. */
+  table.genome .gbar { position: absolute; left: 0; top: 0; bottom: 0; opacity: 0.30; }
+  /* VẠCH MỐC = nhà vô địch kỳ trước. Đây là thứ biến bảng số thành một bảng có
+     CHUYỂN ĐỘNG: bộ gen đứng yên suốt kỷ nguyên, nên không có mốc so sánh thì bảng
+     này chỉ đáng liếc đúng một lần. Có vạch thì mỗi hàng kể được "đột biến đã kéo
+     gen này đi đâu, và bốn nhà còn cách nhau bao xa". */
+  table.genome .gmark { position: absolute; top: 1px; bottom: 1px; width: 1px; background: var(--gold); opacity: 0.75; }
+  table.genome .gv { position: relative; }
+  /* Mờ theo CỘT chứ không theo hàng: ở bảng này hàng là gen, cột mới là bộ lạc. */
+  table.genome td.dead, table.genome th.dead { opacity: 0.32; }
+  table.genome tr:hover td { background: var(--lac-800); }
+  /* Dòng dõi: bộ gen này từ đâu tới (nguyên bản / đột biến / ngẫu nhiên). Cỡ chữ
+     nhỏ hơn hẳn tên bộ lạc vì nó là CHÚ THÍCH của cái tên, không phải một cột nữa. */
+  table.genome .lin { display: block; font-size: 9px; color: var(--bone-3); font-weight: 400;
+                      text-transform: none; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; }
+  table.genome th .swatch { margin-right: 3px; }
+
+  /* ---- Bảng NÂNG CẤP: 9 cột trong 374px, không còn cột "Đang nghiên cứu" ----
+     Ô nhánh phải HẸP và CỐ ĐỊNH, nếu không tám dấu chấm tự do co giãn sẽ đẩy bảng
+     rộng ra đúng như bản trước (đo được 478px trong panel 374px). */
+  table.up-board { table-layout: fixed; }
+  table.up-board th:first-child, table.up-board td:first-child { width: auto; }
+  .up-cell { text-align: center; width: 30px; padding: 3px 1px !important; position: relative; }
+  .up-cell.on { background: rgba(216,165,68,0.12); }
+  /* Thanh tiến độ nằm TRONG chính ô của nhánh đang chạy — xem chú thích ở
+     renderUpgradePanel để biết vì sao cột riêng đã bị xoá. */
+  .up-bar { display: block; height: 3px; margin-top: 3px; background: var(--lac-700); }
+  .up-bar > div { height: 100%; }
 
   #eventLog { font-size: 11.5px; line-height: 1.6; max-height: 150px; overflow-y: auto; }
   #eventLog .t { color: var(--bone-3); font-family: var(--f-data); font-size: 10px; margin-right: 6px; }

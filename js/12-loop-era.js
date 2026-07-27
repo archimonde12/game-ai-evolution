@@ -53,14 +53,50 @@ function simulationTick() {
     // undefined và mọi thứ phía sau nổ.
     if (u.type === 'monster') { tickMonster(u); continue; }
     const tribe = tribes[u.tribeId];
+    // QUÂN LƯƠNG chạy TRƯỚC mọi nhánh theo loại, và đó là cả bản thiết kế của nó:
+    // bốn hàm tick bên dưới có hơn hai chục nhánh `return` sớm cộng lại, nên một
+    // dòng đặt bên trong chúng sẽ chạy hoặc không chạy tuỳ hôm đó người lính đang
+    // bận gì. `maxSupply` bằng 0 với dân thường nên họ chỉ trả một phép so sánh.
+    if (u.maxSupply > 0) tickSupply(u, tribe);
     if (u.type === 'villager') tickVillager(u, tribe);
     else if (u.type === 'hero') tickHero(u, tribe);
+    // Thầy lang phải tách ra TRƯỚC nhánh `else` cuối: nhánh đó là tickSoldier, và
+    // một đơn vị attack = 0 chạy qua thang ưu tiên của lính sẽ đi tìm địch, đuổi
+    // theo, áp sát rồi đứng đó gõ những cú 0 sát thương cho tới lúc chết.
+    else if (u.type === 'medic') tickMedic(u, tribe);
+    // QUÂN KỲ cũng phải tách ra trước nhánh `else` cuối, cùng đúng lý do vừa viết
+    // cho thầy lang ngay trên: ô sát thương của nó bằng 0. Quên dòng này thì lá cờ
+    // sẽ hăng hái đi tìm địch, áp sát, và đứng gõ những cú 0 sát thương cho tới
+    // lúc chết — mà nó lẽ ra phải đứng hàng giữa cổ vũ.
+    else if (u.type === 'standard') tickStandard(u, tribe);
+    // ĐỘI HẬU CẦN — nhánh riêng, TRƯỚC `else` cuối, đúng cùng lý do đã phải viết
+    // hai lần ở trên cho thầy lang và quân kỳ: nhánh cuối là tickSoldier, và một
+    // đơn vị attack = 0 chạy qua thang ưu tiên của lính sẽ đi tìm địch, áp sát, rồi
+    // đứng gõ những cú 0 sát thương cho tới lúc chết. Lần thứ ba cùng một hình dạng.
+    else if (u.type === 'quarter') tickQuarter(u, tribe);
     else tickSoldier(u, tribe);
   }
 
   for (const b of buildings) {
-    if (b.hp > 0 && CONFIG.BUILD[b.type].range) tickDefender(b, tribes[b.tribeId]);
+    if (b.hp <= 0) continue;
+    if (CONFIG.BUILD[b.type].range) tickDefender(b, tribes[b.tribeId]);
+    // `if` riêng chứ không nối `else if` vào dòng trên: hai câu hỏi khác nhau ("có
+    // bắn được không" / "có phải trại tiếp tế không"), và nối chúng thành một chuỗi
+    // là dựng lại đúng cái bẫy mà chú thích UNIT_SPEC đã cảnh báo — thêm loại thứ N
+    // vào một chuỗi `else if` thì loại mới lặng lẽ rơi vào nhánh sai.
+    if (b.type === 'camp') tickCamp(b);
   }
+
+  // TƯỜNG THÀNH: tự sửa mỗi tick, dựng lại vành thì thưa hơn nhiều.
+  //
+  // Hai nhịp khác nhau vì hai câu hỏi khác nhau. "Ô này lành lại chưa" phải hỏi
+  // mỗi tick, nếu không thì REGEN 0,35 máu/tick trở thành một con số nói dối.
+  // "Vành tường có phải dựng lại không" thì đổi vài lần mỗi kỷ nguyên (lên đời,
+  // lập thêm đô, mất một đô) — hỏi nó mỗi tick là dựng một chuỗi chữ ký cho bốn
+  // bộ lạc 12 lần mỗi giây để nhận về đúng cùng một câu trả lời.
+  tickWalls();
+  if (tick % 30 === 0) for (const t of tribes) ensureWalls(t);
+  if (tick % 30 === 7) tickWorldBoss();   // lệch pha 7 để hai lượt quét không dồn vào một tick
 
   for (const t of tribes) {
     if (!t.alive) continue;
@@ -343,14 +379,38 @@ function beginNextEra() {
 // ============================================================
 // Quyền năng chúa tể
 // ============================================================
+// ============================================================
+// CÂN BẰNG LẠI, PHASE 3.30 — và thước đo dùng để cân
+// ============================================================
+// Đức Tin vào ~1 điểm mỗi 20 tick cộng 2 điểm mỗi lần dâng tế, trần 100. Nghĩa là
+// người xem ra quyết định "tiêu vào đâu" khoảng mỗi 400-600 tick. Bảng giá cũ
+// (15/20/25/30/35) trải quá hẹp trên một cái ví như thế: chênh lệch 15 so với 35
+// không đủ để một lựa chọn nào thật sự PHẢI nhịn cho lựa chọn khác.
+//
+// Thước đo dùng ở đây là "một điểm Đức Tin đổi được bao nhiêu", và ba nhóm phải
+// nằm ở ba bậc rõ rệt:
+//   · SỬA CẢNH VẬT (Mưa Lành, Rừng Mọc) — rẻ, hiệu lực dàn đều, không đổi ai
+//     đang thắng. Đây là nút bấm thường xuyên.
+//   · ĐÁNH VÀO MỘT BỘ LẠC (Sét Trời, Dịch Bệnh, Ban Phước) — trung bình, đổi
+//     ngay cán cân giữa hai bên nhưng thế giới trở lại hình dạng cũ sau đó.
+//   · ĐỔI CẢ VÁN CỜ (Thiên Ma) — đắt gần trọn cái ví, và nó để lại một VẬT THỂ
+//     trên bản đồ chứ không phải một hiệu ứng.
+// Ban Phước là thứ bị chỉnh mạnh nhất: 35 Đức Tin đổi lấy 750 tài nguyên là món
+// hời nhất bảng theo mọi cách tính, nên nó lên 42 và phần thưởng đổi thành phần —
+// bớt vàng, thêm ĐÁ, thứ mà bức tường mới vừa biến thành nút thắt thật.
 const GOD_POWERS = [
   {
-    id: 'lightning', label: '⚡ Sét Trời', name: 'Sét Trời', tone: 'harm', cost: 25,
-    hint: 'Click 1 điểm: gây 45 sát thương lên mọi quân và 130 lên nhà cửa trong bán kính 5 ô (không phân biệt phe).',
+    id: 'lightning', label: '⚡ Sét Trời', name: 'Sét Trời', tone: 'harm', cost: 24,
+    hint: 'Click 1 điểm: gây 75 sát thương lên mọi quân và 220 lên nhà cửa trong bán kính 5 ô (không phân biệt phe).',
+    // 45 -> 75. Ở mức cũ, một phát sét vào giữa đạo quân Thiên Triều không giết
+    // nổi một người nào (bộ binh đời 5 có hơn 100 máu): người xem trả 25 Đức Tin
+    // để nhìn một vòng lửa rồi mọi thứ tiếp diễn y nguyên. 75 thì nó dọn sạch
+    // dân thường và hạ được lính đang bị thương — đủ để phát sét là một QUYẾT
+    // ĐỊNH, chưa đủ để nó thay thế một trận đánh.
     apply(x, y) {
       const R = 5;
-      for (const u of units) if (dist(u.x, u.y, x, y) <= R) u.hp -= 45;
-      for (const b of buildings) if (dist(b.x, b.y, x, y) <= R + b.size) b.hp -= 130;
+      for (const u of units) if (dist(u.x, u.y, x, y) <= R) u.hp -= 75;
+      for (const b of buildings) if (dist(b.x, b.y, x, y) <= R + b.size) b.hp -= 220;
       addFx({ type: 'bolt', x, y, life: 14, maxLife: 14, seed: tick % 97 });
       addFx({ type: 'boom', x, y, life: 22, maxLife: 22, r: R });
       addHotspot(x, y, 8, 'Sét của Chúa Tể');
@@ -358,10 +418,10 @@ const GOD_POWERS = [
     }
   },
   {
-    id: 'rain', label: '🌧 Mưa Lành', name: 'Mưa Lành', tone: 'grow', cost: 20,
-    hint: 'Click 1 điểm: mọi bụi quả/ruộng trong bán kính 16 ô đầy lại tức thì.',
+    id: 'rain', label: '🌧 Mưa Lành', name: 'Mưa Lành', tone: 'grow', cost: 16,
+    hint: 'Click 1 điểm: mọi bụi quả/ruộng trong bán kính 18 ô đầy lại tức thì.',
     apply(x, y) {
-      const R = 16;
+      const R = 18;
       let n = 0;
       for (const c of regrowList) {
         if (dist(c.x, c.y, x, y) <= R && c.amount < c.max) { c.amount = c.max; n++; }
@@ -370,7 +430,7 @@ const GOD_POWERS = [
     }
   },
   {
-    id: 'forest', label: '🌲 Rừng Mọc', name: 'Rừng Mọc', tone: 'grow', cost: 15,
+    id: 'forest', label: '🌲 Rừng Mọc', name: 'Rừng Mọc', tone: 'grow', cost: 12,
     hint: 'Click 1 điểm: mọc thêm 1 khu rừng nhỏ (gỗ mới, đồng thời chặn đường + chặn tầm nhìn).',
     apply(x, y) {
       let n = 0;
@@ -379,23 +439,251 @@ const GOD_POWERS = [
     }
   },
   {
-    id: 'bless', label: '✨ Ban Phước', name: 'Ban Phước', tone: 'gift', cost: 35, needTribe: true,
-    hint: 'Click 1 quân/nhà: bộ lạc đó nhận +300 lương, +300 gỗ, +150 vàng.',
+    id: 'bless', label: '✨ Ban Phước', name: 'Ban Phước', tone: 'gift', cost: 42, needTribe: true,
+    hint: 'Click 1 quân/nhà: bộ lạc đó nhận +260 lương, +240 gỗ, +180 đá, +90 vàng.',
     apply(x, y, tribe) {
-      tribe.res.food += 300; tribe.res.wood += 300; tribe.res.gold += 150;
+      tribe.res.food += 260; tribe.res.wood += 240; tribe.res.stone += 180; tribe.res.gold += 90;
       logEvent(`✨ ${tribe.name} nhận thiên ân`, tribe.color);
     }
   },
   {
-    id: 'plague', label: '☠ Dịch Bệnh', name: 'Dịch Bệnh', tone: 'harm', cost: 30, needTribe: true,
+    id: 'plague', label: '☠ Dịch Bệnh', name: 'Dịch Bệnh', tone: 'harm', cost: 34, needTribe: true,
     hint: 'Click 1 quân/nhà: mọi quân của bộ lạc đó mất 45% máu tối đa.',
     apply(x, y, tribe) {
       let n = 0;
       for (const u of units) if (u.tribeId === tribe.id) { u.hp -= u.maxHp * 0.45; n++; }
       logEvent(`☠ Dịch bệnh càn quét ${tribe.name} (${n} người)`, tribe.color);
     }
+  },
+  {
+    id: 'worldboss', label: '🐉 Thiên Ma', name: 'Thiên Ma', tone: 'harm', cost: 75,
+    // Dòng này ĐỌC TỪ CONFIG chứ không chép tay, và nó phải thế vì bản chép tay đã
+    // lệch một lần rồi: nó quảng cáo "5.200 máu" suốt từ 3.30 trong khi con quái
+    // thật có 9.000 — bộ số bị nâng ở chính bản đó mà cái nhãn thì không ai sửa.
+    // Một lời quảng cáo sai về quyền năng đắt nhất là thứ khiến người xem không bao
+    // giờ bấm nút thứ hai.
+    // GETTER, không phải một chuỗi dựng sẵn lúc nạp file — và đây là hệ quả trực
+    // tiếp của việc con quái nay mạnh dần theo tick. Một chuỗi tính một lần ở tick 0
+    // sẽ quảng cáo con số của tick 0 suốt cả kỷ nguyên, tức là đúng cái lỗi chép tay
+    // vừa nói ở trên, chỉ khác là lần này nó tự sinh ra chứ không phải do ai quên sửa.
+    // `setGodHint(p.hint)` đọc thuộc tính đúng lúc bấm nút, nên chỗ gọi không phải đổi.
+    get hint() {
+      const S = worldBossScaled();
+      return `Thả một con THIÊN MA ở chính giữa bản đồ (click đâu cũng vậy). `
+        + `NÓ MẠNH DẦN THEO THỜI GIAN — thả lúc này: bậc ${S.rank}, `
+        + `${S.hp.toLocaleString('vi-VN')} máu · đòn ${Math.round(S.attack)} (đỉnh ở tick `
+        + `${CONFIG.WORLD_BOSS.RAMP.PEAK_TICK.toLocaleString('vi-VN')}). `
+        + `Đập tường thành như một cỗ máy bắn đá, hành quân tới bộ lạc ĐANG DẪN ĐẦU. Bộ lạc nào ra đòn cuối nhận `
+        + `${S.loot.food} lương · ${S.loot.wood} gỗ · ${S.loot.stone} đá · ${S.loot.gold} vàng, `
+        + `một THÁNH VẬT cấp ${CONFIG.ITEM.LEVEL_TAG[CONFIG.ITEM.MAX_LEVEL]} và MỘT CẤP NGHIÊN CỨU miễn phí; `
+        + `Chúa Tể được hoàn ${CONFIG.WORLD_BOSS.FAITH_REFUND} Đức Tin. Chỉ một con trên bản đồ cùng lúc.`;
+    },
+    apply() { spawnWorldBoss(); }
   }
 ];
+
+// ============================================================
+// THIÊN MA — vòng đời
+// ============================================================
+// Nó dùng lại NGUYÊN đường ống "quái đi cướp" (raidTribe + assault): bước xuống
+// `homeField` của bộ lạc bị nhắm, tầm phát hiện hẹp nên nó hành quân chứ không
+// đi săn dọc đường. Không viết một AI thứ hai, và đó là lý do cơ chế này rẻ —
+// mọi thứ quanh một con quái đang hành quân đã có sẵn và đã được đo.
+//
+// KHÁC ở đúng một chỗ: `raidUntil` để vô tận. Quái đi cướp bình thường hết hạn
+// rồi lê xác về hang; Thiên Ma không có hang để về (lairId -1), nên nếu để nó hết
+// hạn thì nó sẽ đứng chôn chân giữa bản đồ — đúng cái ngõ cụt "quái không còn
+// mục tiêu nào" đã phải chữa bằng huntSurvivors ở bản trước.
+function worldBossAlive() {
+  for (const u of units) if (u.type === 'monster' && u.worldBoss && u.hp > 0) return u;
+  return null;
+}
+
+// ============================================================
+// HỆ SỐ SỨC MẠNH THEO ĐỒNG HỒ KỶ NGUYÊN
+// ============================================================
+// MỘT hàm, và mọi thứ về con quái đọc qua nó: bảng hint, dòng nhật ký, chỉ số lúc
+// sinh, kho báu lúc chết. Bốn chỗ ấy đã từng lệch nhau một lần rồi ("5.200 máu" ở
+// hint trong khi bảng có 9.000), và ở đây nguy cơ còn cao hơn hẳn vì con số không
+// còn nằm trong CONFIG mà phụ thuộc `tick` — chép tay công thức ở chỗ thứ hai thì
+// hai chỗ sẽ lệch nhau ngay tại tick đầu tiên có ai đó sửa một hằng số.
+//
+// `atTick` cho phép hỏi "nếu thả BÂY GIỜ thì thế nào" mà không cần con quái tồn tại
+// (bảng hint hỏi câu đó mỗi lần người xem rê chuột lên nút).
+function worldBossPower(atTick) {
+  const R = CONFIG.WORLD_BOSS.RAMP;
+  const t = clamp((atTick === undefined ? tick : atTick) / R.PEAK_TICK, 0, 1);
+  return R.START + (R.PEAK - R.START) * t;
+}
+
+function worldBossRank(pow) {
+  const T = CONFIG.WORLD_BOSS.RANKS;
+  let name = T[0].name;
+  for (const r of T) if (pow >= r.at) name = r.name;
+  return name;
+}
+
+// Bộ chỉ số ĐÃ NHÂN. Trả về cả `pow` để chỗ gọi không phải tính lại — nếu phải tính
+// lại thì đã có hai đường tính, đúng cái vừa nói ở trên.
+function worldBossScaled(atTick) {
+  const spec = CONFIG.MONSTER.TYPES.worldboss;
+  const L = CONFIG.WORLD_BOSS.LOOT;
+  const pow = worldBossPower(atTick);
+  return {
+    pow, rank: worldBossRank(pow),
+    hp: Math.round(spec.hp * pow),
+    attack: spec.attack * pow,
+    // Cỡ vẽ leo CHẬM hơn chỉ số nhiều (0,82 + 0,18·pow, tức 0,93 -> 1,13 giữa hai
+    // đầu dải). Cố ý: sprite đã chiếm 4,2 ô, và cho nó leo theo đúng hệ số máu thì
+    // con quái đỉnh sẽ rộng 7,3 ô — to hơn chân đế Kỳ quan, đúng cái lỗi "hai hệ số
+    // phóng to nhân nhau" vừa phải sửa ở máy bắn đá tại 3.32. Ở đây tôi chỉ cần
+    // MẮT ĐỌC RA nó to hơn khi đứng cạnh một con của kỷ nguyên trước, và 1,21 lần
+    // là đủ cho việc đó.
+    scale: 0.82 + 0.18 * pow,
+    loot: {
+      food:  Math.round(L.food  * pow), wood:  Math.round(L.wood  * pow),
+      stone: Math.round(L.stone * pow), gold:  Math.round(L.gold  * pow)
+    }
+  };
+}
+
+// Bộ lạc bị nhắm = bộ lạc ĐANG DẪN ĐẦU. Xem chú thích CONFIG.WORLD_BOSS để biết
+// vì sao không phải bộ lạc gần nhất và không phải ngẫu nhiên.
+function worldBossTarget() {
+  let best = null;
+  for (const t of tribes) {
+    if (!t.alive) continue;
+    if (!best || tribeScore(t) > tribeScore(best)) best = t;
+  }
+  return best;
+}
+
+function spawnWorldBoss() {
+  if (worldBossAlive()) { setGodHint('Đã có một Thiên Ma trên bản đồ rồi.'); return false; }
+  const cx = Math.floor(CONFIG.GRID_WIDTH / 2), cy = Math.floor(CONFIG.GRID_HEIGHT / 2);
+  // Hang giả cấp 1 — cùng thủ thuật mà splitMonster đang dùng, nên chỉ số lấy
+  // thẳng từ bảng TYPES với statMult 1,0 chứ không bị nhân theo cấp hang nào.
+  const u = spawnMonster({ id: -1, x: cx, y: cy, tier: 1, spawnedTotal: 0 }, 'worldboss');
+  u.lairId = -1; u.lairX = cx; u.lairY = cy; u.roam = 9999;
+  u.worldBoss = true;
+  u.assault = true;
+  u.raidUntil = Infinity;
+  u.bossRetargetAt = 0;
+  // HỆ SỐ ĐÔNG CỨNG NGAY TẠI ĐÂY, vào chính cá thể — không phải một phép nhân đọc
+  // lại `tick` mỗi lần dùng. Con quái phải giữ nguyên sức mạnh của cái ngày nó được
+  // thả xuống; đọc lại đồng hồ thì một trận đánh kéo dài 900 tick sẽ có con quái
+  // KHOẺ DẦN LÊN trong lúc đang bị vây, và không một dòng nào trên màn hình nói ra
+  // điều đó. Đây cùng luật với `u.ageBonus` của anh hùng: hệ số thời điểm ra đời.
+  const S = worldBossScaled();
+  u.bossPow = S.pow;
+  u.bossRank = S.rank;
+  u.maxHp = S.hp; u.hp = S.hp;
+  u.attack = S.attack;
+  u.threat = CONFIG.MONSTER.TYPES.worldboss.threat * S.pow;
+  // `scale` là trường mà spawnMonster KHÔNG đặt — nó vốn chỉ có ở con sinh ra từ
+  // phân đôi. Cả hai chỗ đọc nó đã viết sẵn `|| 1` (drawMonster và spriteBox), nên
+  // hình vẽ và hộp bấm cùng phóng to theo đúng một con số. Đây là chỗ mà bài học
+  // Phase 3.19 ("ba thứ neo vào ô lưới cùng vỡ khi sprite tràn ra khỏi ô") đã được
+  // trả trước: đường ống có sẵn, chỉ cần không dựng một đường thứ hai.
+  u.scale = S.scale;
+  const t = worldBossTarget();
+  u.raidTribe = t ? t.id : -1;
+  addFx({ type: 'boom', x: cx, y: cy, life: 40, maxLife: 40, r: 6 });
+  addHotspot(cx, cy, 26, `THIÊN MA ${S.rank} giáng thế`);
+  logEvent(t ? `🐉 THIÊN MA — ${S.rank}, ${S.hp.toLocaleString('vi-VN')} máu — giáng thế giữa bản đồ, nó đi về phía ${t.name}!`
+             : `🐉 THIÊN MA — ${S.rank}, ${S.hp.toLocaleString('vi-VN')} máu — giáng thế giữa bản đồ!`,
+           '#b783cc', true);
+  return true;
+}
+
+// Nhắm lại định kỳ. Chạy trong vòng tick chính, KHÔNG trong tickMonster: nếu để
+// trong tickMonster thì nó chỉ chạy khi con quái còn sống và còn được duyệt, mà
+// đúng lúc bộ lạc bị nhắm diệt vong là lúc con quái rơi vào nhánh "không có
+// trường" và thoát sớm — nhắm lại sẽ không bao giờ tới lượt.
+function tickWorldBoss() {
+  const u = worldBossAlive();
+  if (!u) return;
+  const dead = u.raidTribe < 0 || !tribes[u.raidTribe] || !tribes[u.raidTribe].alive;
+  if (!dead && tick < u.bossRetargetAt) return;
+  u.bossRetargetAt = tick + CONFIG.WORLD_BOSS.RETARGET;
+  const t = worldBossTarget();
+  if (!t) { u.raidTribe = -1; return; }
+  if (t.id === u.raidTribe) return;
+  u.raidTribe = t.id;
+  u.combatTarget = null;
+  logEvent(`🐉 Thiên Ma đổi hướng — nó nhắm vào ${t.name}`, '#b783cc');
+}
+
+// Ra đòn cuối thì được kho báu. Gọi từ dealDamage — cửa duy nhất mà mọi cái chết
+// đi qua, đúng chỗ đã dùng cho feedLair và heroRazed. Gọi ở onMonsterDeath thì
+// mất người gây ra: hàm đó chạy ở lượt lọc xác cuối tick và không biết ai giết.
+function onWorldBossSlain(u, tribeId) {
+  faith = Math.min(CONFIG.GOD.FAITH_MAX, faith + CONFIG.WORLD_BOSS.FAITH_REFUND);
+  addFx({ type: 'boom', x: u.x, y: u.y, life: 44, maxLife: 44, r: 7 });
+  addHotspot(u.x, u.y, 26, 'THIÊN MA gục ngã');
+  const t = tribeId >= 0 ? tribes[tribeId] : null;
+  if (!t) {
+    logEvent('🐉 THIÊN MA gục ngã — không bộ lạc nào nhận được kho báu.', '#b783cc', true);
+    return;
+  }
+  // KHO BÁU ĐỌC HỆ SỐ CỦA CHÍNH CON QUÁI VỪA CHẾT (`u.bossPow`), không gọi lại
+  // worldBossScaled(). Hai con số đó khác nhau đúng bằng quãng thời gian nó sống:
+  // một con thả ở tick 6.000 mà chết ở tick 9.000 sẽ trả thưởng theo mức 9.000 nếu
+  // hỏi lại đồng hồ — tức là bộ lạc được thưởng cho một con quái mạnh hơn con nó
+  // vừa đánh. Cùng đúng lý do đã đông cứng hệ số vào cá thể lúc thả.
+  const L = CONFIG.WORLD_BOSS.LOOT;
+  const pow = u.bossPow || 1;
+  const loot = {
+    food:  Math.round(L.food  * pow), wood:  Math.round(L.wood  * pow),
+    stone: Math.round(L.stone * pow), gold:  Math.round(L.gold  * pow)
+  };
+  t.res.food += loot.food; t.res.wood += loot.wood; t.res.stone += loot.stone; t.res.gold += loot.gold;
+  const up = grantBossSpoilUpgrade(t);
+  logEvent(`🐉 ${t.name} HẠ ĐƯỢC THIÊN MA ${u.bossRank || ''} — ${loot.food} lương · ${loot.wood} gỗ · ${loot.stone} đá · ${loot.gold} vàng về tay họ!`, t.color, true);
+  // Dòng thứ hai, và nó KHÔNG gộp vào dòng trên: hai phần thưởng này chạm vào hai
+  // thứ khác hẳn nhau (một cái vào kho, một cái vào cả đạo quân đang đứng), nên gộp
+  // lại thành một câu dài là làm mất phần đắt hơn trong hai phần.
+  if (up) logEvent(`${up.icon} Chiến lợi phẩm mở ra một bí thuật — ${t.name} nhận ngay ${up.label} cấp ${up.level}`, t.color, true);
+}
+
+// ============================================================
+// MỘT CẤP NGHIÊN CỨU MIỄN PHÍ cho kẻ hạ được Thiên Ma
+// ============================================================
+// Vì sao đây là phần đáng giá nhất trong ba phần kho báu, dù nó không có một con
+// số nào trong bảng LOOT: nâng cấp là thứ DUY NHẤT trong game áp dụng ngay lập tức
+// cho cả đạo quân đang sống, kể cả người đang đứng giữa trận (xem applyUpgrade).
+// Kho thì tiêu hết trong vài trăm tick, Thánh vật thì rơi lại trên đất theo người
+// cầm nó — còn một cấp nâng cấp thì ở lại tới hết kỷ nguyên.
+//
+// Hai nhánh, theo đúng thứ tự:
+//   · ĐANG NGHIÊN CỨU DỞ -> hoàn thành NGAY. Đây là nhánh đúng về mặt kể chuyện
+//     (bí thuật cướp được ghép vào đúng cái đang làm dở) và cũng là nhánh trả
+//     thưởng đậm nhất, vì bộ lạc đã trả tiền rồi mà chưa nhận hàng.
+//   · KHÔNG nghiên cứu gì -> cộng một cấp vào nhánh ĐANG CAO NHẤT trong số nhánh
+//     đủ điều kiện. Cố ý không chọn nhánh thấp nhất: bộ lạc đã tự bỏ phiếu bằng
+//     tài nguyên cho hướng đi của mình rồi, và phần thưởng phải khuếch đại lựa
+//     chọn đó chứ không được lặng lẽ lái nó sang hướng khác.
+// Không đủ điều kiện nhánh nào (chưa có công trình chủ quản, hoặc mọi nhánh đã
+// trần) thì trả về null và chỉ mất đúng dòng nhật ký thứ hai — không có nhánh dự
+// phòng nào cộng bừa, vì "được thưởng một cấp của nhánh mình không xây nổi" là một
+// phần thưởng vô hình.
+function grantBossSpoilUpgrade(t) {
+  if (t.research) {
+    const r = t.research;
+    t.research = null;
+    applyUpgrade(t, r.line, r.level);
+    return Object.assign({ level: r.level }, CONFIG.UPGRADE.LINES[r.line]);
+  }
+  let best = null;
+  for (const k of UPGRADE_LINES) {
+    if (!upgradeAvailable(t, k)) continue;
+    if (!best || t.upgrades[k] > t.upgrades[best]) best = k;
+  }
+  if (!best) return null;
+  const level = t.upgrades[best] + 1;
+  applyUpgrade(t, best, level);
+  return Object.assign({ level }, CONFIG.UPGRADE.LINES[best]);
+}
 
 function tribeAt(x, y) {
   let best = null, bestD = 6;
@@ -499,8 +787,13 @@ function castPower(id, gx, gy) {
     tribe = tribeAt(x, y);
     if (!tribe) { setGodHint('Không có bộ lạc nào ở chỗ đó — click vào 1 quân hoặc 1 toà nhà.'); return false; }
   }
+  // TRỪ ĐỨC TIN SAU KHI apply THÀNH CÔNG, không phải trước. Thiên Ma là quyền năng
+  // đầu tiên có thể TỪ CHỐI thi hành (đã có một con trên bản đồ rồi), và với thứ
+  // tự cũ thì cú click bị từ chối vẫn rút trọn 75 Đức Tin — người xem mất gần cả
+  // cái ví để đổi lấy một dòng nhắc. `apply` của bốn quyền năng cũ không trả về gì
+  // (undefined), nên chỉ `=== false` mới tính là từ chối.
+  if (power.apply(x, y, tribe) === false) return false;
   faith -= power.cost;
-  power.apply(x, y, tribe);
   return true;
 }
 

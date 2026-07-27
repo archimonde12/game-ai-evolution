@@ -88,8 +88,14 @@ function selectAt(gx, gy) {
     if (d.kind === 'i') continue;                    // vật phẩm dưới đất không chọn được
     const box = spriteBox(d, cs);
     if (mx < box.x0 || mx > box.x1 || my < box.y0 || my > box.y1) continue;
+    // Ô tường không có `id` — nó không nằm trong một mảng nào, nó là một giá trị
+    // trong Map. Nên nó được nhớ bằng KHOÁ Ô, và đó cũng là danh tính duy nhất nó
+    // có. Bỏ nhánh này thì tường rơi xuống nhánh `unit` với `id: undefined`, và
+    // thẻ thông tin sẽ đi tìm một đơn vị không tồn tại rồi tự tắt — một cú bấm im
+    // lặng không làm gì cả, đúng loại lỗi khó lần nhất.
     selected = d.kind === 'b' ? { kind: 'building', id: d.o.id }
              : d.kind === 'l' ? { kind: 'lair', id: d.o.id }
+             : d.kind === 'w' ? { kind: 'wall', key: d.o.key }
              : { kind: 'unit', id: d.o.id };
     return;
   }
@@ -133,13 +139,26 @@ window.addEventListener('keydown', (e) => {
   // toàn ô số, mà Space và [ ] là ký tự hợp lệ trong đó.
   const tag = document.activeElement.tagName;
   if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-  // Trang bìa đang mở: chỉ M có tác dụng (đóng bìa, trở lại ván nếu đã có một ván).
+  // THƯ KHỐ nuốt phím TRƯỚC cả trang bìa, vì nó nằm chồng lên trang bìa: mở sách
+  // rồi bấm M mà lại được "trở lại ván đang chơi" thì người dùng bị ném ra khỏi hai
+  // lớp cùng lúc bằng một phím chỉ nói về một lớp.
+  if (typeof codexOpen !== 'undefined' && codexOpen) {
+    if (k === 'escape' || k === 'b') closeCodex();
+    return;
+  }
+  // Trang bìa đang mở: chỉ M và B có tác dụng (đóng bìa / mở Thư khố).
   // Mọi phím điều khiển mô phỏng khác bị chặn để game không "chạy ngầm" sau tấm bìa.
   if (menuOpen) {
     if (k === 'm' && bootDone) resumeGame();
+    else if (k === 'b') openCodex();
     return;
   }
   if (k === 'm') { showMenu(); return; }
+  // B mở Thư khố NGAY GIỮA VÁN, không phải chỉ từ trang bìa. Đây là chỗ cuốn sách
+  // đáng giá nhất: câu hỏi "con vừa cắn quân mình là con gì" chỉ xuất hiện khi
+  // đang xem, và bắt người xem đi qua trang bìa để tra là bắt họ bỏ mất đúng cái
+  // cảnh vừa làm họ thắc mắc.
+  if (k === 'b') { openCodex(); return; }
   // 1-5 đổi tờ cột phải. Đặt TRƯỚC mọi phím điều khiển mô phỏng và return ngay:
   // đây là phím điều hướng giao diện, nó không được kéo theo tác dụng phụ nào.
   if (k >= '1' && k <= '5') { setTab(PANE_TABS[Number(k) - 1]); return; }
@@ -389,10 +408,19 @@ function updateFollowCamera() {
 
 const UNIT_LABEL = {
   villager: 'Dân thường', soldier: 'Lính', archer: 'Cung thủ',
-  catapult: 'Máy bắn đá', knight: 'Kỵ sĩ', horsearcher: 'Kỵ xạ', hero: 'Anh hùng'
+  catapult: 'Máy bắn đá', knight: 'Kỵ sĩ', horsearcher: 'Kỵ xạ', hero: 'Anh hùng',
+  medic: 'Thầy lang',
+  ballista: 'Nỏ thần', elephant: 'Voi chiến', standard: 'Quân kỳ', quarter: 'Đội hậu cần'
 };
 function describeSelected(o) {
   if (o.isLair) return 'Hang ổ cấp ' + (o.tier || 1);
+  // Ô tường không có `type`, nên nếu không đón ở đây nó rơi xuống dòng cuối và
+  // trả về "undefined — Xích Long" trên nhãn camera bám. Xem cùng chú thích ở
+  // renderOverlaySelected.
+  if (o.isWall) {
+    const t = tribes[o.tribeId];
+    return (o.corner ? 'Tháp góc' : o.door ? 'Cánh cổng' : o.gate ? 'Lầu cổng' : 'Tường thành') + ' — ' + (t ? t.name : '?');
+  }
   if (o.type === 'monster') {
     const s = CONFIG.MONSTER.TYPES[o.mType];
     return (s ? s.label : 'Quái vật') + (o.assault ? ' (sóng)' : '');

@@ -22,7 +22,22 @@ const resBuckets = { wood: new Map(), food: new Map(), gold: new Map(), stone: n
 // thêm loại thứ tư vào một codebase bình thường lại hay sót.
 const RES_TYPES = ['food', 'wood', 'gold', 'stone'];
 let regrowList = [];                    // các cell có regrow > 0 (bụi quả + ruộng)
-let blockedCells = new Set();           // ô chặn đường/tầm nhìn = ô có cây (địa hình không còn chặn ai)
+// Ô chặn đường/tầm nhìn = ô có cây (địa hình không còn chặn ai). MỘT BYTE MỖI Ô,
+// không phải một Set khoá chuỗi — và đó là cả nội dung của Phase 3.42.
+//
+// Câu hỏi "ô này có chặn không" được hỏi ~1,15 TRIỆU lần trong mỗi lần chạy
+// `bfsFieldFromBuildings`. Với một Set khoá chuỗi, mỗi lần hỏi phải dựng chuỗi
+// `nx + ',' + ny` (cấp phát + ép số sang chữ) rồi băm cả chuỗi ấy. Đo trên bản đồ
+// 480×300 giữa ván: **20,1ms mỗi lần BFS**, và BFS chiếm **59,9%** toàn bộ thời
+// gian mô phỏng. Cùng phép đo với Uint8Array: còn ~4ms, kết quả trường giống hệt
+// từng ô (diff = 0).
+//
+// Cố ý KHÔNG giữ Set song song làm gương. Hai sổ cùng tả một sự thật là đúng hình
+// dạng lỗi đã cắn dự án nhiều lần (`medics` vs `infirmaries`, `foodTarget` vs
+// `wealth`) — và ở đây cái giá phải trả để bỏ nó chỉ là đổi tên, vì mọi chỗ đọc
+// còn sót sẽ ném ReferenceError ngay lần chạy đầu chứ không im lặng trả về false.
+let blockedGrid = new Uint8Array(0);
+function blockedAt(x, y) { return blockedGrid[y * CONFIG.GRID_WIDTH + x] === 1; }
 let unitBuckets = new Map();            // dựng lại mỗi tick, dùng cho tìm địch
 let tribeBuildings = [];                // chỉ mục công trình theo bộ lạc, dựng lại mỗi tick
 
@@ -73,7 +88,7 @@ function wallAt(x, y) {
   return w && w.hp > 0 ? w : null;
 }
 
-// Ô này có chặn ĐƯỜNG ĐI CỦA NGƯỜI NÀY không — và đây là câu hỏi mà `blockedCells`
+// Ô này có chặn ĐƯỜNG ĐI CỦA NGƯỜI NÀY không — và đây là câu hỏi mà `blockedGrid`
 // không bao giờ hỏi được, vì cây thì chặn tất cả còn tường thì chặn có chọn lọc.
 //
 // `tribeId < 0` là quái vật: mọi bức tường đều chặn chúng, kể cả tường của bộ lạc
@@ -194,7 +209,7 @@ function gauss(sigma) {
 }
 function dist(ax, ay, bx, by) { return Math.hypot(ax - bx, ay - by); }
 function cheb(ax, ay, bx, by) { return Math.max(Math.abs(ax - bx), Math.abs(ay - by)); }
-function isBlocked(x, y) { return blockedCells.has(cellKey(x, y)); }
+function isBlocked(x, y) { return blockedGrid[y * CONFIG.GRID_WIDTH + x] === 1; }
 function inBounds(x, y) { return x >= 0 && y >= 0 && x < CONFIG.GRID_WIDTH && y < CONFIG.GRID_HEIGHT; }
 
 // ============================================================
@@ -227,7 +242,7 @@ function pave(x, y, tribeId) {
   if (!inBounds(x, y)) return false;
   const key = x + ',' + y;
   if (roadCells.has(key)) return false;             // đã có đường rồi
-  if (blockedCells.has(key)) return false;          // gốc cây — đường phải vòng
+  if (blockedAt(x, y)) return false;                // gốc cây — đường phải vòng
   if (roadNeighbors(x, y) >= CONFIG.ROAD.MAX_NEIGHBORS) return false;  // luật chống phình
   roadCells.set(key, { x, y, tribeId });
   return true;
@@ -350,11 +365,11 @@ function generateTerrain() {
   }
   for (const i of beach) terrainMap[i] = T_SAND;
 
-  // KHÔNG nạp gì vào blockedCells ở đây. Đây là cả nội dung của thay đổi này:
+  // KHÔNG nạp gì vào blockedGrid ở đây. Đây là cả nội dung của thay đổi này:
   // trước bản này vòng lặp cuối hàm biến mọi ô nước thành ô chặn, và từ đó sinh
   // ra toàn bộ họ hàng lỗi "kẹt" — quân ép mặt vào vịnh lõm, bộ lạc bị nhốt trên
   // đảo, đồ rơi xuống hồ không ai nhặt được. Giờ địa hình không chặn ai, nên
-  // blockedCells chỉ còn đúng một nguồn: cây.
+  // blockedGrid chỉ còn đúng một nguồn: cây.
   terrainDirty = true;
 }
 
@@ -390,7 +405,7 @@ function addResource(x, y, type, amount, opts) {
   if (!set) { set = new Set(); resBuckets[type].set(bk, set); }
   set.add(cell);
   if (cell.regrow > 0) regrowList.push(cell);
-  if (type === 'wood') blockedCells.add(key);
+  if (type === 'wood') blockedGrid[y * CONFIG.GRID_WIDTH + x] = 1;
   return cell;
 }
 
@@ -402,7 +417,7 @@ function removeResource(cell) {
     const i = regrowList.indexOf(cell);
     if (i >= 0) regrowList.splice(i, 1);
   }
-  if (cell.type === 'wood') blockedCells.delete(cell.key);
+  if (cell.type === 'wood') blockedGrid[cell.y * CONFIG.GRID_WIDTH + cell.x] = 0;
 }
 
 // Tìm ô tài nguyên gần nhất theo LOẠI, quét lan từ bucket của chính mình ra
@@ -598,11 +613,14 @@ function generateMap(homes) {
   resourceCells = new Map();
   for (const t of RES_TYPES) resBuckets[t] = new Map();
   regrowList = [];
-  blockedCells = new Set();
+  // Cấp lại mảng chứ không `fill(0)`: kích thước lưới là hằng số nhưng cấp lại thì
+  // một kỷ nguyên sau không bao giờ thừa hưởng nổi một byte nào của kỷ nguyên trước,
+  // kể cả nếu ai đó đổi GRID_WIDTH giữa chừng.
+  blockedGrid = new Uint8Array(CONFIG.GRID_WIDTH * CONFIG.GRID_HEIGHT);
   // Đường cái phải được dọn Ở ĐÂY cùng với mọi lớp bản đồ khác. Bỏ sót thì kỷ
   // nguyên sau mở ra với nguyên mạng đường của kỷ nguyên trước nằm trên một bản
   // đồ hoàn toàn mới — vô chủ, không nối vào công trình nào, và tặng không tốc độ
-  // gấp đôi cho những ô ngẫu nhiên. Cùng họ với `blockedCells` ngay trên.
+  // gấp đôi cho những ô ngẫu nhiên. Cùng họ với `blockedGrid` ngay trên.
   roadCells = new Map();
   // Tường thành: cùng một dòng, cùng một lý do. Nặng hơn đường cái một bậc vì
   // tường CÓ PHE — một vành tường sót lại từ kỷ nguyên trước sẽ chặn đường đúng ba

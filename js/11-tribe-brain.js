@@ -515,7 +515,7 @@ function roadRouteCells(ax, ay, bx, by, maxLen) {
   const cells = [];
   const seen = new Set();
   let x = ax, y = ay, side = 1;
-  const free = (px, py) => inBounds(px, py) && !blockedCells.has(px + ',' + py) && !seen.has(px + ',' + py);
+  const free = (px, py) => inBounds(px, py) && !blockedAt(px, py) && !seen.has(px + ',' + py);
   for (let i = 0; i < maxLen; i++) {
     if (x === bx && y === by) return cells;
     const dx = Math.sign(bx - x), dy = Math.sign(by - y);

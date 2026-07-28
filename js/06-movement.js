@@ -186,7 +186,7 @@ function tryStep(u, dx, dy, avoidX, avoidY) {
     if (nx === avoidX && ny === avoidY) continue;
     if (nx === u.x && ny === u.y) continue;
     // `u.fly === true` là toàn bộ chi phí của cơ chế bay trên đường đi nóng nhất
-    // của cả file. blockedCells = cây + NƯỚC, nên một dòng này cho loài bay đi
+    // của cả file. blockedGrid = cây + NƯỚC, nên một dòng này cho loài bay đi
     // xuyên rừng và vượt hồ mà không cần một hệ thống đường đi thứ hai.
     if (u.fly !== true) {
       if (isBlocked(nx, ny)) continue;
@@ -343,7 +343,7 @@ function bfsFieldFromBuildings(filterFn) {
         const nx = x + dx, ny = y + dy;
         if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
         const j = ny * W + nx;
-        if (field[j] !== -1 || blockedCells.has(nx + ',' + ny)) continue;
+        if (field[j] !== -1 || blockedGrid[j] === 1) continue;
         field[j] = nd;
         queue.push(j);
       }

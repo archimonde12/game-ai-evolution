@@ -57,7 +57,7 @@ const CONFIG = {
     // RỪNG DÀY HƠN — và vì sao "dày" ở đây là ĐỔI HÌNH DẠNG CỤM, không phải
     // đổ thêm cây vào cùng một cái khuôn.
     //
-    // Cây VẪN CHẶN ĐƯỜNG (xem addResource: `blockedCells.add`). Từ Phase 3.15 bỏ
+    // Cây VẪN CHẶN ĐƯỜNG (xem addResource: `blockedGrid`). Từ Phase 3.15 bỏ
     // nước thì rừng là vật cản DUY NHẤT còn lại trên bản đồ, nên mỗi điểm phần
     // trăm mật độ thêm vào là một điểm phần trăm rủi ro kẹt — đúng cái họ lỗi mà
     // ba phase liền đã phải đi dọn.
@@ -1325,7 +1325,7 @@ const CONFIG = {
     // ================================================================
     // SÂN HANG — vành đai KHÔNG CÂY quanh mỗi ổ quái
     // ================================================================
-    // Cây là thứ DUY NHẤT còn chặn đường đi (xem blockedCells), và một cái hang mọc
+    // Cây là thứ DUY NHẤT còn chặn đường đi (xem blockedGrid), và một cái hang mọc
     // giữa rừng biến ba cơ chế thành xổ số:
     //   · đàn quái ra khỏi ổ phải lách qua khe — cả bầy dồn vào một lối,
     //   · quân đi dọn hang tới nơi thành từng người lẻ chứ không thành đội hình,
@@ -2267,7 +2267,7 @@ const CONFIG = {
   // đúng cái đã đo được ba lần với đền thờ, chuồng ngựa và trạm xá.
   //
   // NÓ LÀ VẬT CẢN CÓ PHE — thứ chưa từng có trong mô phỏng này. Cho tới bản này,
-  // `blockedCells` chỉ biết một câu hỏi: ô này đi qua được không. Câu trả lời giống
+  // `blockedGrid` chỉ biết một câu hỏi: ô này đi qua được không. Câu trả lời giống
   // hệt nhau cho cả bốn bộ lạc và cho quái. Tường thì trả lời khác nhau tuỳ ai
   // hỏi — quân nhà và đồng minh đi xuyên qua, quân địch và quái đứng lại. Nhờ vậy
   // nó tạo ra được thứ mà một dải rừng không tạo ra nổi: một BÊN TRONG và một BÊN

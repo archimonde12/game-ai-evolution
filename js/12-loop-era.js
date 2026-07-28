@@ -15,8 +15,27 @@
 function simulationTick() {
   tick++;
 
-  if (tick % CONFIG.BRAIN_INTERVAL === 0) {
-    for (const t of tribes) if (t.alive) tribeBrain(t);
+  // LỆCH PHA BỘ NÃO (Phase 3.42). Bốn bộ lạc vẫn suy nghĩ đúng một lần mỗi
+  // BRAIN_INTERVAL tick, nhưng KHÔNG còn cùng một tick.
+  //
+  // Vì sao đáng một dòng phức tạp hơn: mọi lần dựng lại trường dẫn đường (về nhà /
+  // tiến quân / phòng thủ) đều nằm TRONG tribeBrain, và các chu kỳ làm mới là 400 /
+  // 300 / 200 — tất cả đều là bội của 20 và cùng pha từ tick 0. Nên tới hạn là bốn
+  // bộ lạc cùng dựng trường trong đúng một tick. Đo được, không phải suy đoán: trong
+  // 3.000 tick chỉ 23 tick có BFS, nhưng 7 tick trong số đó chứa 6-7 lần BFS và tốn
+  // 129-139ms, trong khi tick trung vị tốn 0,2ms. Giật là CỤM, không phải nền.
+  //
+  // Khoảng lệch TÍNH RA chứ không viết tay 5: viết tay thì đổi BRAIN_INTERVAL hay
+  // thêm bộ lạc thứ năm sẽ lặng lẽ dồn hai bộ lạc về chung một khe, và triệu chứng
+  // là "thỉnh thoảng vẫn giật" — không có gì để lần. Nhiều bộ lạc hơn số tick thì
+  // bước thành 0 và mọi thứ trở về nếp cũ, tức là chậm lại chứ không sai.
+  //
+  // Không có chỗ nào trong game cần bốn bộ não chạy cùng nhịp — chúng vốn đã chạy
+  // nối tiếp trong một vòng lặp, nên bộ lạc sau vẫn luôn nhìn thế cờ mới hơn bộ lạc
+  // trước. Cái đổi ở đây chỉ là "mới hơn một lượt" thành "mới hơn năm tick".
+  const brainSkew = Math.floor(CONFIG.BRAIN_INTERVAL / Math.max(1, tribes.length));
+  for (const t of tribes) {
+    if (t.alive && (tick + t.id * brainSkew) % CONFIG.BRAIN_INTERVAL === 0) tribeBrain(t);
   }
 
   rebuildTribeBuildings();

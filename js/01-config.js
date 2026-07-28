@@ -2346,6 +2346,18 @@ const CONFIG = {
     // thay đổi này rơi gần trọn vào thế cuộc THỦ THÀNH, nơi điểm số đo bằng số tick
     // trụ được. Vòng này KHÔNG chỉnh lại độ khó của thủ thành cho khớp — ghi ra đây
     // để lần sau ai thấy thủ thành dễ đi thì biết chỗ mà nhìn.
+    //
+    // ĐÃ ĐO, Phase 3.42 — và câu trả lời là KHÔNG. Sau khi Phase 3.41 cho nhánh Nề
+    // đá cộng máu cho tường (tức là đúng cái làm "tường dày hơn" mà đoạn trên lo),
+    // chạy A/B GHÉP CẶP 10 hạt giống, mỗi hạt giống qua cả hai nhánh từ cùng một bản
+    // đồ, bật/tắt bằng đúng một hệ số trong `wallHpFor`:
+    //     có Nề đá trên tường : trung bình 15.687 tick, trung vị 18.108
+    //     không                : trung bình 15.846 tick, trung vị 18.803
+    //     chênh lệch trung bình -159 tick (-1,0%), nhánh "có" thắng 3/10 hạt giống
+    // Tường dày hơn KHÔNG làm thủ thành dễ đi — nếu có thì hơi ngược lại. Con số đáng
+    // nhớ hơn cả kết luận: biên độ giữa các hạt giống trong CÙNG một nhánh là 15.987
+    // tick, tức gấp một trăm lần hiệu ứng. Ba ván lẻ không ghép cặp (đúng thứ đã suýt
+    // được báo cáo là "thủ thành dễ hẳn đi") không phân biệt nổi hai bảng này.
     HP: [0, 900, 1275, 1800, 2550, 3600],
     // CỔNG THÀNH — ba ô ở CHÍNH GIỮA mỗi cạnh, máu mỏng hơn hẳn.
     //

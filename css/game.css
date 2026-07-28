@@ -83,7 +83,12 @@
   /* ===== Lớp phủ trên khung hình chính (bảng bộ lạc / nhật ký / đang chọn) =====
      Cùng ngôn ngữ với #directorLabel: sơn ta đen mờ, một sợi vàng lá mảnh viền
      trong, làm nhoè hậu cảnh. Nằm ở bốn góc để chừa giữa khung cho việc chọn quân. */
-  #ovChips { position: absolute; left: 11px; top: calc(11px + var(--hud-top)); display: flex; gap: 6px; align-items: center; z-index: 5; }
+  /* `align-items: stretch` chứ không `center`, và đây là một phép đo chứ không
+     phải sở thích: nhãn hai chip bên phải mở đầu bằng EMOJI (📋 📜) nên hộp chữ
+     của chúng cao 32px, còn nút ☰ chỉ có glyph thường nên cao 30px — hai pixel
+     lệch nhau ngay giữa một hàng ba cái nút. Cho cả hàng cùng cao bằng cái cao
+     nhất thì không còn con số nào phải giữ cho khớp. */
+  #ovChips { position: absolute; left: 11px; top: calc(11px + var(--hud-top)); display: flex; gap: 6px; align-items: stretch; z-index: 5; }
   .ov-chip {
     font: 600 11.5px var(--f-ui); letter-spacing: .03em; color: var(--bone-2); cursor: pointer;
     background: rgba(13,11,9,0.8); box-shadow: inset 0 0 0 1px rgba(216,165,68,.24);
@@ -91,6 +96,21 @@
   }
   .ov-chip:hover { color: var(--gold-hi); box-shadow: inset 0 0 0 1px rgba(216,165,68,.5); }
   .ov-chip.on { color: var(--lac-900); background: var(--gold); box-shadow: inset 0 0 0 1px var(--gold-hi); }
+
+  /* ☰ THẾ CUỘC — nút DUY NHẤT trên khung hình đưa người xem ra khỏi ván đang xem,
+     nên nó là chip duy nhất được phép đeo vàng lá đầy đủ. Ba mức đậm nhạt trong
+     hàng này cố tình cách nhau rõ: nút này (vàng, nền vàng mờ, đậm chữ) → hai
+     công tắc xem (xương, viền vàng 24%) → nhãn Đạo diễn (không bấm được).
+     KHÔNG dùng nền vàng đặc như `.ov-chip.on`: nền đặc trong hàng này đã có sẵn
+     một nghĩa — "công tắc đang BẬT" — mà nút này không có trạng thái bật/tắt. */
+  .ov-menu {
+    color: var(--gold-hi); font-weight: 700; letter-spacing: .05em;
+    background: rgba(216,165,68,.15);
+    box-shadow: inset 0 0 0 1px var(--gold);
+  }
+  .ov-menu:hover { color: var(--lac-900); background: var(--gold); box-shadow: inset 0 0 0 1px var(--gold-hi); }
+  /* Vạch ngăn hai nhóm. Cùng ngôn ngữ với .ctl-div ở bảng điều khiển dưới. */
+  .ov-div { width: 1px; align-self: stretch; margin: 2px 3px; background: rgba(216,165,68,.3); }
 
   .ov-panel {
     position: absolute; z-index: 5; color: var(--bone-2); font: 11px var(--f-ui);
@@ -328,6 +348,20 @@
   .mc-go { font-size: 12.5px; letter-spacing: .06em; color: var(--bone-3); margin-top: 16px; transition: color .18s ease; }
   .mode-card:hover .mc-go { color: var(--gold-hi); }
   .menu-foot { font-size: 11.5px; color: var(--bone-3); margin-top: 26px; line-height: 1.7; }
+  /* Hai nút ngôn ngữ ở góc trên trang bìa. Ghi thẳng TÊN NGÔN NGỮ chứ không phải
+     mã "VI"/"EN", và luôn ghi bằng CHÍNH ngôn ngữ đó — người đang nhìn một trang
+     toàn chữ mình không đọc được thì "Tiếng Việt" là thứ duy nhất họ nhận ra. */
+  .menu-lang {
+    position: absolute; top: 4px; right: 6px; display: flex; gap: 4px; z-index: 2;
+  }
+  .lang-btn {
+    background: transparent; color: var(--bone-3); cursor: pointer; font: inherit;
+    font-size: 11.5px; letter-spacing: .03em; padding: 5px 11px;
+    box-shadow: inset 0 0 0 1px var(--rule-soft);
+    transition: color .18s ease, box-shadow .18s ease;
+  }
+  .lang-btn:hover { color: var(--gold-hi); box-shadow: inset 0 0 0 1px rgba(216,165,68,.4); }
+  .lang-btn.on { color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold-dim); }
   /* Thư khố: một dải ngang mảnh, cố tình KHÔNG cùng ngôn ngữ hình với .mode-card.
      Nếu nó cũng là một cái thẻ có viền, có tiêu đề lớn, có "→", thì mắt đọc hàng
      trên thành ba lựa chọn ngang hàng — mà nó không ngang hàng: hai cái kia mở một

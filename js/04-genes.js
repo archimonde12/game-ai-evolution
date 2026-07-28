@@ -165,9 +165,20 @@ const POLICY_SPEC = {
   // không phải một chiến lược, nó chỉ là `towerTarget` — một con số đếm nhà.
   //
   // Nó điều khiển đúng ba thứ, và cả ba đều đi qua ĐÁ:
-  //   · trọng số nghề đập đá trong pickJob, và mức đá bộ lạc coi là "đủ";
-  //   · số tháp canh muốn có, cộng thêm vào `towerTarget`;
-  //   · nhịp gia cố — bộ lạc `fortify` cao chịu xây chồng tháp sớm hơn.
+  //   · trọng số nghề đập đá trong pickJob, và mức đá bộ lạc coi là "đủ" — đây là
+  //     vế NẶNG NHẤT, và đo được là nó gần như một công tắc chứ không phải một núm:
+  //     hoán gen 0->1 trên cùng một trạng thái sống thì tỉ lệ chọn nghề đá đi từ
+  //     0,1-0,4% lên 14,9-39,9%. Đặt `fortify` về 0 thì nghề đập đá gần như không
+  //     tồn tại — vì chọn nghề là phép so TƯƠNG ĐỐI và đá là dòng duy nhất biết no
+  //     (bài học Phase 3.27);
+  //   · số tháp canh muốn có — CỘNG LÊN TRÊN sàn hạn ngạch NEED_TOWERS, không nằm
+  //     trong `max()` với nó (xem `towerWant` bên 11-tribe-brain, nơi ghi lại phép
+  //     đo đã bác bỏ công thức cũ: sàn thắng 7.817/7.817 mẫu từ Đồ Đồng trở đi);
+  //   · nhịp gia cố — bộ lạc `fortify` cao chịu xây chồng tháp sớm hơn. Vế YẾU NHẤT
+  //     và đã đo: quãng nguội chỉ đổi được kết cục ở 1,3% trong 7.195 nhịp vào nhánh
+  //     xây chồng, vì 64,3% số nhịp không có tháp nào đủ điều kiện lên tầng. Nút
+  //     thắt nằm ở ứng viên, không nằm ở quãng nguội — đừng chỉnh con số 600/240 mà
+  //     tưởng là đang chỉnh gen.
   //
   // ĐÁNH ĐỔI THẬT, và nó gắt hơn mọi gen kinh tế khác vì đá là tài nguyên HỮU HẠN
   // (Phase 3.25): mỗi người thợ đứng ở mỏ đá là một người không hái lương, không
@@ -294,8 +305,8 @@ function heroStatsFromGenes(g, ageBonus) {
 // lưu cũ, hay một chỗ nào đó quên gán `lv`) không bao giờ ra `undefined` rồi thành
 // NaN — cùng con lỗi đã xoá sạch biên giới lãnh thổ ở Phase 3.6.
 function itemLevelMult(lv) {
-  const T = CONFIG.ITEM.LEVEL_MULT;
-  return T[clamp(Math.round(lv || 1), 1, CONFIG.ITEM.MAX_LEVEL)];
+  const MULT = CONFIG.ITEM.LEVEL_MULT;
+  return MULT[clamp(Math.round(lv || 1), 1, CONFIG.ITEM.MAX_LEVEL)];
 }
 
 // Chỉ số cuối = GEN (cố định cả đời) + VẬT PHẨM (thay đổi trong đời). Tính lại

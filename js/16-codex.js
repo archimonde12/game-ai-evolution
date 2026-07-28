@@ -306,9 +306,8 @@ function codexDraw(canvas, kind, key, opt) {
 // Mảnh HTML dùng chung
 // ============================================================
 function cxCost(cost) {
-  const NAME = { food: 'lương', wood: 'gỗ', gold: 'vàng', stone: 'đá' };
   const parts = [];
-  for (const k in cost) parts.push(`<b>${cost[k]}</b> ${NAME[k] || k}`);
+  for (const k in cost) parts.push(`<b>${cost[k]}</b> ${RES_LABEL[k] || k}`);
   return parts.join(' · ') || '—';
 }
 
@@ -337,59 +336,61 @@ function cxCard(kind, key, opt) {
 // quái không khác nhau ở bảng số, chúng khác nhau ở việc chúng LÀM GÌ.
 function codexMonsterVerb(spec) {
   const v = [];
-  if (spec.fly) v.push('<b>BAY</b> — bỏ qua rừng, đi đường thẳng');
-  if (spec.range > 0) v.push(`<b>BẮN XA</b> ${spec.range} ô (lùi ra khi bị áp sát dưới ${spec.minRange})`);
-  if (spec.venom) v.push(`<b>ĐỘC</b> — ${spec.venom.dps}/tick trong ${spec.venom.ticks} tick sau khi cắn`);
-  if (spec.splash > 0) v.push(`<b>SÁT THƯƠNG LAN</b> ${spec.splash} ô`);
-  if (spec.aura) v.push(`<b>HÀO QUANG</b> +${Math.round((spec.aura.mult - 1) * 100)}% sát thương cho quái trong ${spec.aura.r} ô`);
-  if (spec.split) v.push(`<b>PHÂN ĐÔI</b> — chết thì tách thành ${spec.split.count} con ${Math.round(spec.split.scale * 100)}% (con nhỏ không tách nữa)`);
-  if (spec.ambush) v.push(`<b>PHỤC KÍCH</b> — nằm vùi, không ai nhắm được, trồi lên trong ${spec.ambush.r} ô và đòn đầu ×${spec.ambush.mult}`);
-  if (spec.slow) v.push(`<b>LÀM CHẬM</b> — vết cắn cắt tốc độ ×${spec.slow.mult} trong ${spec.slow.ticks} tick`);
-  if (spec.heal) v.push(`<b>HỒI MÁU</b> ${spec.heal.amount} máu/${spec.heal.every} tick cho quái trong ${spec.heal.r} ô`);
-  if (spec.siege > 0) v.push(`<b>CÔNG THÀNH</b> ×${spec.siege} sát thương lên công trình`);
+  if (spec.fly) v.push(T('<b>BAY</b> — bỏ qua rừng, đi đường thẳng'));
+  if (spec.range > 0) v.push(T('<b>BẮN XA</b> {r} ô (lùi ra khi bị áp sát dưới {min})', { r: spec.range, min: spec.minRange }));
+  if (spec.venom) v.push(T('<b>ĐỘC</b> — {dps}/tick trong {ticks} tick sau khi cắn', { dps: spec.venom.dps, ticks: spec.venom.ticks }));
+  if (spec.splash > 0) v.push(T('<b>SÁT THƯƠNG LAN</b> {n} ô', { n: spec.splash }));
+  if (spec.aura) v.push(T('<b>HÀO QUANG</b> +{pct}% sát thương cho quái trong {r} ô', { pct: Math.round((spec.aura.mult - 1) * 100), r: spec.aura.r }));
+  if (spec.split) v.push(T('<b>PHÂN ĐÔI</b> — chết thì tách thành {n} con {pct}% (con nhỏ không tách nữa)', { n: spec.split.count, pct: Math.round(spec.split.scale * 100) }));
+  if (spec.ambush) v.push(T('<b>PHỤC KÍCH</b> — nằm vùi, không ai nhắm được, trồi lên trong {r} ô và đòn đầu ×{mult}', { r: spec.ambush.r, mult: spec.ambush.mult }));
+  if (spec.slow) v.push(T('<b>LÀM CHẬM</b> — vết cắn cắt tốc độ ×{mult} trong {ticks} tick', { mult: spec.slow.mult, ticks: spec.slow.ticks }));
+  if (spec.heal) v.push(T('<b>HỒI MÁU</b> {n} máu/{every} tick cho quái trong {r} ô', { n: spec.heal.amount, every: spec.heal.every, r: spec.heal.r }));
+  if (spec.siege > 0) v.push(T('<b>CÔNG THÀNH</b> ×{n} sát thương lên công trình', { n: spec.siege }));
   if (spec.worldBoss) {
     const L = CONFIG.WORLD_BOSS.LOOT;
     const R = CONFIG.WORLD_BOSS.RAMP;
     const lo = worldBossScaled(0), hi = worldBossScaled(R.PEAK_TICK);
-    v.push(`<b>MẠNH DẦN THEO THỜI GIAN</b> — thả càng muộn càng dữ, đỉnh ở tick ${R.PEAK_TICK.toLocaleString('vi-VN')}: `
-         + `${lo.rank} ${lo.hp.toLocaleString('vi-VN')} máu / đòn ${Math.round(lo.attack)} `
-         + `→ ${hi.rank} ${hi.hp.toLocaleString('vi-VN')} máu / đòn ${Math.round(hi.attack)}`);
-    v.push(`<b>KHOÁ TỚI ${CONFIG.AGE.NAMES[CONFIG.WORLD_BOSS.MIN_AGE].toUpperCase()}</b> — Chúa Tể không thả được nó khi chưa bộ lạc nào tới đời ${CONFIG.WORLD_BOSS.MIN_AGE}. Điều kiện là THỜI ĐẠI chứ không phải một mốc tick, nên nó đọc được thẳng trên bản đồ: mái nhà đổi vật liệu, tường mọc lên, kỵ binh ra chuồng`);
-    v.push(`<b>SĂN KẺ DẪN ĐẦU</b> — hành quân thẳng tới bộ lạc đang đứng nhất bảng, nhắm lại mỗi ${CONFIG.WORLD_BOSS.RETARGET} tick`);
-    v.push(`<b>KHO BÁU</b> — bộ lạc ra đòn cuối nhận ${L.food} lương · ${L.wood} gỗ · ${L.stone} đá · ${L.gold} vàng ở bậc gốc, NHÂN theo đúng hệ số con quái (tới ${Math.round(L.food * R.PEAK)} lương ở bậc đỉnh); Chúa Tể được hoàn ${CONFIG.WORLD_BOSS.FAITH_REFUND} Đức Tin`);
-    v.push(`<b>THÁNH VẬT CẤP ${CONFIG.ITEM.LEVEL_TAG[CONFIG.ITEM.MAX_LEVEL]}</b> — con đường duy nhất tới món đồ mạnh nhất game mà không phải nung bốn món cấp 1 lại`);
-    v.push(`<b>MỘT CẤP NGHIÊN CỨU</b> — nhánh đang làm dở xong ngay, hoặc cộng thẳng một cấp vào nhánh đang cao nhất; áp tức thì cho cả đạo quân đang sống`);
+    v.push(T('<b>MẠNH DẦN THEO THỜI GIAN</b> — thả càng muộn càng dữ, đỉnh ở tick {peak}: {loRank} {loHp} máu / đòn {loAtk} → {hiRank} {hiHp} máu / đòn {hiAtk}',
+      { peak: locNum(R.PEAK_TICK), loRank: lo.rank, loHp: locNum(lo.hp), loAtk: Math.round(lo.attack),
+        hiRank: hi.rank, hiHp: locNum(hi.hp), hiAtk: Math.round(hi.attack) }));
+    v.push(T('<b>KHOÁ TỚI {AGE}</b> — Chúa Tể không thả được nó khi chưa bộ lạc nào tới đời {n}. Điều kiện là THỜI ĐẠI chứ không phải một mốc tick, nên nó đọc được thẳng trên bản đồ: mái nhà đổi vật liệu, tường mọc lên, kỵ binh ra chuồng',
+      { AGE: CONFIG.AGE.NAMES[CONFIG.WORLD_BOSS.MIN_AGE].toUpperCase(), n: CONFIG.WORLD_BOSS.MIN_AGE }));
+    v.push(T('<b>SĂN KẺ DẪN ĐẦU</b> — hành quân thẳng tới bộ lạc đang đứng nhất bảng, nhắm lại mỗi {n} tick', { n: CONFIG.WORLD_BOSS.RETARGET }));
+    v.push(T('<b>KHO BÁU</b> — bộ lạc ra đòn cuối nhận {food} lương · {wood} gỗ · {stone} đá · {gold} vàng ở bậc gốc, NHÂN theo đúng hệ số con quái (tới {peakFood} lương ở bậc đỉnh); Chúa Tể được hoàn {refund} Đức Tin',
+      { food: L.food, wood: L.wood, stone: L.stone, gold: L.gold, peakFood: Math.round(L.food * R.PEAK), refund: CONFIG.WORLD_BOSS.FAITH_REFUND }));
+    v.push(T('<b>THÁNH VẬT CẤP {tier}</b> — con đường duy nhất tới món đồ mạnh nhất game mà không phải nung bốn món cấp 1 lại', { tier: CONFIG.ITEM.LEVEL_TAG[CONFIG.ITEM.MAX_LEVEL] }));
+    v.push(T('<b>MỘT CẤP NGHIÊN CỨU</b> — nhánh đang làm dở xong ngay, hoặc cộng thẳng một cấp vào nhánh đang cao nhất; áp tức thì cho cả đạo quân đang sống'));
   }
-  if (!v.length) v.push('<b>ĐUỔI</b> — bám và cắn, không có mẹo nào khác');
+  if (!v.length) v.push(T('<b>ĐUỔI</b> — bám và cắn, không có mẹo nào khác'));
   return v.join('<br>');
 }
 
 function codexTabMonsters() {
-  const T = CONFIG.MONSTER.TYPES;
+  const TYPES = CONFIG.MONSTER.TYPES;
   // Xếp theo mức nguy hiểm để cuốn sách đọc ra một cái THANG, không phải một danh
   // sách theo thứ tự tình cờ của object literal trong config.
-  const keys = Object.keys(T).sort((a, b) => T[a].threat - T[b].threat);
+  const keys = Object.keys(TYPES).sort((a, b) => TYPES[a].threat - TYPES[b].threat);
   const cards = keys.map(k => {
-    const s = T[k];
+    const s = TYPES[k];
     return cxCard('monster', k, {
       name: s.label,
       // THIÊN MA không ra từ hang nào cả — nó chỉ tồn tại khi người xem thả nó
       // xuống. Ghi đúng nguồn gốc ở dòng phụ, nếu không thì người đọc sẽ đi tìm
       // nó trong bảng ladder bên dưới và không bao giờ thấy.
-      sub: s.worldBoss ? `nguy hiểm ${s.threat}× · do CHÚA TỂ thả xuống, không ra từ hang`
-                       : `nguy hiểm ${s.threat}× · quái hoang dã`,
+      sub: s.worldBoss ? T('nguy hiểm {n}× · do CHÚA TỂ thả xuống, không ra từ hang', { n: s.threat })
+                       : T('nguy hiểm {n}× · quái hoang dã', { n: s.threat }),
       stats: [
         // Thiên Ma không có MỘT con số máu nữa — nó có một DẢI. In con số gốc ở đây
         // là in con số của một con quái chưa từng tồn tại (hệ số ở tick 0 đã là 0,62).
         s.worldBoss
-          ? `máu <b>${worldBossScaled(0).hp.toLocaleString('vi-VN')}–${worldBossScaled(CONFIG.WORLD_BOSS.RAMP.PEAK_TICK).hp.toLocaleString('vi-VN')}</b>`
-          : `máu <b>${s.hp}</b>`,
+          ? T('máu <b>{lo}–{hi}</b>', { lo: locNum(worldBossScaled(0).hp), hi: locNum(worldBossScaled(CONFIG.WORLD_BOSS.RAMP.PEAK_TICK).hp) })
+          : T('máu <b>{n}</b>', { n: s.hp }),
         s.worldBoss
-          ? `đánh <b>${Math.round(worldBossScaled(0).attack)}–${Math.round(worldBossScaled(CONFIG.WORLD_BOSS.RAMP.PEAK_TICK).attack)}</b>`
-          : `đánh <b>${s.attack}</b>`,
-        s.defense ? `giáp <b>${s.defense}</b>` : '',
-        `tốc <b>${s.speedMult}</b>`, `nhịp <b>${s.cooldown}</b> tick`,
-        `rơi đồ <b>${Math.round(s.drop * 100)}%</b>`
+          ? T('đánh <b>{lo}–{hi}</b>', { lo: Math.round(worldBossScaled(0).attack), hi: Math.round(worldBossScaled(CONFIG.WORLD_BOSS.RAMP.PEAK_TICK).attack) })
+          : T('đánh <b>{n}</b>', { n: s.attack }),
+        s.defense ? T('giáp <b>{n}</b>', { n: s.defense }) : '',
+        T('tốc <b>{n}</b>', { n: s.speedMult }), T('nhịp <b>{n}</b> tick', { n: s.cooldown }),
+        T('rơi đồ <b>{n}%</b>', { n: Math.round(s.drop * 100) })
       ].filter(Boolean),
       verb: codexMonsterVerb(s)
     });
@@ -402,20 +403,18 @@ function codexTabMonsters() {
     // `ladder` là danh sách quay vòng, có LẶP (Tổ Quỷ ghi 'troll' hai lần để tăng
     // mật độ). Khử trùng khi in ra: người đọc cần biết "cấp này ra được những loài
     // nào", còn tỉ lệ thì đọc từ dòng threat của từng loài ở trên.
-    const spawn = [...new Set(t.ladder || [])].map(k => T[k] ? T[k].label : k).join(' · ');
+    const spawn = [...new Set(t.ladder || [])].map(k => TYPES[k] ? TYPES[k].label : k).join(' · ');
     return `<div class="cx-card"><div class="cx-info">
       <div class="cx-name">${t.name}</div>
-      <div class="cx-sub">cấp ${i + 1}${CONFIG.MONSTER.FEED.TIER_AT[i] !== undefined ? ` · lên cấp ở ${CONFIG.MONSTER.FEED.TIER_AT[i]} điểm nuôi` : ' · cấp cao nhất'}</div>
-      <div class="cx-stats"><span>trần quái <b>${t.cap}</b></span><span>lảng vảng <b>${t.roam}</b> ô</span>${t.raidEvery > 0 ? `<span>đi cướp mỗi <b>${t.raidEvery}</b> tick</span>` : ''}</div>
-      <div class="cx-verb">nhả ra: ${spawn || '—'}</div>
+      <div class="cx-sub">${T('cấp {n}', { n: i + 1 })}${CONFIG.MONSTER.FEED.TIER_AT[i] !== undefined ? T(' · lên cấp ở {n} điểm nuôi', { n: CONFIG.MONSTER.FEED.TIER_AT[i] }) : T(' · cấp cao nhất')}</div>
+      <div class="cx-stats"><span>${T('trần quái <b>{n}</b>', { n: t.cap })}</span><span>${T('lảng vảng <b>{n}</b> ô', { n: t.roam })}</span>${t.raidEvery > 0 ? `<span>${T('đi cướp mỗi <b>{n}</b> tick', { n: t.raidEvery })}</span>` : ''}</div>
+      <div class="cx-verb">${T('nhả ra: {list}', { list: spawn || '—' })}</div>
     </div></div>`;
   }).join('');
 
-  return `<div class="cx-intro">Quái vật là <b>phe thứ năm</b> — không thuộc bộ lạc nào và tấn công tất cả.
-    Mỗi loài mang đúng <b>một động từ</b> mà những loài khác không có; bảng chỉ số chỉ là hệ quả.
-    Hang ổ <b>lớn lên bằng thứ nó giết được</b>: bỏ mặc một cái hang là tự tay mở khoá những loài dữ hơn cho chính mình.</div>
+  return `<div class="cx-intro">${T('Quái vật là <b>phe thứ năm</b> — không thuộc bộ lạc nào và tấn công tất cả. Mỗi loài mang đúng <b>một động từ</b> mà những loài khác không có; bảng chỉ số chỉ là hệ quả. Hang ổ <b>lớn lên bằng thứ nó giết được</b>: bỏ mặc một cái hang là tự tay mở khoá những loài dữ hơn cho chính mình.')}</div>
     <div class="cx-grid">${cards}</div>
-    <div class="cx-sect">Hang ổ — nguồn của tất cả</div>
+    <div class="cx-sect">${T('Hang ổ — nguồn của tất cả')}</div>
     <div class="cx-grid">${tiers}</div>`;
 }
 
@@ -424,23 +423,29 @@ function codexTabMonsters() {
 // ============================================================
 const CX_UNIT_ORDER = ['villager', 'soldier', 'archer', 'medic', 'quarter', 'knight', 'horsearcher', 'catapult',
                        'ballista', 'elephant', 'standard', 'hero'];
-const CX_UNIT_BLURB = {
-  villager: 'Hái quả, đốn gỗ, đào vàng, đục đá và xây mọi thứ. Thấy lính địch trong 7 ô là bỏ chạy — họ không phải quân.',
-  soldier: 'Xương sống của mọi đạo quân. Rẻ, có giáp sẵn, và là loại duy nhất có mặt từ tick đầu tới tick cuối.',
-  archer: 'Bắn trước khi bị chạm, nhưng 42 máu thì bị kỵ binh sát vào là tan. Chính tầm bắn tạo ra <b>đội hình</b>: có lý do để đứng sau.',
-  medic: 'Không có ô sát thương. Đi tìm thương binh nặng nhất quanh mình và vá lại <b>ngay giữa trận</b> — đưa hậu phương ra tiền tuyến thay vì bắt thương binh đi bộ về.',
-  quarter: `Không có ô sát thương. Nó dựng <b>Trại tiếp tế</b> giữa đất địch — cái trại nuôi <b>${CONFIG.SUPPLY.CAMP.SLOTS} suất</b> quân lương một lúc trong bán kính <b>${CONFIG.SUPPLY.CAMP.R} ô</b> rồi tự nhổ sau <b>${CONFIG.SUPPLY.CAMP.TTL} tick</b>. Là đơn vị hỗ trợ thứ ba, và ba đơn vị ấy nằm trên ba trục vuông góc: thầy lang mua <b>thời gian</b>, quân kỳ mua <b>cường độ</b>, hậu cần mua <b>khoảng cách</b>.`,
-  knight: 'Nặng, nhanh, thắng dã chiến — nhưng đập tường rất chậm. Đắt gấp rưỡi mỗi suất và ăn lương gấp đôi.',
-  horsearcher: 'Bắn trên lưng ngựa: giữ được khoảng cách với thứ đuổi mình. Loại quân mở khoá muộn nhất trong cả bảng.',
-  catapult: 'Loại quân <b>duy nhất</b> được miễn hình phạt đập nhà — và đó là toàn bộ lý do nó tồn tại. Thua dã chiến, chậm, đắt; đổi lại nó là câu trả lời cho một câu hỏi mà không ai khác trả lời được.',
-  ballista: 'Bắn một mũi lao <b>xuyên thẳng</b>, trúng mọi kẻ địch trên đường đạn. Máy bắn đá lan theo <b>hình tròn</b> nên né nó bằng cách đứng thưa; nỏ thần đi theo <b>đường thẳng</b> nên né nó bằng cách đứng lệch hàng — và một đạo quân không thể vừa thưa vừa lệch hàng. Bộ lạc kỷ luật cao xếp hàng đẹp, và chính vì thế ăn trọn một phát.',
-  elephant: 'Gây sát thương cho mọi kẻ địch nó <b>đi ngang qua</b>, không cần lệnh, không có hồi chiêu. Mọi đơn vị khác gây sát thương bằng cách DỪNG LẠI và nhắm; voi gây sát thương bằng cách ĐI. Chặn đường nó bằng một khối quân đông thì chính sự đông đúc đó là thứ giết mình.',
-  standard: 'Không đánh ai. Đồng đội quanh nó đánh mạnh hơn và đi nhanh hơn. Là anh em đối xứng của Thầy lang: thầy lang mua <b>thời gian</b>, quân kỳ mua <b>cường độ</b>. Hào quang <b>không cộng dồn</b> — hai lá cờ đứng cạnh nhau chỉ bằng một, nên gom cờ không phải một chiến lược.',
-  hero: 'Mỗi bộ lạc nhiều nhất MỘT người còn sống, và là đơn vị <b>duy nhất có gen riêng của cá thể</b> — xem tờ Anh hùng.'
-};
+// HÀM, không phải hằng số. Bản cũ là một object dựng một lần lúc nạp tệp, nên
+// mọi câu trong đó đông cứng ở ngôn ngữ lúc tải trang và bấm đổi ngôn ngữ không
+// đụng được tới nó. Dựng lại mỗi lần mở tờ thì rẻ (12 câu, một lần một tab) và
+// không có trạng thái nào để lệch.
+function cxUnitBlurb() { return {
+  villager: T('Hái quả, đốn gỗ, đào vàng, đục đá và xây mọi thứ. Thấy lính địch trong 7 ô là bỏ chạy — họ không phải quân.'),
+  soldier: T('Xương sống của mọi đạo quân. Rẻ, có giáp sẵn, và là loại duy nhất có mặt từ tick đầu tới tick cuối.'),
+  archer: T('Bắn trước khi bị chạm, nhưng 42 máu thì bị kỵ binh sát vào là tan. Chính tầm bắn tạo ra <b>đội hình</b>: có lý do để đứng sau.'),
+  medic: T('Không có ô sát thương. Đi tìm thương binh nặng nhất quanh mình và vá lại <b>ngay giữa trận</b> — đưa hậu phương ra tiền tuyến thay vì bắt thương binh đi bộ về.'),
+  quarter: T('Không có ô sát thương. Nó dựng <b>Trại tiếp tế</b> giữa đất địch — cái trại nuôi <b>{slots} suất</b> quân lương một lúc trong bán kính <b>{r} ô</b> rồi tự nhổ sau <b>{ttl} tick</b>. Là đơn vị hỗ trợ thứ ba, và ba đơn vị ấy nằm trên ba trục vuông góc: thầy lang mua <b>thời gian</b>, quân kỳ mua <b>cường độ</b>, hậu cần mua <b>khoảng cách</b>.',
+    { slots: CONFIG.SUPPLY.CAMP.SLOTS, r: CONFIG.SUPPLY.CAMP.R, ttl: CONFIG.SUPPLY.CAMP.TTL }),
+  knight: T('Nặng, nhanh, thắng dã chiến — nhưng đập tường rất chậm. Đắt gấp rưỡi mỗi suất và ăn lương gấp đôi.'),
+  horsearcher: T('Bắn trên lưng ngựa: giữ được khoảng cách với thứ đuổi mình. Loại quân mở khoá muộn nhất trong cả bảng.'),
+  catapult: T('Loại quân <b>duy nhất</b> được miễn hình phạt đập nhà — và đó là toàn bộ lý do nó tồn tại. Thua dã chiến, chậm, đắt; đổi lại nó là câu trả lời cho một câu hỏi mà không ai khác trả lời được.'),
+  ballista: T('Bắn một mũi lao <b>xuyên thẳng</b>, trúng mọi kẻ địch trên đường đạn. Máy bắn đá lan theo <b>hình tròn</b> nên né nó bằng cách đứng thưa; nỏ thần đi theo <b>đường thẳng</b> nên né nó bằng cách đứng lệch hàng — và một đạo quân không thể vừa thưa vừa lệch hàng. Bộ lạc kỷ luật cao xếp hàng đẹp, và chính vì thế ăn trọn một phát.'),
+  elephant: T('Gây sát thương cho mọi kẻ địch nó <b>đi ngang qua</b>, không cần lệnh, không có hồi chiêu. Mọi đơn vị khác gây sát thương bằng cách DỪNG LẠI và nhắm; voi gây sát thương bằng cách ĐI. Chặn đường nó bằng một khối quân đông thì chính sự đông đúc đó là thứ giết mình.'),
+  standard: T('Không đánh ai. Đồng đội quanh nó đánh mạnh hơn và đi nhanh hơn. Là anh em đối xứng của Thầy lang: thầy lang mua <b>thời gian</b>, quân kỳ mua <b>cường độ</b>. Hào quang <b>không cộng dồn</b> — hai lá cờ đứng cạnh nhau chỉ bằng một, nên gom cờ không phải một chiến lược.'),
+  hero: T('Mỗi bộ lạc nhiều nhất MỘT người còn sống, và là đơn vị <b>duy nhất có gen riêng của cá thể</b> — xem tờ Anh hùng.')
+}; }
 
 function codexTabUnits() {
   const tribe = codexTribe(4);
+  const BLURB = cxUnitBlurb();
   const cards = CX_UNIT_ORDER.map(k => {
     const s = unitSpec(k);
     const age = CONFIG.AGE.UNLOCK_UNIT[k] || 1;
@@ -450,85 +455,85 @@ function codexTabUnits() {
       name: UNIT_LABEL[k] || k,
       sub: `${CONFIG.AGE.NAMES[age]} · ${src ? CONFIG.BUILD[src].label : '—'}`,
       stats: [
-        `máu <b>${s.hp}</b>`,
-        s.attack ? `đánh <b>${s.attack}</b>` : '<b>không đánh</b>',
+        T('máu <b>{n}</b>', { n: s.hp }),
+        s.attack ? T('đánh <b>{n}</b>', { n: s.attack }) : T('<b>không đánh</b>'),
         // Đập tường in cạnh sức đánh thường, luôn luôn, kể cả khi hai số bằng nhau
         // — vì chính khoảng cách giữa chúng là thứ tờ này phải dạy được.
-        s.attack ? `đập tường <b style="color:${s.siege ? 'var(--gold)' : 'inherit'}">${
-          (s.attack * (s.siege ? CONFIG.UNIT.BUILDING_DAMAGE_MULT : CONFIG.UNIT.BUILD_PENALTY)).toFixed(1)
-        }</b>` : '',
-        s.defense ? `giáp <b>${s.defense}</b>` : '',
-        s.range ? `tầm <b>${s.range}</b> ô` : '',
-        s.speedMult ? `tốc <b>${s.speedMult}</b> ô/tick` : '',
+        s.attack ? T('đập tường <b style="color:{col}">{v}</b>', { col: s.siege ? 'var(--gold)' : 'inherit',
+          v: (s.attack * (s.siege ? CONFIG.UNIT.BUILDING_DAMAGE_MULT : CONFIG.UNIT.BUILD_PENALTY)).toFixed(1) }) : '',
+        s.defense ? T('giáp <b>{n}</b>', { n: s.defense }) : '',
+        s.range ? T('tầm <b>{n}</b> ô', { n: s.range }) : '',
+        s.speedMult ? T('tốc <b>{n}</b> ô/tick', { n: s.speedMult }) : '',
         // THỂ LỰC in bằng SỐ TICK NƯỚC RÚT, không bằng sức chứa thô. Sức chứa là ô,
         // mà cái người đọc cần so sánh là "chạy hết sức được bao lâu" — và hai đơn
         // vị đó không cùng thứ tự: kỵ sĩ 77 ô lớn hơn dân thường 45, nhưng vì nó
         // chạy 1,7 ô/tick nên nó đuối SỚM HƠN. In con số thô ở đây là dạy đúng cái
         // trực giác sai mà bản đầu của chính cơ chế này đã mắc phải.
         (() => { const cap = CONFIG.STAMINA.CAP[k] || CONFIG.STAMINA.CAP._default;
-                 return `thể lực <b>${Math.round(cap / (s.speedMult || 1))}</b> tick chạy`; })(),
+                 return T('thể lực <b>{n}</b> tick chạy', { n: Math.round(cap / (s.speedMult || 1)) }); })(),
         // GIÁ ĐỌC QUA trainCost — cùng con số mà bộ não thật sự trả, không phải
         // bảng gốc. Từ 3.30 phần lương thực của giá quân được hoàn phần lớn vì
         // suất đó đã nuốt một dân thường; in bảng gốc ở đây là dạy người đọc một
         // con số mà không chỗ nào trong trò chơi dùng tới.
-        `giá ${cxCost(trainCost(k))}`,
-        k !== 'villager' && k !== 'hero' ? `+ <b style="color:var(--gold)">1 dân thường</b>` : '',
-        `lò <b>${s.trainTicks}</b> tick`
+        T('giá {cost}', { cost: cxCost(trainCost(k)) }),
+        k !== 'villager' && k !== 'hero' ? T('+ <b style="color:var(--gold)">1 dân thường</b>') : '',
+        T('lò <b>{n}</b> tick', { n: s.trainTicks })
       ].filter(Boolean),
       // Mỗi loại quân MỘT động từ, và thứ tự xét ở đây là thứ tự "nét nào định
       // nghĩa loại này". Một loại chỉ được in MỘT động từ: hai dòng in đậm cạnh
       // nhau thì không dòng nào còn là câu trả lời cho "loại này để làm gì".
-      verb: s.trample ? `<b>GIẪM ĐẠP</b> — gây <b>${s.trample}</b> sát thương mỗi tick cho mọi kẻ địch trong <b>${s.trampleR}</b> ô quanh mình, không cần nhắm và không có hồi chiêu. Đơn vị duy nhất trong game gây sát thương bằng việc <b>di chuyển</b>.`
-          : s.pierce ? `<b>XUYÊN THẤU</b> — mũi lao đi hết <b>${s.pierce}</b> ô theo đường thẳng, mọi kẻ địch nằm trên đường đạn đều dính đòn (80% sát thương). Đội hình càng thẳng hàng càng thiệt.`
-          : s.rallyR ? `<b>CỔ VŨ</b> — quân nhà trong <b>${s.rallyR}</b> ô đánh mạnh thêm <b>${Math.round(s.rallyAtk * 100)}%</b> và đi nhanh thêm <b>${Math.round(s.rallySpeed * 100)}%</b>. Nhiều lá cờ <b>không cộng dồn</b>: chỉ lấy lá mạnh nhất.`
-          : s.siege ? '<b>CÔNG THÀNH</b> — miễn hình phạt đập nhà: chạm vào tường bằng <b>'
-              + CONFIG.UNIT.BUILDING_DAMAGE_MULT + '×</b> sức đánh thường, trong khi mọi loại khác chỉ còn '
-              + Math.round(CONFIG.UNIT.BUILD_PENALTY * 100) + '%.' : '',
-      blurb: CX_UNIT_BLURB[k]
+      verb: s.trample ? T('<b>GIẪM ĐẠP</b> — gây <b>{dmg}</b> sát thương mỗi tick cho mọi kẻ địch trong <b>{r}</b> ô quanh mình, không cần nhắm và không có hồi chiêu. Đơn vị duy nhất trong game gây sát thương bằng việc <b>di chuyển</b>.', { dmg: s.trample, r: s.trampleR })
+          : s.pierce ? T('<b>XUYÊN THẤU</b> — mũi lao đi hết <b>{n}</b> ô theo đường thẳng, mọi kẻ địch nằm trên đường đạn đều dính đòn (80% sát thương). Đội hình càng thẳng hàng càng thiệt.', { n: s.pierce })
+          : s.rallyR ? T('<b>CỔ VŨ</b> — quân nhà trong <b>{r}</b> ô đánh mạnh thêm <b>{atk}%</b> và đi nhanh thêm <b>{spd}%</b>. Nhiều lá cờ <b>không cộng dồn</b>: chỉ lấy lá mạnh nhất.', { r: s.rallyR, atk: Math.round(s.rallyAtk * 100), spd: Math.round(s.rallySpeed * 100) })
+          : s.siege ? T('<b>CÔNG THÀNH</b> — miễn hình phạt đập nhà: chạm vào tường bằng <b>{mult}×</b> sức đánh thường, trong khi mọi loại khác chỉ còn {pen}%.', { mult: CONFIG.UNIT.BUILDING_DAMAGE_MULT, pen: Math.round(CONFIG.UNIT.BUILD_PENALTY * 100) }) : '',
+      blurb: BLURB[k]
     });
   }).join('');
-  return `<div class="cx-intro">Thời đại chỉ <b>MỞ KHOÁ</b> một loại quân — muốn có nó thật thì vẫn phải bỏ tài nguyên dựng đúng công trình ra lò.
-    Vì thế hai bộ lạc cùng lên Hoàng Kim vẫn có thể có hai đạo quân không giống nhau chút nào.
-    Hình dưới đây vẽ ở <b>cấp nâng cấp 0</b>; giáp, vũ khí và mũ sẽ đổi hình theo năm nhánh nghiên cứu.
-    <span class="cx-locked">(Chỉ số chưa nhân hệ số thời đại.)</span>
-    <br><br><b>ĐẬP TƯỜNG LÀ MỘT CHỈ SỐ RIÊNG.</b> Bộ binh, cung thủ, kỵ binh và cả anh hùng chỉ chạm được
-    <b>${Math.round(CONFIG.UNIT.BUILD_PENALTY * 100)}%</b> sức đánh của mình vào công trình; <b>vũ khí công thành</b>
-    thì ngược lại, đánh <b>${CONFIG.UNIT.BUILDING_DAMAGE_MULT}×</b>. Một cỗ máy bắn đá đập tường bằng <b>60</b>,
-    một kỵ sĩ bằng <b>2,6</b> — nhìn hai ô &ldquo;đánh&rdquo; (20 với 13) thì không đoán ra khoảng cách 23 lần đó.
-    Muốn <b>phá thành</b> thì phải dựng Xưởng thợ; một đạo quân đông tới mấy cũng chỉ gặm được tường rất chậm.
-    <br><br><b>THỂ LỰC — CHẠY THÌ HAO, ĐI THÌ KHÔNG.</b> Thể lực chỉ vơi khi đơn vị <b>chạy dưới áp lực</b>:
-    đang đuổi ai, đang bỏ chạy khỏi ai, đang rút lui, đang đi săn. Đi làm, gánh hàng và <b>hành quân</b> thì
-    không tốn một điểm nào — nên cơ chế này vô hình với cả nền kinh tế và với mọi trận đánh ngắn.
-    Cạn sạch thì tốc độ bị chặn ở <b>${CONFIG.STAMINA.EXHAUST_SPEED} ô/tick</b> — một cái <b>trần tuyệt đối</b>,
-    không phải một hệ số nhân. Đó là điểm mấu chốt: <b>một con ngựa mệt không còn là một con ngựa nhanh</b>.
-    Kỵ xạ chạy 1,65 ô/tick nhưng chỉ nước rút được <b>${Math.round(CONFIG.STAMINA.CAP.horsearcher / CONFIG.UNIT.HORSEARCHER.speedMult)} tick</b>,
-    trong khi bộ binh bền <b>${CONFIG.STAMINA.CAP.soldier} tick</b> — nên đuổi mãi thì bộ binh <b>bắt kịp</b>
-    (đo trên mô hình: bắt kịp ở tick 97, sau khi khoảng cách đã nở ra 23 ô). Lợi thế tốc độ vẫn còn nguyên,
-    nó chỉ không còn <b>vô hạn</b> nữa. Quái vật có <b>${CONFIG.STAMINA.MONSTER_CAP} ô</b> — dồi dào tới mức
-    gần như không bao giờ đuối; dân thường <b>${CONFIG.STAMINA.CAP.villager}</b>, thấp nhất bảng.
-    Đơn vị đã đuối bốc <b>ba giọt mồ hôi</b> trên đầu.</div>
+  return `<div class="cx-intro">${T('Thời đại chỉ <b>MỞ KHOÁ</b> một loại quân — muốn có nó thật thì vẫn phải bỏ tài nguyên '
+    + 'dựng đúng công trình ra lò. Vì thế hai bộ lạc cùng lên {age} vẫn có thể có hai đạo quân không giống nhau chút nào. '
+    + 'Hình dưới đây vẽ ở <b>cấp nâng cấp 0</b>; giáp, vũ khí và mũ sẽ đổi hình theo năm nhánh nghiên cứu. '
+    + '<span class="cx-locked">(Chỉ số chưa nhân hệ số thời đại.)</span>'
+    + '<br><br><b>ĐẬP TƯỜNG LÀ MỘT CHỈ SỐ RIÊNG.</b> Bộ binh, cung thủ, kỵ binh và cả anh hùng chỉ chạm được <b>{pen}%</b> '
+    + 'sức đánh của mình vào công trình; <b>vũ khí công thành</b> thì ngược lại, đánh <b>{siege}×</b>. Một cỗ máy bắn đá '
+    + 'đập tường bằng <b>60</b>, một kỵ sĩ bằng <b>2,6</b> — nhìn hai ô &ldquo;đánh&rdquo; (20 với 13) thì không đoán ra '
+    + 'khoảng cách 23 lần đó. Muốn <b>phá thành</b> thì phải dựng Xưởng thợ; một đạo quân đông tới mấy cũng chỉ gặm được '
+    + 'tường rất chậm.'
+    + '<br><br><b>THỂ LỰC — CHẠY THÌ HAO, ĐI THÌ KHÔNG.</b> Thể lực chỉ vơi khi đơn vị <b>chạy dưới áp lực</b>: đang đuổi '
+    + 'ai, đang bỏ chạy khỏi ai, đang rút lui, đang đi săn. Đi làm, gánh hàng và <b>hành quân</b> thì không tốn một điểm '
+    + 'nào — nên cơ chế này vô hình với cả nền kinh tế và với mọi trận đánh ngắn. Cạn sạch thì tốc độ bị chặn ở '
+    + '<b>{exhaust} ô/tick</b> — một cái <b>trần tuyệt đối</b>, không phải một hệ số nhân. Đó là điểm mấu chốt: <b>một con '
+    + 'ngựa mệt không còn là một con ngựa nhanh</b>. Kỵ xạ chạy 1,65 ô/tick nhưng chỉ nước rút được <b>{ha} tick</b>, '
+    + 'trong khi bộ binh bền <b>{sol} tick</b> — nên đuổi mãi thì bộ binh <b>bắt kịp</b> (đo trên mô hình: bắt kịp ở tick '
+    + '97, sau khi khoảng cách đã nở ra 23 ô). Lợi thế tốc độ vẫn còn nguyên, nó chỉ không còn <b>vô hạn</b> nữa. Quái vật '
+    + 'có <b>{mon} ô</b> — dồi dào tới mức gần như không bao giờ đuối; dân thường <b>{vil}</b>, thấp nhất bảng. Đơn vị đã '
+    + 'đuối bốc <b>ba giọt mồ hôi</b> trên đầu.',
+    { age: CONFIG.AGE.NAMES[4], pen: Math.round(CONFIG.UNIT.BUILD_PENALTY * 100), siege: CONFIG.UNIT.BUILDING_DAMAGE_MULT,
+      exhaust: CONFIG.STAMINA.EXHAUST_SPEED,
+      ha: Math.round(CONFIG.STAMINA.CAP.horsearcher / CONFIG.UNIT.HORSEARCHER.speedMult),
+      sol: CONFIG.STAMINA.CAP.soldier, mon: CONFIG.STAMINA.MONSTER_CAP, vil: CONFIG.STAMINA.CAP.villager })}</div>
     <div class="cx-grid">${cards}</div>`;
 }
 
 // ============================================================
 // TỜ 3 — CÔNG TRÌNH
 // ============================================================
-const CX_BUILD_BLURB = {
-  town: 'Kinh đô. Ra dân, nhận hàng, tự bắn trả. Mất <b>sạch</b> kinh đô là một <b>đồng hồ đếm ngược ' + CONFIG.CAPITAL.GRACE + ' tick</b> tới diệt vong — dựng lại được một cái trước khi hết giờ thì thoát, còn không thì bộ lạc bị xoá sổ dù quân vẫn còn sống. Đồng hồ <b>đứng yên</b> trong lúc đang có thợ dựng móng nhà chính, nên nó phạt kẻ <b>chạy rông</b> chứ không phạt kẻ đang gượng dậy. Sức bắn của kinh đô <b>không</b> bị hạ theo thời đại như tháp canh. <b>San phẳng kinh đô địch</b> thì được <b>quyền lập đô</b> trên chính nền đất đó — một bộ lạc có thể có tới <b>3</b> kinh đô, và biên giới chuyển chủ ngay tại chỗ vừa đánh xong. Quyền đó <b>hết hạn sau 5.000 tick</b>, và dám dùng hay không thì do gen <b>lập đô</b> quyết.',
-  house: 'Nới trần dân số. Không có nó thì mọi thứ khác đều vô nghĩa: không có chỗ ở là không tuyển được ai.',
-  farm: 'Đổi gỗ lấy một dòng lương thực <b>ổn định nhưng rất nhỏ</b>: 9 ô × 0,085 = <b>0,77 lương/tick</b>, thấp hơn cả mức MỘT người hái được. Nó là cái <b>đệm</b> giữ bộ lạc không chết đói giữa hai chuyến đi xa, không phải cái vòi — phần lớn lương thực vẫn phải đi kiếm về. Khoá tới <b>Đồ Đồng</b>, nên trọn giai đoạn Đồ Đá chỉ có một nguồn ăn: bụi quả ngoài kia.',
-  depot: 'Nơi nhận hàng thứ hai ngoài kinh đô. Mỏ nào cũng nằm ngoài vành 16 ô quanh nhà, nên quãng gánh mặc định là 22-35 ô mỗi chiều; một cái kho đặt đúng chỗ cắt nó xuống còn 3. Giá trị của nó nằm ở <b>vị trí</b>, không ở số lượng — hai cái kho cạnh kinh đô đúng bằng không có cái nào.',
-  barracks: 'Ra bộ binh và quân kỳ. Cửa vào của gần như mọi thứ còn lại trong bảng này. Từ bản này <b>mỗi công trình là một cái lò riêng chạy song song</b> — cái trại thứ hai thật sự rút đôi thời gian ra quân, và đó là lý do gen <b>số lò quân</b> tồn tại.',
-  heroHall: 'Cửa <b>duy nhất</b> ra Anh hùng — trước bản này anh hùng ra lò từ trại lính, tức là ai muốn đánh nhau đều tự động có tướng. Tách riêng thì "có nuôi tướng không" mới là một <b>quyết định</b>: 110 gỗ + 70 vàng bằng gần một trại lính thứ hai. Bộ lạc gen <b>đầu tư anh hùng</b> thấp đi hết kỷ nguyên không có tướng, và đó là một ván chơi hợp lệ. Phá được nó là cắt đứt dòng dõi của địch tới hết kỷ nguyên.',
-  tower: 'Bắn trả trong <b>10</b> ô — xa hơn máy bắn đá (9), nên không còn bị phá miễn phí từ ngoài tầm với. Sức đánh <b>leo theo thời đại</b>: chỉ <b>60%</b> ở Đồ Đá rồi +10% mỗi bậc, về đúng <b>100%</b> ở Thiên Triều — nên một cái tháp không còn tự mình quyết định được trận đánh đầu tiên của kỷ nguyên, thứ đáng xem nhất. <b>Giá đi theo đúng đường cong ấy</b>: 60% sức đánh thì 60% giá, và cùng leo lên 100%. Rẻ lúc còn yếu, đắt dần khi mạnh lên — không mua rẻ được thứ mạnh, cũng không phải trả đủ cho thứ chưa mạnh. Một mảng số nuôi cả hai, nên chúng không thể lệch nhau. Xây chồng thì hai hệ số <b>nhân</b> nhau (bậc thời đại × 1,7 mỗi tầng), nên một cái tháp ba tầng thời Thiên Triều là công trình đắt nhất bảng. Cũng là <b>điều kiện lên đời</b>, và hạn ngạch đã <b>gấp đôi</b>: cần <b>4</b> tháp để lên Đồ Sắt, <b>8</b> cho Hoàng Kim, <b>14</b> cho Thiên Triều. Đơn giá đá hạ 45 → 23 để tổng lượng đá cho cả hạn ngạch không đổi — tháp là vòi tiêu đá chính, mà đá cũng gác cửa lên đời, nên nhân đôi cả hai là xiết một cái cổ đã nghẹn. Từ bản này còn <b>xây chồng được</b>: đặt một cái tháp lên chính cái tháp cũ, tối đa <b>3 tầng</b>, mỗi tầng ×<b>1,5</b> cả <b>máu · tầm bắn · sức đánh</b> — tầng 3 bắn xa <b>22,5</b> ô và cao gấp đôi trên bản đồ. Giá leo ×1,7 mỗi tầng nên xây chồng luôn <b>lỗ</b> nếu tính bằng sức mạnh trên mỗi đồng: cái nó mua là <b>sự tập trung</b>. Suốt lúc lên tầng thì tháp <b>ngừng bắn</b> và không tính vào hạn ngạch lên đời.',
-  workshop: 'Mở nhánh tầm xa: cung thủ, rồi máy bắn đá. Một bộ lạc không xây nó thì vĩnh viễn chỉ có bộ binh.',
-  stable: 'Mở nhánh kỵ binh. Cùng khuôn với xưởng thợ nhưng đọc gen KHÁC — nên cây công nghệ tách đôi theo hai hướng độc lập.',
-  infirmary: 'Vừa là bệnh viện hậu phương (hồi máu cho quân đứng quanh, chỉ khi sạch địch), vừa là lò ra <b>Thầy lang</b>. Phá được nó là cắt cả hai.',
-  shrine: 'Tín ngưỡng dân gian — rẻ, nhỏ, có ngay từ Đồ Đá. Sinh Đức Tin cho Chúa Tể. Từ Phase 3.33 nó còn là <b>lò ra Đội hậu cần</b> và là nhà chủ quản của nhánh <b>Quân nhu</b>: cái cổng rẻ nhất trong cả bảng, và cố tình thế — cơ chế quân lương chạy từ tick đầu tiên, nên cách chữa nó không được phép khoá sau nửa cây công nghệ.',
-  camp: 'Không do dân xây, không có móng, không cần thợ: một <b>Đội hậu cần</b> cắm nó xuống trong <b>một tick</b> giữa đất địch, và nó <b>tự nhổ</b> sau khi hết hạn. Đó là cả thiết kế — bỏ hạn dùng thì sau ba trận đánh cả bản đồ rải trại và cơ chế quân lương tắt ngóm. Mềm nhất bản đồ (130 máu, không giáp), nên phá nó là cắt đường tiếp tế của cả một chiến dịch.',
-  temple: 'Quốc giáo. Tính bằng hai nhà cầu nguyện khi đếm nhịp dâng tế, và là nơi <b>cất thánh vật</b> để truyền cho anh hùng đời sau.',
-  wonder: 'Đường thắng thứ hai của cả trò chơi: xây xong rồi <b>giữ</b> được nó đứng là thắng ngay, bất kể quân đội ai mạnh hơn. Nhưng tài nguyên <b>không đủ để được xây</b>: phải tới <b>Thiên Triều</b>, phải <b>san phẳng kinh đô của một bộ lạc khác</b> trước đã (Thiên mệnh), và cả bản đồ <b>chỉ được có một Kỳ quan</b> — ai đặt móng trước thì ba bên kia muốn xây phải phá cái đó xuống. Giá <b>gấp đôi</b> và thời gian dựng <b>gấp ba</b> (2.460 tick) là để có một thứ trước đây chưa từng tồn tại: một <b>cửa sổ</b>. Đo bản cũ, từ móng tới khánh thành chỉ <b>110-125 tick</b> — mười giây thật, ngắn hơn quãng đường đạo quân gần nhất đi tới đó. Và <b>ngay từ tick đặt móng</b>, cả bàn cờ đã biết: ba bộ lạc kia bỏ mọi mâu thuẫn để kéo tới công trường, còn chủ nhân thì triệu hồi toàn quân về giữ. Khởi công là một <b>lời tuyên bố</b>, không phải một bí mật.'
-};
+function cxBuildBlurb() { return {
+  town: T('Kinh đô. Ra dân, nhận hàng, tự bắn trả. Mất <b>sạch</b> kinh đô là một <b>đồng hồ đếm ngược {grace} tick</b> tới diệt vong — dựng lại được một cái trước khi hết giờ thì thoát, còn không thì bộ lạc bị xoá sổ dù quân vẫn còn sống. Đồng hồ <b>đứng yên</b> trong lúc đang có thợ dựng móng nhà chính, nên nó phạt kẻ <b>chạy rông</b> chứ không phạt kẻ đang gượng dậy. Sức bắn của kinh đô <b>không</b> bị hạ theo thời đại như tháp canh. <b>San phẳng kinh đô địch</b> thì được <b>quyền lập đô</b> trên chính nền đất đó — một bộ lạc có thể có tới <b>3</b> kinh đô, và biên giới chuyển chủ ngay tại chỗ vừa đánh xong. Quyền đó <b>hết hạn sau 5.000 tick</b>, và dám dùng hay không thì do gen <b>lập đô</b> quyết.',
+    { grace: CONFIG.CAPITAL.GRACE }),
+  house: T('Nới trần dân số. Không có nó thì mọi thứ khác đều vô nghĩa: không có chỗ ở là không tuyển được ai.'),
+  farm: T('Đổi gỗ lấy một dòng lương thực <b>ổn định nhưng rất nhỏ</b>: 9 ô × 0,085 = <b>0,77 lương/tick</b>, thấp hơn cả mức MỘT người hái được. Nó là cái <b>đệm</b> giữ bộ lạc không chết đói giữa hai chuyến đi xa, không phải cái vòi — phần lớn lương thực vẫn phải đi kiếm về. Khoá tới <b>Đồ Đồng</b>, nên trọn giai đoạn Đồ Đá chỉ có một nguồn ăn: bụi quả ngoài kia.'),
+  depot: T('Nơi nhận hàng thứ hai ngoài kinh đô. Mỏ nào cũng nằm ngoài vành 16 ô quanh nhà, nên quãng gánh mặc định là 22-35 ô mỗi chiều; một cái kho đặt đúng chỗ cắt nó xuống còn 3. Giá trị của nó nằm ở <b>vị trí</b>, không ở số lượng — hai cái kho cạnh kinh đô đúng bằng không có cái nào.'),
+  barracks: T('Ra bộ binh và quân kỳ. Cửa vào của gần như mọi thứ còn lại trong bảng này. Từ bản này <b>mỗi công trình là một cái lò riêng chạy song song</b> — cái trại thứ hai thật sự rút đôi thời gian ra quân, và đó là lý do gen <b>số lò quân</b> tồn tại.'),
+  heroHall: T('Cửa <b>duy nhất</b> ra Anh hùng — trước bản này anh hùng ra lò từ trại lính, tức là ai muốn đánh nhau đều tự động có tướng. Tách riêng thì "có nuôi tướng không" mới là một <b>quyết định</b>: 110 gỗ + 70 vàng bằng gần một trại lính thứ hai. Bộ lạc gen <b>đầu tư anh hùng</b> thấp đi hết kỷ nguyên không có tướng, và đó là một ván chơi hợp lệ. Phá được nó là cắt đứt dòng dõi của địch tới hết kỷ nguyên.'),
+  tower: T('Bắn trả trong <b>10</b> ô — xa hơn máy bắn đá (9), nên không còn bị phá miễn phí từ ngoài tầm với. Sức đánh <b>leo theo thời đại</b>: chỉ <b>60%</b> ở Đồ Đá rồi +10% mỗi bậc, về đúng <b>100%</b> ở Thiên Triều — nên một cái tháp không còn tự mình quyết định được trận đánh đầu tiên của kỷ nguyên, thứ đáng xem nhất. <b>Giá đi theo đúng đường cong ấy</b>: 60% sức đánh thì 60% giá, và cùng leo lên 100%. Rẻ lúc còn yếu, đắt dần khi mạnh lên — không mua rẻ được thứ mạnh, cũng không phải trả đủ cho thứ chưa mạnh. Một mảng số nuôi cả hai, nên chúng không thể lệch nhau. Xây chồng thì hai hệ số <b>nhân</b> nhau (bậc thời đại × 1,7 mỗi tầng), nên một cái tháp ba tầng thời Thiên Triều là công trình đắt nhất bảng. Cũng là <b>điều kiện lên đời</b>, và hạn ngạch đã <b>gấp đôi</b>: cần <b>4</b> tháp để lên Đồ Sắt, <b>8</b> cho Hoàng Kim, <b>14</b> cho Thiên Triều. Đơn giá đá hạ 45 → 23 để tổng lượng đá cho cả hạn ngạch không đổi — tháp là vòi tiêu đá chính, mà đá cũng gác cửa lên đời, nên nhân đôi cả hai là xiết một cái cổ đã nghẹn. Từ bản này còn <b>xây chồng được</b>: đặt một cái tháp lên chính cái tháp cũ, tối đa <b>3 tầng</b>, mỗi tầng ×<b>1,5</b> cả <b>máu · tầm bắn · sức đánh</b> — tầng 3 bắn xa <b>22,5</b> ô và cao gấp đôi trên bản đồ. Giá leo ×1,7 mỗi tầng nên xây chồng luôn <b>lỗ</b> nếu tính bằng sức mạnh trên mỗi đồng: cái nó mua là <b>sự tập trung</b>. Suốt lúc lên tầng thì tháp <b>ngừng bắn</b> và không tính vào hạn ngạch lên đời.'),
+  workshop: T('Mở nhánh tầm xa: cung thủ, rồi máy bắn đá. Một bộ lạc không xây nó thì vĩnh viễn chỉ có bộ binh.'),
+  stable: T('Mở nhánh kỵ binh. Cùng khuôn với xưởng thợ nhưng đọc gen KHÁC — nên cây công nghệ tách đôi theo hai hướng độc lập.'),
+  infirmary: T('Vừa là bệnh viện hậu phương (hồi máu cho quân đứng quanh, chỉ khi sạch địch), vừa là lò ra <b>Thầy lang</b>. Phá được nó là cắt cả hai.'),
+  shrine: T('Tín ngưỡng dân gian — rẻ, nhỏ, có ngay từ Đồ Đá. Sinh Đức Tin cho Chúa Tể. Từ Phase 3.33 nó còn là <b>lò ra Đội hậu cần</b> và là nhà chủ quản của nhánh <b>Quân nhu</b>: cái cổng rẻ nhất trong cả bảng, và cố tình thế — cơ chế quân lương chạy từ tick đầu tiên, nên cách chữa nó không được phép khoá sau nửa cây công nghệ.'),
+  camp: T('Không do dân xây, không có móng, không cần thợ: một <b>Đội hậu cần</b> cắm nó xuống trong <b>một tick</b> giữa đất địch, và nó <b>tự nhổ</b> sau khi hết hạn. Đó là cả thiết kế — bỏ hạn dùng thì sau ba trận đánh cả bản đồ rải trại và cơ chế quân lương tắt ngóm. Mềm nhất bản đồ (130 máu, không giáp), nên phá nó là cắt đường tiếp tế của cả một chiến dịch.'),
+  temple: T('Quốc giáo. Tính bằng hai nhà cầu nguyện khi đếm nhịp dâng tế, và là nơi <b>cất thánh vật</b> để truyền cho anh hùng đời sau.'),
+  wonder: T('Đường thắng thứ hai của cả trò chơi: xây xong rồi <b>giữ</b> được nó đứng là thắng ngay, bất kể quân đội ai mạnh hơn. Nhưng tài nguyên <b>không đủ để được xây</b>: phải tới <b>Thiên Triều</b>, phải <b>san phẳng kinh đô của một bộ lạc khác</b> trước đã (Thiên mệnh), và cả bản đồ <b>chỉ được có một Kỳ quan</b> — ai đặt móng trước thì ba bên kia muốn xây phải phá cái đó xuống. Giá <b>gấp đôi</b> và thời gian dựng <b>gấp ba</b> (2.460 tick) là để có một thứ trước đây chưa từng tồn tại: một <b>cửa sổ</b>. Đo bản cũ, từ móng tới khánh thành chỉ <b>110-125 tick</b> — mười giây thật, ngắn hơn quãng đường đạo quân gần nhất đi tới đó. Và <b>ngay từ tick đặt móng</b>, cả bàn cờ đã biết: ba bộ lạc kia bỏ mọi mâu thuẫn để kéo tới công trường, còn chủ nhân thì triệu hồi toàn quân về giữ. Khởi công là một <b>lời tuyên bố</b>, không phải một bí mật.')
+}; }
 
 // Hoisted để con số trên nút tờ đọc CÙNG một danh sách với nội dung tờ. Bản cũ
 // viết cứng `count: () => 11` trong khi tờ có 13 thẻ — một cái nhãn nói sai mà
@@ -538,42 +543,43 @@ const CX_BUILD_ORDER = ['town', 'house', 'farm', 'depot', 'barracks', 'heroHall'
 
 function codexTabBuilds() {
   const order = CX_BUILD_ORDER;
+  const BLURB = cxBuildBlurb();
   const cards = order.map(k => {
     const s = CONFIG.BUILD[k];
     const age = CONFIG.AGE.UNLOCK_BUILD[k] || 1;
     return cxCard('build', k, {
       age: Math.max(age, 3),
       name: s.label,
-      sub: `${CONFIG.AGE.NAMES[age]} · ${s.size}×${s.size} ô`,
+      sub: `${CONFIG.AGE.NAMES[age]} · ${T('{a}×{b} ô', { a: s.size, b: s.size })}`,
       stats: [
-        `máu <b>${s.hp}</b>`,
+        T('máu <b>{n}</b>', { n: s.hp }),
         // Công trình leo sức chứa theo thời đại thì phải nói ra CẢ DÃY, không phải
         // con số Đồ Đá: "+5 dân" trên một cái nhà ở Hoàng Kim chứa 17 người là sai,
         // và Thư khố là chỗ duy nhất người xem tra ra được luật chơi.
-        s.popByAge ? `+<b>${s.popByAge.slice(1).join('/')}</b> dân theo đời`
-          : s.pop ? `+<b>${s.pop}</b> dân` : '',
-        s.range ? `bắn <b>${s.attack}</b> trong <b>${s.range}</b> ô` : '',
+        s.popByAge ? T('+<b>{list}</b> dân theo đời', { list: s.popByAge.slice(1).join('/') })
+          : s.pop ? T('+<b>{n}</b> dân', { n: s.pop }) : '',
+        s.range ? T('bắn <b>{atk}</b> trong <b>{r}</b> ô', { atk: s.attack, r: s.range }) : '',
         // THÁP CANH in CẢ DÃY GIÁ, đúng cùng lý do đã viết cho `popByAge` và cho máu
         // theo đời ngay dưới: giá của nó đổi theo thời đại, nên một con số duy nhất
         // ở đây là một lời nói dối với bốn phần năm ván chơi.
         k === 'tower'
-          ? `giá theo đời ${Object.keys(s.cost).map(r => `<b>${CONFIG.AGE.TOWER_ATK.slice(1).map(m => Math.round(s.cost[r] * m)).join('/')}</b> ${r}`).join(' · ')}`
-          : `giá ${cxCost(s.cost)}`,
+          ? T('giá theo đời {list}', { list: Object.keys(s.cost).map(r => `<b>${CONFIG.AGE.TOWER_ATK.slice(1).map(m => Math.round(s.cost[r] * m)).join('/')}</b> ${RES_LABEL[r] || r}`).join(' · ') })
+          : T('giá {cost}', { cost: cxCost(s.cost) }),
         // MÁU CÔNG TRÌNH LEO THEO THỜI ĐẠI từ Phase 3.35. In cả dãy chứ không in
         // con số Đồ Đá, đúng cùng lý do đã viết cho `popByAge` ngay trên: một con
         // số duy nhất ở đây là một lời nói dối với bốn phần năm ván chơi.
-        `→ máu theo đời <b>${CONFIG.AGE.BUILD_HP.slice(1).map(m => Math.round(s.hp * m)).join('/')}</b>`,
+        T('→ máu theo đời <b>{list}</b>', { list: CONFIG.AGE.BUILD_HP.slice(1).map(m => Math.round(s.hp * m)).join('/') }),
         // "xây 0 tick" là một câu vô nghĩa, và trại tiếp tế là công trình duy nhất
         // rơi vào đó. Nói thẳng ra "dựng tức thì" thì con số 0 trở thành một LUẬT
         // đọc được, thay vì một chỗ trông như quên điền.
         // THỜI GIAN THẬT, không phải `buildTicks` thô. Người đọc không quy đổi được
         // từ 260 sang "bao lâu" nếu không biết có mấy thợ và mỗi thợ đóng góp bao
         // nhiêu mỗi tick — mà cả hai con số đó đều nằm ở file khác.
-        s.buildTicks > 0 ? `xây <b>${Math.round(s.buildTicks / (CONFIG.BUILD.BUILD_RATE * (k === 'wonder' ? CONFIG.BUILD.WONDER_BUILDERS : CONFIG.BUILD.MAX_BUILDERS)))}</b> tick với đủ thợ`
-                         : `dựng <b style="color:var(--gold)">tức thì</b>, không cần thợ`,
-        k === 'camp' ? `sống <b>${CONFIG.SUPPLY.CAMP.TTL}</b> tick rồi tự nhổ` : ''
+        s.buildTicks > 0 ? T('xây <b>{n}</b> tick với đủ thợ', { n: Math.round(s.buildTicks / (CONFIG.BUILD.BUILD_RATE * (k === 'wonder' ? CONFIG.BUILD.WONDER_BUILDERS : CONFIG.BUILD.MAX_BUILDERS))) })
+                         : T('dựng <b style="color:var(--gold)">tức thì</b>, không cần thợ'),
+        k === 'camp' ? T('sống <b>{n}</b> tick rồi tự nhổ', { n: CONFIG.SUPPLY.CAMP.TTL }) : ''
       ].filter(Boolean),
-      blurb: CX_BUILD_BLURB[k]
+      blurb: BLURB[k]
     });
   }).join('');
   // TƯỜNG THÀNH không nằm trong CONFIG.BUILD nên nó không thể là một thẻ như mười
@@ -582,46 +588,63 @@ function codexTabBuilds() {
   // đúng sáu cánh cửa mà chú thích của `wallCells` đã liệt kê ra để tránh.
   const W = CONFIG.WALL;
   const wallCard = `<div class="cx-card"><div class="cx-info">
-    <div class="cx-name">🧱 Tường thành</div>
-    <div class="cx-sub">${CONFIG.AGE.NAMES[W.MIN_AGE]} trở lên · không ai xây, không ai đặt móng</div>
-    <div class="cx-stats"><span>vành bán kính <b>${W.RADIUS.slice(W.MIN_AGE).join('/')}</b> ô theo đời</span>
-      <span>máu mỗi ô <b>${W.HP.slice(W.MIN_AGE).join('/')}</b></span>
-      <span>cổng <b>${W.GATE_SPAN}</b> ô giữa mỗi cạnh: <b>${W.GATE_DOOR_SPAN}</b> ô cánh cửa (<b>${Math.round(W.GATE_HP * 100)}%</b> máu) + <b>2</b> lầu cổng dày như thường</span>
-      <span>tự sửa <b>${(W.REGEN_FRAC * 100).toFixed(1)}%</b> máu/tick, tốn <b>${W.REGEN_STONE}</b> đá mỗi ô</span>
-      <span>dưới <b>${W.REGEN_RESERVE}</b> đá thì chỉ còn <b>${Math.round(W.REGEN_POOR * 100)}%</b> tốc độ</span>
-      <span>thủng thì hở <b>${W.RUBBLE}</b> tick</span></div>
-    <div class="cx-blurb">Vật cản <b>có phe</b> đầu tiên của trò chơi: quân nhà đi xuyên qua, <b>quân địch và quái vật</b>
-      đứng lại. Nhờ vậy nó tạo ra thứ mà một dải rừng không tạo nổi — một <b>bên trong</b> và một <b>bên ngoài</b>.
-      Nó <b>tự mọc</b> quanh mỗi kinh đô và <b>dựng lại cả vành</b> ở bán kính mới mỗi lần lên đời (không đắp thêm
-      lớp thứ hai, nếu không sau bốn đời nó thành một mê cung).
-      <br><b>Năm bậc, một bậc mỗi đời</b> — ${W.TIERS.slice(1).map(t => t.name).join(' → ')} — và mỗi bậc đổi cả
-      <b>đường bao</b> lẫn vật liệu, không chỉ đổi màu: cả bức tường lên bậc cùng một lúc nên không bao giờ có
-      mẫu cũ đứng cạnh để so màu. Bốn <b>góc</b> là tháp vuông cao hơn thân; ${W.GATE_SPAN} ô
-      <b>chính giữa mỗi cạnh</b> là một <b>cổng thành</b> — ${W.GATE_DOOR_SPAN} ô cánh cửa gỗ đóng đinh tán nằm
-      dưới một vòm cuốn liền ba ô có <b>đá khoá đỉnh</b> màu bộ lạc, kẹp giữa <b>hai lầu cổng</b> có mái vát và
-      lỗ châu mai. Đường bao của cả cụm chạy <em>thấp&#8202;·&#8202;CAO&#8202;·&#8202;thấp&#8202;·&#8202;CAO&#8202;·&#8202;thấp</em>,
-      và chính cái nhịp ấy — chứ không phải màu — là thứ đọc được từ xa. Chỉ ${W.GATE_DOOR_SPAN} ô cánh cửa là
-      mỏng máu: nới cổng rộng ra <b>không</b> làm bức tường dễ vỡ hơn, nó chỉ làm chỗ vỡ đọc được hơn. Đó là lý
-      do &ldquo;trận đánh ở cổng Nam&rdquo; là một câu kể được.
-      <br>Từ Phase 3.30 nó <b>ăn đá</b> để tự lành: mỗi ô đang vá rút ${W.REGEN_STONE} đá khỏi kho mỗi tick, và
-      dưới ngưỡng ${W.REGEN_RESERVE} đá thì nó vẫn vá — chỉ chậm còn ${Math.round(W.REGEN_POOR * 100)}%, để bức
-      tường không bao giờ ăn mất viên đá cuối cùng lẽ ra thành tháp canh hay Kỳ quan.
-      Bộ binh đấm vào tường gần như vô hại
-      (×${CONFIG.UNIT.BUILD_PENALTY}) — phá thành là việc của <b>máy bắn đá</b> (×${CONFIG.UNIT.BUILDING_DAMAGE_MULT}),
-      và đó là <b>lý do thứ hai</b> để tồn tại một Xưởng thợ, sau Kỳ quan. Bộ lạc <b>bành trướng</b> rộng thì
-      vĩnh viễn có nhà nằm ngoài tường: đó là cái giá đúng đắn, không phải một lỗi.
-      <br>Từ Phase 3.34, quân <b>tầm xa nã tường TỪ XA</b>: chúng chỉ dừng lại khi bức tường thật sự
-      <b>chắn đường đi của chính mình</b>, rồi đứng lùi về đúng tầm bắn mà bắn — máy bắn đá ở <b>11</b> ô,
-      cung thủ ở <b>5</b> ô — thay vì bò vào <b>1</b> ô như trước. Nhờ vậy vòng vây tự xếp thành hai lớp:
-      bộ binh ôm chân tường, quân bắn đứng ngoài tầm tháp canh. Đục thủng được ô trước mặt là chúng
-      <b>đi tiếp ngay</b> qua lỗ ấy, không ở lại gặm nốt vành tường. Đạn <b>lan</b> của máy bắn đá nay
-      chạm cả tường, nên một quả rơi đúng chỗ mở được cả một đoạn.</div>
+    <div class="cx-name">🧱 ${T('Tường thành')}</div>
+    <div class="cx-sub">${T('{age} trở lên · không ai xây, không ai đặt móng', { age: CONFIG.AGE.NAMES[W.MIN_AGE] })}</div>
+    <div class="cx-stats"><span>${T('vành bán kính <b>{list}</b> ô theo đời', { list: W.RADIUS.slice(W.MIN_AGE).join('/') })}</span>
+      <span>${T('máu mỗi ô <b>{list}</b>', { list: W.HP.slice(W.MIN_AGE).join('/') })}</span>
+      <span>${T('cổng <b>{span}</b> ô giữa mỗi cạnh: <b>{door}</b> ô cánh cửa (<b>{hp}%</b> máu) + <b>2</b> lầu cổng dày như thường', { span: W.GATE_SPAN, door: W.GATE_DOOR_SPAN, hp: Math.round(W.GATE_HP * 100) })}</span>
+      <span>${T('tự sửa <b>{pct}%</b> máu/tick, tốn <b>{stone}</b> đá mỗi ô', { pct: (W.REGEN_FRAC * 100).toFixed(1), stone: W.REGEN_STONE })}</span>
+      <span>${T('dưới <b>{n}</b> đá thì chỉ còn <b>{pct}%</b> tốc độ', { n: W.REGEN_RESERVE, pct: Math.round(W.REGEN_POOR * 100) })}</span>
+      <span>${T('thủng thì hở <b>{n}</b> tick', { n: W.RUBBLE })}</span></div>
+    <div class="cx-blurb">${T('Vật cản <b>có phe</b> đầu tiên của trò chơi: quân nhà đi xuyên qua, <b>quân địch và quái vật</b> '
+      + 'đứng lại. Nhờ vậy nó tạo ra thứ mà một dải rừng không tạo nổi — một <b>bên trong</b> và một <b>bên ngoài</b>. '
+      + 'Nó <b>tự mọc</b> quanh mỗi kinh đô và <b>dựng lại cả vành</b> ở bán kính mới mỗi lần lên đời (không đắp thêm '
+      + 'lớp thứ hai, nếu không sau bốn đời nó thành một mê cung).'
+      + '<br><b>Năm bậc, một bậc mỗi đời</b> — {tiers} — và mỗi bậc đổi cả <b>đường bao</b> lẫn vật liệu, không chỉ '
+      + 'đổi màu: cả bức tường lên bậc cùng một lúc nên không bao giờ có mẫu cũ đứng cạnh để so màu. Bốn <b>góc</b> '
+      + 'là tháp vuông cao hơn thân; {span} ô <b>chính giữa mỗi cạnh</b> là một <b>cổng thành</b> — {door} ô cánh cửa '
+      + 'gỗ đóng đinh tán nằm dưới một vòm cuốn liền ba ô có <b>đá khoá đỉnh</b> màu bộ lạc, kẹp giữa <b>hai lầu cổng</b> '
+      + 'có mái vát và lỗ châu mai. Đường bao của cả cụm chạy <em>thấp&#8202;·&#8202;CAO&#8202;·&#8202;thấp&#8202;·&#8202;CAO&#8202;·&#8202;thấp</em>, '
+      + 'và chính cái nhịp ấy — chứ không phải màu — là thứ đọc được từ xa. Chỉ {door} ô cánh cửa là mỏng máu: nới cổng '
+      + 'rộng ra <b>không</b> làm bức tường dễ vỡ hơn, nó chỉ làm chỗ vỡ đọc được hơn. Đó là lý do &ldquo;trận đánh ở '
+      + 'cổng Nam&rdquo; là một câu kể được.'
+      + '<br>Nó <b>ăn đá</b> để tự lành: mỗi ô đang vá rút {stone} đá khỏi kho mỗi tick, và dưới ngưỡng {reserve} đá thì '
+      + 'nó vẫn vá — chỉ chậm còn {poor}%, để bức tường không bao giờ ăn mất viên đá cuối cùng lẽ ra thành tháp canh hay '
+      + 'Kỳ quan. Bộ binh đấm vào tường gần như vô hại (×{pen}) — phá thành là việc của <b>máy bắn đá</b> (×{siege}), và '
+      + 'đó là <b>lý do thứ hai</b> để tồn tại một Xưởng thợ, sau Kỳ quan. Bộ lạc <b>bành trướng</b> rộng thì vĩnh viễn '
+      + 'có nhà nằm ngoài tường: đó là cái giá đúng đắn, không phải một lỗi.'
+      + '<br>Quân <b>tầm xa nã tường TỪ XA</b>: chúng chỉ dừng lại khi bức tường thật sự <b>chắn đường đi của chính '
+      + 'mình</b>, rồi đứng lùi về đúng tầm bắn mà bắn — máy bắn đá ở <b>11</b> ô, cung thủ ở <b>5</b> ô — thay vì bò vào '
+      + '<b>1</b> ô như trước. Nhờ vậy vòng vây tự xếp thành hai lớp: bộ binh ôm chân tường, quân bắn đứng ngoài tầm tháp '
+      + 'canh. Đục thủng được ô trước mặt là chúng <b>đi tiếp ngay</b> qua lỗ ấy, không ở lại gặm nốt vành tường. Đạn '
+      + '<b>lan</b> của máy bắn đá nay chạm cả tường, nên một quả rơi đúng chỗ mở được cả một đoạn.'
+      + '<br><b>BINH PHÁP CÔNG THÀNH</b> — bên công cuối cùng cũng biết mình đang đứng trước cái gì. Hai luật, và cả '
+      + 'hai đều <b>tính lại mỗi tick</b> từ ô tường đang chắn mặt, không ghi nhớ gì.<br>'
+      + '<b>1 · TÌM CỔNG.</b> Đâm phải thân tường thì đi men theo tường tới <b>cánh cửa</b> của chính cạnh đó — chỗ chỉ '
+      + 'có {gatehp}% máu — thay vì đứng đấm chỗ mình tình cờ chạm vào. Mỗi ô tường được gán sẵn đúng MỘT cái cổng của nó '
+      + 'lúc dựng vành, nên một người lính đứng ở góc (chỗ cách đều hai cổng) không rung qua lại giữa hai lựa chọn. Cả '
+      + 'máy bắn đá cũng đi: cỗ máy ngoài tầm cổng thì <b>kéo tới cổng</b> chứ không nã vào thân tường trước mặt. Đo '
+      + 'trước bản này: <b>91%</b> sát thương lên tường đổ vào thân tường máu đầy, cánh cửa chỉ ăn <b>5,8%</b> — nghĩa '
+      + 'là câu &ldquo;trận đánh ở cổng Nam&rdquo; chưa từng xảy ra lần nào. Sau: cánh cửa ăn <b>20%</b> sát thương và '
+      + '<b>58%</b> số lỗ thủng là ở cổng. Anh hùng đi từ <b>5%</b> lên <b>54%</b>.<br>'
+      + '<b>2 · ĐỢI CỖ MÁY.</b> Bộ binh <b>không</b> đấm tường khi có máy bắn đá của nhà mình <b>đang bắn được vào đúng '
+      + 'ô ấy</b> — chúng lùi ra <b>{hold}</b> ô, ngoài tầm tháp canh ({trange} ô), rồi tràn vào lúc tường sắp vỡ. Điều '
+      + 'kiện dừng là <b>MÁU CỦA BỨC TƯỜNG</b> chứ không phải một cái đồng hồ: nhờ vậy bộ binh ập tới đúng lúc, và luật '
+      + 'tự tắt ngay tick cỗ máy chết mà không cần một dòng dọn dẹp nào. Ngưỡng tràn do <b>kỷ luật</b> quyết định — kỷ '
+      + 'luật 0 thì gần như không chờ (nguyên cách đánh cũ vẫn nằm trong dải gen), kỷ luật cao thì chờ tới sát lúc vỡ — '
+      + 'và mỗi cấp nhánh <b>Công thành</b> cho chờ thêm. Đó là nhánh đầu tiên trong bảng mua <b>HÀNH VI</b> chứ không '
+      + 'mua chỉ số.',
+      { tiers: W.TIERS.slice(1).map(t => t.name).join(' → '), span: W.GATE_SPAN, door: W.GATE_DOOR_SPAN,
+        stone: W.REGEN_STONE, reserve: W.REGEN_RESERVE, poor: Math.round(W.REGEN_POOR * 100),
+        gatehp: Math.round(W.GATE_HP * 100), hold: CONFIG.SIEGE.WAIT.HOLD_R, trange: CONFIG.BUILD.tower.range,
+        pen: CONFIG.UNIT.BUILD_PENALTY, siege: CONFIG.UNIT.BUILDING_DAMAGE_MULT })}</div>
   </div></div>`;
 
-  return `<div class="cx-intro">Công trình <b>không chặn đường đi</b> — quân đi xuyên qua nhà. Đó là một đánh đổi cố ý:
-    chặn thì với cách tìm đường tham lam của trò chơi này, dân sẽ kẹt cứng quanh cụm nhà.
-    Ngoại lệ duy nhất là <b>tường thành</b> ở cuối trang: nó chặn, nhưng chỉ chặn người của phe khác.
-    Hình vẽ ở <b>Đồ Sắt</b> trở lên, nên mái đã mang vật liệu của thời đại đó — lên đời thì cả <b>đường bao</b> của công trình đổi, không chỉ đổi màu.</div>
+  return `<div class="cx-intro">${T('Công trình <b>không chặn đường đi</b> — quân đi xuyên qua nhà. Đó là một đánh đổi cố ý: '
+    + 'chặn thì với cách tìm đường tham lam của trò chơi này, dân sẽ kẹt cứng quanh cụm nhà. Ngoại lệ duy nhất là '
+    + '<b>tường thành</b> ở cuối trang: nó chặn, nhưng chỉ chặn người của phe khác. Hình vẽ ở <b>{age}</b> trở lên, nên '
+    + 'mái đã mang vật liệu của thời đại đó — lên đời thì cả <b>đường bao</b> của công trình đổi, không chỉ đổi màu.',
+    { age: CONFIG.AGE.NAMES[3] })}</div>
     <div class="cx-grid">${cards}${wallCard}</div>`;
 }
 
@@ -632,63 +655,64 @@ function codexTabBuilds() {
 // hình: `braveness` 0,7 với `braveness` 0,3 trông y hệt nhau đứng yên — cái khác
 // nhau là họ QUYẾT ĐỊNH gì khi thấy địch. Vẽ ra một hình giống hệt nhau cho mười
 // mục là dạy người đọc rằng ở đây không có gì để phân biệt.
-const CX_GENE_BLURB = {
-  braveness: 'Ngưỡng dám giao chiến khi đang ở thế yếu. Cao thì chết sớm nhưng để lại chiến công; thấp thì sống lâu mà không làm gì.',
-  command: 'Hào quang buff lính quanh mình <b>đổi lấy</b> sức đánh của chính mình. Một ông tướng hay một chiến binh — không thể cả hai.',
-  ambition: 'Thích công thành <b>đổi lấy</b> thích săn người. Quyết định anh hùng đi về phía nhà cửa hay về phía đám đông.',
-  vigor: 'Máu dày <b>đổi lấy</b> nhanh nhẹn và đấm mạnh.',
-  greed: 'Chịu đi vòng bao xa để nhặt vật phẩm, và có dám bỏ đội hình đi săn quái không. Đánh đổi thuần tình huống.'
-};
+function cxGeneBlurb() { return {
+  braveness: T('Ngưỡng dám giao chiến khi đang ở thế yếu. Cao thì chết sớm nhưng để lại chiến công; thấp thì sống lâu mà không làm gì.'),
+  command: T('Hào quang buff lính quanh mình <b>đổi lấy</b> sức đánh của chính mình. Một ông tướng hay một chiến binh — không thể cả hai.'),
+  ambition: T('Thích công thành <b>đổi lấy</b> thích săn người. Quyết định anh hùng đi về phía nhà cửa hay về phía đám đông.'),
+  vigor: T('Máu dày <b>đổi lấy</b> nhanh nhẹn và đấm mạnh.'),
+  greed: T('Chịu đi vòng bao xa để nhặt vật phẩm, và có dám bỏ đội hình đi săn quái không. Đánh đổi thuần tình huống.')
+}; }
 
 function codexTabHero() {
   const H = CONFIG.HERO;
+  const GB = cxGeneBlurb();
   const genes = Object.keys(HERO_GENE_SPEC).map(k => {
     const g = HERO_GENE_SPEC[k];
     return `<div class="cx-card"><div class="cx-info">
-      <div class="cx-name">${k}</div>
-      <div class="cx-sub">khởi tạo ${g.range[0]}–${g.range[1]} · giới hạn ${g.bounds[0]}–${g.bounds[1]}</div>
-      <div class="cx-blurb">${CX_GENE_BLURB[k] || ''}</div>
+      <div class="cx-name">${HERO_GENE_LABELS[k] || k}</div>
+      <div class="cx-sub">${T('khởi tạo {a}–{b} · giới hạn {c}–{d}', { a: g.range[0], b: g.range[1], c: g.bounds[0], d: g.bounds[1] })}</div>
+      <div class="cx-blurb">${GB[k] || ''}</div>
     </div></div>`;
   }).join('');
 
   const items = Object.keys(CONFIG.ITEM.TYPES).map(k => {
     const it = CONFIG.ITEM.TYPES[k];
     const st = [];
-    if (it.attack) st.push(`đánh +<b>${it.attack}</b>`);
-    if (it.maxHp) st.push(`máu +<b>${it.maxHp}</b>`);
-    if (it.speedMult) st.push(`tốc +<b>${it.speedMult}</b>`);
-    if (it.auraR) st.push(`bán kính hào quang +<b>${it.auraR}</b>`);
-    if (it.auraMult) st.push(`hào quang +<b>${Math.round(it.auraMult * 100)}%</b>`);
+    if (it.attack) st.push(T('đánh +<b>{n}</b>', { n: it.attack }));
+    if (it.maxHp) st.push(T('máu +<b>{n}</b>', { n: it.maxHp }));
+    if (it.speedMult) st.push(T('tốc +<b>{n}</b>', { n: it.speedMult }));
+    if (it.auraR) st.push(T('bán kính hào quang +<b>{n}</b>', { n: it.auraR }));
+    if (it.auraMult) st.push(T('hào quang +<b>{n}%</b>', { n: Math.round(it.auraMult * 100) }));
     return `<div class="cx-card"><div class="cx-info">
       <div class="cx-name">${it.icon} ${it.label}</div>
-      <div class="cx-sub">vật phẩm — chỉ anh hùng nhặt được</div>
+      <div class="cx-sub">${T('vật phẩm — chỉ anh hùng nhặt được')}</div>
       <div class="cx-stats">${st.map(s => `<span>${s}</span>`).join('')}</div>
       <div class="cx-blurb">${it.blurb}</div>
     </div></div>`;
   }).join('');
 
   const lv = CONFIG.ITEM.LEVEL_MULT.slice(1).map((m, i) =>
-    `<span>cấp <b>${CONFIG.ITEM.LEVEL_TAG[i + 1] || 'I'}</b> = ×<b>${m}</b></span>`).join('');
+    `<span>${T('cấp <b>{tier}</b> = ×<b>{mult}</b>', { tier: CONFIG.ITEM.LEVEL_TAG[i + 1] || 'I', mult: m })}</span>`).join('');
 
-  return `<div class="cx-intro">Anh hùng là <b>vòng tiến hoá thứ hai</b>, lồng bên trong vòng tiến hoá của bộ lạc.
-    Gen bộ lạc được chọn lọc qua từng <b>kỷ nguyên</b>; gen anh hùng chạy trọn một vòng <b>bên trong một kỷ nguyên</b> —
-    người kế nhiệm luôn đột biến từ tổ tiên có điểm cao nhất, không phải từ người vừa chết.
-    Vì thế anh hùng <b>chết già</b> là cơ chế, không phải hình phạt: chính cái chết là thứ khiến vòng tiến hoá kia quay.</div>
-    <div class="cx-sect">Năm gen của cá thể</div>
+  return `<div class="cx-intro">${T('Anh hùng là <b>vòng tiến hoá thứ hai</b>, lồng bên trong vòng tiến hoá của bộ lạc. '
+    + 'Gen bộ lạc được chọn lọc qua từng <b>kỷ nguyên</b>; gen anh hùng chạy trọn một vòng <b>bên trong một kỷ nguyên</b> — '
+    + 'người kế nhiệm luôn đột biến từ tổ tiên có điểm cao nhất, không phải từ người vừa chết. Vì thế anh hùng '
+    + '<b>chết già</b> là cơ chế, không phải hình phạt: chính cái chết là thứ khiến vòng tiến hoá kia quay.')}</div>
+    <div class="cx-sect">${T('Năm gen của cá thể')}</div>
     <div class="cx-grid">${genes}</div>
-    <div class="cx-sect">Vật phẩm — nhặt trên xác quái và trong hang</div>
-    <div class="cx-intro" style="margin-bottom:12px;">Vật phẩm truyền lại hay không là do <b>CÁCH CHẾT</b> quyết định, không phải do loại đồ:
-    <b>chết già</b> thì cả hòm vào kho <b>gia bảo</b> và người kế nhiệm nhận <b>trọn bộ</b>;
-    <b>tử trận</b> thì <b>mất một nửa</b> — số ấy rơi vãi ngay chỗ ngã xuống cho bên nào tới trước nhặt, nửa còn lại vẫn về kho.
-    Nên một dòng dõi biết lượng sức càng đánh càng giàu đồ, còn một dòng dõi hung hăng thì đời nào cũng phải gây dựng lại.
-    Nhặt trúng đồ trùng thì hai món <b>hợp nhất</b> lên cấp, và đường cong cố ý vượt phép cộng: ${lv}.
-    Hòm chứa tối đa <b>${CONFIG.ITEM.MAX_HELD}</b> món.</div>
+    <div class="cx-sect">${T('Vật phẩm — nhặt trên xác quái và trong hang')}</div>
+    <div class="cx-intro" style="margin-bottom:12px;">${T('Vật phẩm truyền lại hay không là do <b>CÁCH CHẾT</b> quyết định, '
+    + 'không phải do loại đồ: <b>chết già</b> thì cả hòm vào kho <b>gia bảo</b> và người kế nhiệm nhận <b>trọn bộ</b>; '
+    + '<b>tử trận</b> thì <b>mất một nửa</b> — số ấy rơi vãi ngay chỗ ngã xuống cho bên nào tới trước nhặt, nửa còn lại vẫn '
+    + 'về kho. Nên một dòng dõi biết lượng sức càng đánh càng giàu đồ, còn một dòng dõi hung hăng thì đời nào cũng phải gây '
+    + 'dựng lại. Nhặt trúng đồ trùng thì hai món <b>hợp nhất</b> lên cấp, và đường cong cố ý vượt phép cộng: {levels}. '
+    + 'Hòm chứa tối đa <b>{max}</b> món.', { levels: lv, max: CONFIG.ITEM.MAX_HELD })}</div>
     <div class="cx-grid">${items}</div>
-    <div class="cx-sect">Luật của dòng dõi</div>
+    <div class="cx-sect">${T('Luật của dòng dõi')}</div>
     <div class="cx-grid"><div class="cx-card"><div class="cx-info">
-      <div class="cx-name">Một người một lúc</div>
-      <div class="cx-stats"><span>tuổi thọ <b>${H.MAX_AGE}</b> tick</span><span>hồi máu trên đất nhà <b>${H.HEAL_RATE}</b>/tick</span><span>nuôi <b>${H.UPKEEP}</b> lương/tick</span></div>
-      <div class="cx-blurb">Mỗi bộ lạc nhiều nhất một anh hùng còn sống. Chết rồi thì trại lính chiêu mộ đời tiếp theo sau một quãng nghỉ.</div>
+      <div class="cx-name">${T('Một người một lúc')}</div>
+      <div class="cx-stats"><span>${T('tuổi thọ <b>{n}</b> tick', { n: H.MAX_AGE })}</span><span>${T('hồi máu trên đất nhà <b>{n}</b>/tick', { n: H.HEAL_RATE })}</span><span>${T('nuôi <b>{n}</b> lương/tick', { n: H.UPKEEP })}</span></div>
+      <div class="cx-blurb">${T('Mỗi bộ lạc nhiều nhất một anh hùng còn sống. Chết rồi thì trại lính chiêu mộ đời tiếp theo sau một quãng nghỉ.')}</div>
     </div></div></div>`;
 }
 
@@ -703,58 +727,99 @@ function codexTabHero() {
 // Con số hiện ra là con số CỘNG DỒN TỚI CẤP TRẦN, không phải mỗi cấp, và giá cũng
 // là TỔNG cả ba cấp: người đọc đang hỏi "nhánh này đáng bao nhiêu", không hỏi
 // "một bước của nó đáng bao nhiêu".
-const CX_UP_BLURB = {
-  melee: 'Nhánh rẻ nhất và cũng là nhánh chạm tới nhiều người nhất — bộ binh là loại quân đông nhất mọi chiến trường.',
-  armor: 'Trừ THẲNG vào mỗi cú chạm, nên nó có lợi tương đối nhất cho quân rẻ: một cú đòn 7 mất 3 giáp là mất gần một nửa.',
-  ranged: 'Chỉ có nghĩa nếu bộ lạc đã có Xưởng thợ — nên nó là nhánh đầu tiên trong bảng đứng sau một quyết định xây dựng.',
-  cavalry: 'Đắt, và chỉ chạm tới hai loại quân. Đổi lại nó cộng vào đúng thứ đã mạnh sẵn — kỵ binh là quân đắt nhất bảng.',
-  medicine: 'Không cộng một điểm sát thương nào. Nó nhân số máu mà thầy lang vá lại được giữa trận — thứ duy nhất trong bảng làm quân đã ra lò <b>quay lại được</b>.',
-  siege: 'Sát thương lan, tầm bắn, và cả KÍCH THƯỚC của cỗ máy trên màn hình — nhánh duy nhất chảy từ bảng nâng cấp ra tới hình vẽ. <b>+14% mỗi cấp</b>: một cỗ máy bắn đá cấp 3 rộng <b>3,05 ô</b>, vượt cả voi chiến (2,6) để thành hình lớn nhất nhóm quân — chỗ mà một cỗ máy vừa ra lò <em>chưa</em> có. Mỗi cấp còn đóng thêm một dấu vào hình bóng để đọc được cấp mà không cần đứng cạnh cái khác: <b>I</b> vành sắt ở bánh xe + đai sắt bọc sàn · <b>II</b> mộc chắn che kíp vận hành · <b>III</b> cờ đuôi nheo dựng ở đuôi xe.',
-  supplyline: `Nhánh duy nhất mua <b>BÁN KÍNH HOẠT ĐỘNG</b>. Tám nhánh kia trả lời "đơn vị này mạnh tới đâu"; nhánh này trả lời "đạo quân này <b>đi được bao xa</b>". Ba con số của nó đúng là ba chỗ mà một Trại tiếp tế bị nghẽn: hồi <b>${CONFIG.SUPPLY.CAMP.RATE}</b> → <b>${(CONFIG.SUPPLY.CAMP.RATE + CONFIG.UPGRADE.LINES.supplyline.rate * CONFIG.UPGRADE.MAX_LEVEL).toFixed(1)}</b> quân lương/tick, nuôi <b>${CONFIG.SUPPLY.CAMP.SLOTS}</b> → <b>${CONFIG.SUPPLY.CAMP.SLOTS + CONFIG.UPGRADE.LINES.supplyline.slots * CONFIG.UPGRADE.MAX_LEVEL}</b> suất cùng lúc, bán kính <b>${CONFIG.SUPPLY.CAMP.R}</b> → <b>${CONFIG.SUPPLY.CAMP.R + CONFIG.UPGRADE.LINES.supplyline.reach * CONFIG.UPGRADE.MAX_LEVEL}</b> ô. <b>Tuổi thọ</b> cái trại thì KHÔNG nằm ở đây — nó leo theo <b>thời đại</b>. Hai nguồn tiến bộ tách hẳn, để đọc được cái nào vừa đổi: lên đời thì trại đứng lâu hơn, nghiên cứu thì trại nuôi được nhiều người hơn.`,
-  masonry: 'Nhánh duy nhất <b>không chạm tới một người nào</b>: nó cộng phần trăm máu cho <b>mọi công trình</b>, kể cả tháp canh. Cũng là nhánh duy nhất có ích cho bộ lạc <b>đang thua</b> — sáu nhánh quân sự đều nhân với số quân đang cầm, nên kẻ vừa mất quân được thưởng ít nhất. Ở Kinh đô nên nó <b>không đứng sau cửa nào</b>. <b>Tường thành đã rời khỏi nhánh này</b> ở Phase 3.30: tường lên bậc theo <b>thời đại</b>, không theo nghiên cứu — trộn hai đồng hồ vào một con số thì người xem nhìn tường dày lên mà không biết vì sao.'
-};
+function cxUpBlurb() { return {
+  melee: T('Nhánh rẻ nhất và cũng là nhánh chạm tới nhiều người nhất — bộ binh là loại quân đông nhất mọi chiến trường.'),
+  armor: T('Trừ THẲNG vào mỗi cú chạm, nên nó có lợi tương đối nhất cho quân rẻ: một cú đòn 7 mất 3 giáp là mất gần một nửa.'),
+  ranged: T('Chỉ có nghĩa nếu bộ lạc đã có Xưởng thợ — nên nó là nhánh đầu tiên trong bảng đứng sau một quyết định xây dựng.'),
+  cavalry: T('Đắt, và chỉ chạm tới hai loại quân. Đổi lại nó cộng vào đúng thứ đã mạnh sẵn — kỵ binh là quân đắt nhất bảng.'),
+  medicine: T('Không cộng một điểm sát thương nào. Nó nhân số máu mà thầy lang vá lại được giữa trận — thứ duy nhất trong bảng làm quân đã ra lò <b>quay lại được</b>.'),
+  siege: T('Sát thương lan, tầm bắn, và cả KÍCH THƯỚC của cỗ máy trên màn hình — nhánh duy nhất chảy từ bảng nâng cấp ra tới hình vẽ. <b>+14% mỗi cấp</b>: một cỗ máy bắn đá cấp 3 rộng <b>3,05 ô</b>, vượt cả voi chiến (2,6) để thành hình lớn nhất nhóm quân — chỗ mà một cỗ máy vừa ra lò <em>chưa</em> có. Mỗi cấp còn đóng thêm một dấu vào hình bóng để đọc được cấp mà không cần đứng cạnh cái khác: <b>I</b> vành sắt ở bánh xe + đai sắt bọc sàn · <b>II</b> mộc chắn che kíp vận hành · <b>III</b> cờ đuôi nheo dựng ở đuôi xe.'),
+  supplyline: T('Nhánh duy nhất mua <b>BÁN KÍNH HOẠT ĐỘNG</b>. Tám nhánh kia trả lời "đơn vị này mạnh tới đâu"; '
+    + 'nhánh này trả lời "đạo quân này <b>đi được bao xa</b>". Ba con số của nó đúng là ba chỗ mà một Trại tiếp tế bị '
+    + 'nghẽn: hồi <b>{r0}</b> → <b>{r1}</b> quân lương/tick, nuôi <b>{s0}</b> → <b>{s1}</b> suất cùng lúc, bán kính '
+    + '<b>{d0}</b> → <b>{d1}</b> ô. <b>Tuổi thọ</b> cái trại thì KHÔNG nằm ở đây — nó leo theo <b>thời đại</b>. Hai nguồn '
+    + 'tiến bộ tách hẳn, để đọc được cái nào vừa đổi: lên đời thì trại đứng lâu hơn, nghiên cứu thì trại nuôi được nhiều '
+    + 'người hơn.',
+    { r0: CONFIG.SUPPLY.CAMP.RATE,
+      r1: (CONFIG.SUPPLY.CAMP.RATE + CONFIG.UPGRADE.LINES.supplyline.rate * CONFIG.UPGRADE.MAX_LEVEL).toFixed(1),
+      s0: CONFIG.SUPPLY.CAMP.SLOTS,
+      s1: CONFIG.SUPPLY.CAMP.SLOTS + CONFIG.UPGRADE.LINES.supplyline.slots * CONFIG.UPGRADE.MAX_LEVEL,
+      d0: CONFIG.SUPPLY.CAMP.R,
+      d1: CONFIG.SUPPLY.CAMP.R + CONFIG.UPGRADE.LINES.supplyline.reach * CONFIG.UPGRADE.MAX_LEVEL }),
+  volley: T('Nhánh <b>một cấp duy nhất</b> của cả bảng, và <b>đắt nhất</b> — vì thứ nó bán là một '
+    + '<b>nhân tử</b>, không phải một số cộng: mũi tên thứ hai nhân đôi sản lượng của <b>mọi</b> tháp '
+    + 'đang đứng, cùng một lúc, kể cả tháp xây từ Đồ Đá. Hai mũi bắn vào <b>hai mục tiêu khác nhau</b> '
+    + 'chứ không dồn vào một, nên nó mạnh nhất đúng lúc đáng mạnh nhất: khi cả một đạo quân đang trèo '
+    + 'tường. Cho nó ba cấp thì cấp 3 hoá ra bốn mũi tên và cơ chế công thành ngừng tồn tại — nên cái '
+    + 'giá của ba cấp đã được <b>gộp vào một</b>. Muốn mua thì phải có <b>đá</b>, mà đá thì đã đi vào '
+    + 'tường và tháp hết rồi: đây là chỗ gen <b>{fortify}</b> phải trả lời câu hỏi khó nhất của nó.',
+    { fortify: (typeof GENE_LABELS !== 'undefined' && GENE_LABELS.fortify) || 'phòng thủ' }),
+  masonry: T('Nhánh duy nhất <b>không chạm tới một người nào</b>: nó cộng phần trăm máu cho <b>mọi công trình</b>, kể cả tháp canh. Cũng là nhánh duy nhất có ích cho bộ lạc <b>đang thua</b> — sáu nhánh quân sự đều nhân với số quân đang cầm, nên kẻ vừa mất quân được thưởng ít nhất. Ở Kinh đô nên nó <b>không đứng sau cửa nào</b>. <b>Tường thành đã rời khỏi nhánh này</b> ở Phase 3.30: tường lên bậc theo <b>thời đại</b>, không theo nghiên cứu — trộn hai đồng hồ vào một con số thì người xem nhìn tường dày lên mà không biết vì sao.')
+}; }
 
 function codexTabUpgrades() {
   const U = CONFIG.UPGRADE;
+  const UB = cxUpBlurb();
   const cards = Object.keys(U.LINES).map(k => {
     const L = U.LINES[k];
-    const max = U.MAX_LEVEL;
+    const max = upgradeMaxLv(k);
     const st = [];
-    if (L.atk) st.push(`đánh +<b>${(L.atk * max).toFixed(1)}</b>`);
-    if (L.def) st.push(`giáp +<b>${(L.def * max).toFixed(1)}</b>`);
-    if (L.hp) st.push(`máu +<b>${L.hp * max}</b>`);
-    if (L.bhp) st.push(`máu công trình +<b>${Math.round(L.bhp * max * 100)}%</b>`);
-    if (L.heal) st.push(`chữa +<b>${(L.heal * max).toFixed(2)}</b>/tick`);
-    if (L.heals) st.push(`chữa <b>${1 + L.heals * max}</b> người một lúc`);
+    if (L.atk) st.push(T('đánh +<b>{n}</b>', { n: (L.atk * max).toFixed(1) }));
+    if (L.def) st.push(T('giáp +<b>{n}</b>', { n: (L.def * max).toFixed(1) }));
+    if (L.hp) st.push(T('máu +<b>{n}</b>', { n: L.hp * max }));
+    if (L.bhp) st.push(T('máu công trình +<b>{n}%</b>', { n: Math.round(L.bhp * max * 100) }));
+    if (L.heal) st.push(T('chữa +<b>{n}</b>/tick', { n: (L.heal * max).toFixed(2) }));
+    if (L.heals) st.push(T('chữa <b>{n}</b> người một lúc', { n: 1 + L.heals * max }));
     // `reach` mang HAI nghĩa tuỳ nhánh (tầm chữa của thầy lang / bán kính trại), và
     // hai nhánh không bao giờ cùng khai nó — nên phân nhánh theo `L.slots`, thứ chỉ
     // Quân nhu có. In "tầm chữa" cho một cái trại tiếp tế là dạy người đọc sai đúng
     // con số mà cả nhánh sinh ra để nói.
-    if (L.reach) st.push(`${L.slots ? 'bán kính trại' : 'tầm chữa'} +<b>${(L.reach * max).toFixed(1)}</b> ô`);
-    if (L.rate) st.push(`tiếp tế +<b>${(L.rate * max).toFixed(2)}</b>/tick`);
-    if (L.slots) st.push(`nuôi <b>${CONFIG.SUPPLY.CAMP.SLOTS + L.slots * max}</b> suất một lúc`);
-    if (L.splash) st.push(`lan +<b>${(L.splash * max).toFixed(2)}</b> ô`);
-    if (L.range) st.push(`tầm +<b>${(L.range * max).toFixed(1)}</b> ô`);
-    if (L.scale) st.push(`to +<b>${Math.round(L.scale * max * 100)}%</b>`);
-    // Giá TỔNG cả ba cấp: nhân bảng gốc với tổng hệ số leo (1 + 1,85 + 3,1).
-    const stepSum = U.COST_STEP.reduce((a, b) => a + b, 0);
+    if (L.reach) st.push(T('{what} +<b>{n}</b> ô', { what: L.slots ? T('bán kính trại') : T('tầm chữa'), n: (L.reach * max).toFixed(1) }));
+    if (L.rate) st.push(T('tiếp tế +<b>{n}</b>/tick', { n: (L.rate * max).toFixed(2) }));
+    if (L.slots) st.push(T('nuôi <b>{n}</b> suất một lúc', { n: CONFIG.SUPPLY.CAMP.SLOTS + L.slots * max }));
+    if (L.splash) st.push(T('lan +<b>{n}</b> ô', { n: (L.splash * max).toFixed(2) }));
+    if (L.range) st.push(T('tầm +<b>{n}</b> ô', { n: (L.range * max).toFixed(1) }));
+    if (L.scale) st.push(T('to +<b>{n}%</b>', { n: Math.round(L.scale * max * 100) }));
+    // BA KHOÁ CỦA THÁP CANH — thiếu ba dòng này thì thẻ Nỏ liên châu in ra một ô
+    // trống ở đúng chỗ đáng lẽ phải nói nhánh ấy LÀM GÌ, và người đọc chỉ thấy tên
+    // với giá tiền. Cả `shots`/`tatk`/`thp` đều là khoá riêng của nhánh tháp, không
+    // đi qua `applies` như bảy nhánh kia (tháp canh là CÔNG TRÌNH, không phải một
+    // loại quân), nên chúng lọt qua mọi dòng phía trên mà không một chỗ nào báo lỗi.
+    //
+    // `shots` KHÔNG nhân với `max`: nó là số mũi tên CỘNG THÊM, và nhánh này chỉ có
+    // một cấp — xem chú thích volley trong config để biết vì sao nó không được phép
+    // leo. Viết `L.shots * max` ở đây thì con số trên thẻ đúng hôm nay và sai đúng
+    // vào ngày ai đó cho nhánh này cấp thứ hai.
+    if (L.shots) st.push(T('bắn <b>{n}</b> mũi cùng lúc, mỗi mũi một mục tiêu', { n: 1 + L.shots }));
+    if (L.tatk) st.push(T('sát thương tháp +<b>{n}%</b>', { n: Math.round(L.tatk * max * 100) }));
+    if (L.thp) st.push(T('máu tháp +<b>{n}%</b>', { n: Math.round(L.thp * max * 100) }));
+    // Giá TỔNG mọi cấp CỦA CHÍNH NHÁNH NÀY: cắt bảng hệ số leo đúng bằng số cấp nó
+    // có. Cộng cả ba hệ số cho một nhánh một cấp thì thẻ tra cứu đòi 5.058 đá cho
+    // một thứ mua bằng 850 — sai gấp sáu lần, và sai theo hướng khiến người đọc gạch
+    // luôn nhánh ấy khỏi kế hoạch.
+    const stepSum = U.COST_STEP.slice(0, max).reduce((a, b) => a + b, 0);
     const total = {};
     for (const r in L.cost) total[r] = Math.round(L.cost[r] * stepSum);
-    const tickSum = U.TICKS.slice(1).reduce((a, b) => a + b, 0);
+    const tickSum = U.TICKS.slice(1, max + 1).reduce((a, b) => a + b, 0);
     return `<div class="cx-card"><div class="cx-info">
       <div class="cx-name">${L.icon} ${L.label}</div>
-      <div class="cx-sub">${CONFIG.BUILD[L.build].label} · ${CONFIG.AGE.NAMES[L.age]} · ${max} cấp</div>
-      <div class="cx-stats"><span>áp cho <b>${L.scope}</b></span>${st.map(s => `<span>${s}</span>`).join('')}
-        <span>trọn 3 cấp: ${cxCost(total)}</span><span><b>${tickSum}</b> tick nghiên cứu</span></div>
-      <div class="cx-blurb">${CX_UP_BLURB[k] || ''}</div>
+      <div class="cx-sub">${CONFIG.BUILD[L.build].label} · ${CONFIG.AGE.NAMES[L.age]} · ${max === 1 ? T('1 cấp') : T('{n} cấp', { n: max })}</div>
+      <div class="cx-stats"><span>${T('áp cho <b>{scope}</b>', { scope: L.scope })}</span>${st.map(s => `<span>${s}</span>`).join('')}
+        <span>${max === 1 ? T('cấp duy nhất: {cost}', { cost: cxCost(total) })
+                          : T('trọn {lv} cấp: {cost}', { lv: max, cost: cxCost(total) })}</span><span>${T('<b>{n}</b> tick nghiên cứu', { n: tickSum })}</span></div>
+      <div class="cx-blurb">${UB[k] || ''}</div>
     </div></div>`;
   }).join('');
-  return `<div class="cx-intro">Mỗi nhánh gắn với <b>đúng một công trình</b>, và phá công trình đó giữa chừng là
-    bộ lạc <b>mất trắng</b> nhánh đang nghiên cứu dở. Chỉ nghiên cứu được <b>một nhánh mỗi lúc</b> — nên bảng này
-    không phải một danh sách để mua hết, nó là một <b>thứ tự</b>. Con số dưới đây là mức <b>cộng dồn tới cấp 3</b>
-    và giá của <b>cả ba cấp</b> (giá leo ×${CONFIG.UPGRADE.COST_STEP.join(' · ×')} theo cấp).
-    Nâng cấp <b>cộng</b> chứ không nhân, nên nó có lợi tương đối nhiều nhất cho loại quân <b>rẻ nhất</b> — trừ
-    <b>Nề đá</b>, ngoại lệ duy nhất, vì máu công trình trải từ 150 tới 2.600.</div>
+  return `<div class="cx-intro">${T('Mỗi nhánh gắn với <b>đúng một công trình</b>, và phá công trình đó giữa chừng là '
+    + 'bộ lạc <b>mất trắng</b> nhánh đang nghiên cứu dở. Chỉ nghiên cứu được <b>một nhánh mỗi lúc</b> — nên bảng này '
+    + 'không phải một danh sách để mua hết, nó là một <b>thứ tự</b>. Con số trên mỗi thẻ là mức <b>cộng dồn tới cấp '
+    + 'trần của chính nhánh đó</b> và giá của <b>tất cả các cấp</b> (giá leo ×{steps} theo cấp). Gần hết là <b>ba cấp</b>; '
+    + '<b>{volley}</b> chỉ có <b>một</b>, và giá ba cấp đã gộp vào cấp ấy. Nâng cấp <b>cộng</b> chứ không nhân, nên nó có '
+    + 'lợi tương đối nhiều nhất cho loại quân <b>rẻ nhất</b> — trừ <b>{masonry}</b>, vì máu công trình trải từ 150 tới '
+    + '2.600, và trừ <b>{volley}</b>, nhánh duy nhất bán một nhân tử thật.',
+    { steps: CONFIG.UPGRADE.COST_STEP.join(' · ×'),
+      masonry: CONFIG.UPGRADE.LINES.masonry.label,
+      volley: CONFIG.UPGRADE.LINES.volley.label })}</div>
     <div class="cx-grid">${cards}</div>`;
 }
 
@@ -806,8 +871,10 @@ function closeCodex() {
   el('codexScreen').classList.remove('open');
 }
 
+// Chỉ còn MỘT nút mở Thư khố, và nó nằm ở trang bìa. Chip "📖 Thư khố" trên khung
+// hình đã bị bỏ ở Phase 3.37 (xem chú thích #ovChips): đường vào lúc đang chơi là
+// phím B, hoặc ☰ Thế cuộc → trang bìa.
 el('menuCodex').addEventListener('click', () => openCodex());
-el('chipCodex').addEventListener('click', () => openCodex());
 el('codexClose').addEventListener('click', closeCodex);
 // Bắt ở cấp hàng tờ, không gắn lên từng nút: hàng tờ bị dựng lại bằng innerHTML
 // mỗi lần đổi tờ, nên trình nghe gắn trực tiếp lên nút sẽ bốc hơi cùng cái nút đó

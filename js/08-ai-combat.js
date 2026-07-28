@@ -171,14 +171,14 @@ function dealDamage(attacker, target, isBuilding, opts) {
     // Hang ổ cũng có `size` nên isBuilding = true, nhưng nó KHÔNG nằm trong
     // CONFIG.BUILD — tra thẳng vào đó là `undefined.label` và cả mô phỏng dừng.
     addHotspot(target.x, target.y, isBuilding ? 4 : 1,
-      target.isLair ? 'Đánh hang ổ'
+      target.isLair ? TL('Đánh hang ổ')
       // Ô tường cũng có `size` nên isBuilding = true, và nó cũng KHÔNG nằm trong
       // CONFIG.BUILD — y hệt hang ổ, y hệt cái bẫy đã ghi ngay dòng trên. Đây là
       // lần thứ hai một vật "có máu, có size, không phải công trình" đi qua cửa
       // này; nếu có lần thứ ba thì chỗ này phải thành một hàm.
-      : target.isWall ? 'Công thành'
-      : isBuilding ? `Vây thành ${CONFIG.BUILD[target.type].label}`
-      : 'Giao tranh');
+      : target.isWall ? TLc('hotspot.assaultWall', 'Công thành')
+      : isBuilding ? TL('Vây thành {build}', { build: () => CONFIG.BUILD[target.type].label })
+      : TL('Giao tranh'));
   }
   if (target.hp <= 0) {
     if (owner) owner.kills++;
@@ -252,16 +252,16 @@ function dealDamage(attacker, target, isBuilding, opts) {
           // nhiên bộ lạc này khởi công được" mà không biết vì sao — một điều kiện
           // không đọc ra được thì với người xem nó không tồn tại.
           if (owner.townsRazed === CONFIG.WONDER.NEED_TOWNS && gameMode !== 'defend') {
-            logEvent(`👑 ${owner.name} nhận THIÊN MỆNH — đã đủ chiến công để khởi công Kỳ quan`, owner.color, true);
+            logEvent(TL('👑 {tribe} nhận THIÊN MỆNH — đã đủ chiến công để khởi công Kỳ quan', { tribe: owner.name }), owner.color, true);
           }
         }
       }
-      if (target.type === 'town' && owner) logEvent(`🔥 ${owner.name} san phẳng KINH ĐÔ của ${victim.name}!`, owner.color, true);
-      else if (target.type === 'town') logEvent(`🔥 Quái vật san phẳng KINH ĐÔ của ${victim.name}!`, '#b783cc', true);
+      if (target.type === 'town' && owner) logEvent(TL('🔥 {tribe} san phẳng KINH ĐÔ của {victim}!', { tribe: owner.name, victim: victim.name }), owner.color, true);
+      else if (target.type === 'town') logEvent(TL('🔥 Quái vật san phẳng KINH ĐÔ của {victim}!', { victim: victim.name }), '#b783cc', true);
     } else if (target.tribeId >= 0) {
       tribes[target.tribeId].losses++;
       if (target.type === 'hero') {
-        logEvent(`💀 Anh hùng ${target.name} của ${tribes[target.tribeId].name} tử trận`,
+        logEvent(TL('💀 Anh hùng {hero} của {tribe} tử trận', { hero: target.name, tribe: tribes[target.tribeId].name }),
                  owner ? owner.color : '#b783cc', true);
       }
     }
@@ -528,6 +528,187 @@ function wallOnFieldPath(u, field, R) {
   return null;
 }
 
+// ============================================================
+// BINH PHÁP CÔNG THÀNH — hai luật, xem CONFIG.SIEGE để biết phép đo đã sinh ra chúng
+// ============================================================
+
+// Ô CÁNH CỬA của cạnh mà ô tường `w` đang thuộc về. Trả về null khi cửa đã thủng,
+// đã mọc lại thành ô khác, hoặc khi chính `w` đã là một ô cổng.
+//
+// KHÔNG dò tìm gì cả: toạ độ cổng được gán sẵn vào từng ô tường lúc dựng vành
+// (`gx`/`gy` trong ensureWalls). Xem khối chú thích ở đó để biết vì sao phải gán
+// sẵn thay vì tìm "cổng gần nhất" — câu trả lời ngắn là ô góc cách đều hai cổng.
+function wallGateCell(w) {
+  if (!w || w.gate || w.gx === undefined) return null;
+  const g = wallCells.get(w.gx + ',' + w.gy);
+  return (g && g.hp > 0 && g.tribeId === w.tribeId) ? g : null;
+}
+
+// Có lỗ thủng nào gần bức tường này không. Quét một ô vuông quanh ĐIỂM cho trước
+// chứ không duyệt cả `wallCells` — gần hai nghìn phần tử trên một đường đi nóng là
+// chi phí mà chú thích của dealDamage đã cấm từ Phase 3.29.
+function breachNear(x, y, tribeId, R) {
+  for (let dx = -R; dx <= R; dx++) {
+    for (let dy = -R; dy <= R; dy++) {
+      const w = wallCells.get((x + dx) + ',' + (y + dy));
+      if (w && w.tribeId === tribeId && w.hp <= 0) return w;
+    }
+  }
+  return null;
+}
+
+// LUẬT 1 — TÌM CỔNG. Trả về true nếu đã dùng lượt đi của tick này để men theo
+// tường về phía cánh cửa.
+//
+// Ba lối thoát, và cả ba đều là "đứng đục ngay đây mới đúng":
+//   · ô đang chắn mặt CHÍNH LÀ cổng (hoặc lầu cổng) — tới nơi rồi;
+//   · ô đang chắn mặt sắp thủng (dưới FINISH_WALL_HP) — bỏ đi lúc này là phí sạch
+//     công đã đánh, đúng ngoại lệ FINISH_HP_FRAC mà thang ưu tiên đã dùng ba chỗ;
+//   · cổng ở quá xa (ngoài GATE_SEEK_R) hoặc đã thủng — không còn gì để đi tới.
+// Thêm một lối thoát thứ tư có sẵn trong hình học: đã TỚI CHỖ ĐỨNG của mình rồi
+// thì đi tiếp là đi quá, nên trả false để chỗ gọi đánh/bắn.
+//
+// `stopAt` chính là "chỗ đứng của tôi", và nó là cả lý do hàm này dùng chung được
+// cho hai binh chủng: bộ binh dừng khi ĐỨNG KỀ (1), quân bắn dừng khi CỔNG VÀO
+// TẦM (siegeStandoff). Viết hai bản thì một bản sẽ được sửa còn bản kia thì không
+// — đúng lý do đã ghi cho wallOnPathTo dùng chung ở cả hai chỗ gọi.
+function gateSeekStep(u, w, stopAt) {
+  if (!w || w.gate) return false;
+  if (w.maxHp && w.hp <= w.maxHp * CONFIG.SIEGE.FINISH_WALL_HP) return false;
+  const g = wallGateCell(w);
+  if (!g) return false;
+  const d = cheb(u.x, u.y, g.x, g.y);
+  if (d <= (stopAt || 1) || d > CONFIG.SIEGE.GATE_SEEK_R) return false;
+  moveToward(u, g.x, g.y);
+  return true;
+}
+
+// LUẬT 2 — ĐỢI CỖ MÁY. Trả về true nếu người lính này nên LÙI RA chờ thay vì đục.
+//
+// Không nhớ gì qua các tick: cả bốn điều kiện đều hỏi lại bản đồ mỗi lần. Xem khối
+// chú thích CONFIG.SIEGE.WAIT để biết vì sao "chờ tối đa N tick" là bản viết SAI
+// của cùng ý tưởng này.
+function pourThreshold(tribe) {
+  const S = CONFIG.SIEGE.WAIT;
+  const disc = clamp(tribe.policy ? tribe.policy.discipline : 0.5, 0, 1);
+  const lv = (tribe.upgrades && tribe.upgrades.siege) || 0;
+  // Nội suy giữa "gần như không chờ" (kỷ luật 0) và POUR_HP (kỷ luật 1), rồi nhánh
+  // Công thành kéo tiếp xuống. Kẹp sàn 0,12 để ngưỡng không bao giờ chạm 0 — ở 0
+  // thì bộ binh chờ tới khi tường VỠ HẲN, tức là chúng luôn tới sau cuộc chơi.
+  const base = S.POUR_UNDISCIPLINED + (S.POUR_HP - S.POUR_UNDISCIPLINED) * disc;
+  return Math.max(0.12, base - S.POUR_PER_SIEGE_LV * lv);
+}
+
+// CÓ ĐÁNG CHỜ CỖ MÁY KHÔNG — một VỊ TỪ THUẦN, không di chuyển ai cả.
+//
+// Tách phần "quyết định" khỏi phần "bước chân" là cả bản sửa vòng hai của khối này.
+// Bản đầu gộp làm một (hàm này tự lùi ra) rồi chạy SAU luật tìm cổng, và hai luật
+// đánh nhau đúng một nhịp mỗi tick: tìm-cổng kéo người lính về phía cổng, đợi-máy
+// đẩy nó ra, tick sau lặp lại y hệt. Người lính rung tại chỗ ở khoảng 13 ô và
+// không bao giờ làm gì — một biến thể mới của "đứng chôn chân", lần này do CHÍNH
+// hai bản sửa của cùng một bản dựng lên.
+//
+// Bài học chung với năm lần trước: hai đoạn mã cùng ra lệnh đi lại cho một đơn vị
+// thì phải hợp nhất thành MỘT mục tiêu và MỘT khoảng cách, không phải xếp thứ tự
+// cho nhau.
+function shouldWaitForSiege(u, tribe, w) {
+  const S = CONFIG.SIEGE.WAIT;
+  if (!w || w.hp <= 0) return false;
+  // Tường đã đủ yếu -> TRÀN VÀO. Đây là điều kiện dừng của cả luật, và nó đo bằng
+  // máu tường chứ bằng thời gian nên bộ binh ập tới đúng lúc chứ không sau một
+  // khoảng chờ cố định.
+  if (w.maxHp && w.hp <= w.maxHp * pourThreshold(tribe)) return false;
+  // Đã có lỗ -> đi qua lỗ, không chờ nữa.
+  if (breachNear(w.x, w.y, w.tribeId, S.BREACH_R)) return false;
+  // CÓ CỖ MÁY ĐANG BẮN ĐƯỢC VÀO ĐÚNG Ô NÀY KHÔNG? Van chống kẹt của cả luật, và
+  // vòng hai đã phải siết nó lại rất nhiều — bản đầu chỉ hỏi "có cỗ máy nào trong
+  // ESCORT_R (34 ô) không", và phép đo ghép cặp trên 6 hạt giống bác bỏ nó:
+  //     số lỗ thủng/10k tick   9,71 -> 7,57  (-22%, nhánh mới thắng 1/6 hạt)
+  //     công trình bị hạ/10k  29,67 -> 20,10 (-32%, thắng 1/6)
+  //     số người chết/10k     272,7 -> 281,3 (gần như không đổi)
+  // Nghĩa là bộ binh đứng chờ RẤT NHIỀU (68-87% số unit-tick trước tường) trong khi
+  // cỗ máy ở trong 34 ô đó hoàn toàn có thể đang bắn một thứ khác, hoặc đang bò tới,
+  // hoặc đang nạp. Chờ một việc không diễn ra thì đúng là "một trạng thái bận rộn
+  // không sản xuất ra gì cả" — họ lỗi mà chú thích siegeWallFromRange đã đặt tên.
+  //
+  // Điều kiện đúng là ĐANG BẮN ĐƯỢC: cỗ máy nằm trong TẦM BẮN CỦA CHÍNH NÓ tính tới
+  // đúng ô tường này. Đọc `effRange` chứ không một hằng số riêng, vì nhánh Công thành
+  // cộng tầm cho cỗ máy — một hằng số ở đây sẽ lặng lẽ sai đi mỗi lần bộ lạc nghiên
+  // cứu xong một cấp, đúng lỗi "hai chỗ đọc hai con số cho cùng một khái niệm".
+  // Cộng 2 ô đệm để một cỗ máy đang nhích vào vị trí không làm cả hàng bộ binh
+  // xung phong rồi lùi lại theo từng bước chân của nó.
+  for (const o of units) {
+    if (o.hp <= 0 || o.tribeId !== u.tribeId || !isSiege(o.type)) continue;
+    if (cheb(o.x, o.y, w.x, w.y) <= Math.min(S.ESCORT_R, effRange(o) + 2)) return true;
+  }
+  return false;
+}
+
+// CẢ HAI LUẬT, MỘT MỤC TIÊU, MỘT KHOẢNG CÁCH. Gọi từ thang ưu tiên của tickSoldier;
+// trả về true nếu đã dùng hết lượt của tick này.
+//
+// Hình dạng của hàm này giống hệt siegeWallFromRange và giống có chủ ý: xác định ô
+// tường của mình, xác định CHỖ ĐỨNG của mình trước nó, rồi tiến/lùi về đúng chỗ đó.
+// Khác nhau đúng một con số — chỗ đứng của quân bắn là tầm bắn, của bộ binh là 1 ô
+// khi xung phong và HOLD_R khi đang chờ cỗ máy.
+function meleeSiegeDoctrine(u, tribe, dest) {
+  if (effRange(u) > 0) return false;      // quân tầm xa đã có siegeWallFromRange
+  const S = CONFIG.SIEGE.WAIT;
+  const look = S.HOLD_R + 3;
+  // CÙNG câu hỏi "bức tường nào chắn đường TÔI" mà quân tầm xa đang hỏi, và cùng
+  // hai hàm trả lời — không viết bản thứ hai (xem chú thích của siegeWallFromRange:
+  // tách làm hai bản là cách chắc chắn nhất để một bản được sửa còn bản kia thì
+  // không). `u.wallBump` được ưu tiên vì nó là bằng chứng CHẮC CHẮN của tick trước:
+  // đã đâm vào thì không cần mô phỏng lại đường đi để đoán.
+  let w = u.wallBump && u.wallBump.hp > 0 ? u.wallBump
+    : dest ? wallOnPathTo(u, Math.round(dest.x), Math.round(dest.y), look)
+           : (tribe.warField ? wallOnFieldPath(u, tribe.warField, look) : null);
+  if (!w) { u.siegeWall = null; u.siegeHold = false; return false; }
+
+  // LUẬT 1 — ĐỔI MỤC TIÊU SANG CÁNH CỬA, ngay tại đây và một lần duy nhất. Từ dòng
+  // này trở xuống chỉ còn MỘT ô tường trong toàn hàm, nên không thể có chuyện "đi
+  // tới cổng mà đo máu ở thân tường" — đúng con lỗi hai-nguồn-sự-thật mà bản đầu
+  // của chính khối này đã dựng lại: người lính chờ theo máu của ô thân tường không
+  // ai đánh, trong khi cỗ máy đang đục cánh cửa cách đó hai chục ô.
+  let redirected = false;
+  if (!w.gate && !(w.maxHp && w.hp <= w.maxHp * CONFIG.SIEGE.FINISH_WALL_HP)) {
+    const g = wallGateCell(w);
+    if (g && cheb(u.x, u.y, g.x, g.y) <= CONFIG.SIEGE.GATE_SEEK_R) { w = g; redirected = true; }
+  }
+  // Gán CẢ KHI null (nhánh thoát ở trên), đúng như siegeWallFromRange: thẻ thông tin
+  // đọc trường này để nói ra "phá tường · cách N ô", và một trường chỉ được ghi mà
+  // không bao giờ được xoá sẽ giữ bức tường của trận trước cho tới khi người lính chết.
+  u.siegeWall = w;
+
+  // LUẬT 2 — CHỖ ĐỨNG. Chờ cỗ máy thì đứng ngoài tầm tháp canh, không thì áp sát.
+  //
+  // `u.siegeHold` được ghi Ở ĐÂY, cùng lúc và cùng chỗ với chính quyết định, chứ
+  // không để thẻ thông tin tự suy ra từ khoảng cách. Suy lại ở tầng vẽ nghĩa là hai
+  // nơi cùng trả lời "người này đang chờ hay đang xung phong", và hai nguồn sự thật
+  // cho một khái niệm là họ lỗi đã cắn ở `medics` vs `infirmaries` và ở
+  // foodTarget vs wealth. Ghi một lần, đọc ở mọi nơi.
+  const holding = shouldWaitForSiege(u, tribe, w);
+  u.siegeHold = holding;
+  const stopAt = holding ? S.HOLD_R : 1;
+  const d = cheb(u.x, u.y, w.x, w.y);
+  if (holding) {
+    // VÙNG CHẾT ±2 quanh chỗ đứng, và nó không phải một con số làm đẹp: kỵ binh đi
+    // 2 ô/tick, nên một ngưỡng nhọn (`d < stopAt` lùi / `d > stopAt` tiến) làm nó
+    // nhảy qua nhảy lại đúng một ô quanh mốc, mãi mãi. Cùng đúng cái vòng rung mà
+    // độ trễ SEEK_HP/LEAVE_HP của trạm xá sinh ra để dập, và cùng lý do phải rộng
+    // hơn bước đi dài nhất trong game.
+    if (d > stopAt + 2) moveToward(u, w.x, w.y);
+    else if (d < stopAt - 2) moveAwayFrom(u, w.x, w.y);
+    return true;                          // đã vào chỗ: đứng chờ tường vỡ
+  }
+  // Đang xung phong: đi cho tới khi ĐỨNG KỀ, rồi nhường lại cho bashWall + thang ưu
+  // tiên bên dưới (đúng hành vi cũ). Chỉ giữ lượt khi CHÍNH hàm này vừa đổi hướng
+  // người lính sang cánh cửa; nếu không, mọi bước áp sát bình thường sẽ đi vòng qua
+  // đội hình (marchWithFormation) mà không có lý do gì.
+  if (redirected && d > 1) { moveToward(u, w.x, w.y); return true; }
+  return false;
+}
+
 // Trả về true nếu người lính này đã dùng hết lượt của mình vào việc công thành —
 // chỗ gọi phải `return` ngay, đúng như mọi nhánh khác của thang ưu tiên.
 //
@@ -541,13 +722,41 @@ function siegeWallFromRange(u, tribe, dest) {
   // Nhìn xa hơn tầm bắn một chút để còn kịp DỪNG LẠI trước khi bước vào tầm tháp
   // canh; nhưng chỉ bắn khi thật sự trong tầm (kiểm lại ở dưới).
   const look = R + 2;
-  const w = dest ? wallOnPathTo(u, Math.round(dest.x), Math.round(dest.y), look)
-                 : (tribe.warField ? wallOnFieldPath(u, tribe.warField, look) : null);
+  let w = dest ? wallOnPathTo(u, Math.round(dest.x), Math.round(dest.y), look)
+               : (tribe.warField ? wallOnFieldPath(u, tribe.warField, look) : null);
+  // NHẮM CÁNH CỬA THAY VÌ THÂN TƯỜNG. Cánh cửa chỉ có 55% máu (WALL.GATE_HP), nên
+  // cùng một cỗ máy đục thủng nó nhanh gần gấp đôi — và một cỗ máy bắn vào cùng chỗ
+  // mà bộ binh đang kéo tới (gateSeekStep) là hai nửa của một cuộc vây thay vì hai
+  // đám đông ở hai chỗ.
+  //
+  // ĐI TỚI CỔNG NẾU CỔNG NGOÀI TẦM — và vế này KHÔNG có trong bản đầu, nên bản đầu
+  // gần như không chạy. Phép đo bác nó ngay: sau khi bộ binh đã tới cổng 87,8% số
+  // lần chạm tường, MÁY BẮN ĐÁ vẫn chỉ có 9,8% số đòn rơi vào cánh cửa và 85,8% sát
+  // thương của nó đổ vào thân tường — mà nó chiếm 77% tổng sát thương lên tường của
+  // cả bản đồ. Nguyên nhân thuần hình học: vành tường bán kính tới 40 ô, nên cánh
+  // cửa thường nằm NGOÀI tầm 12 của cỗ máy, và điều kiện "chỉ đổi khi cửa trong
+  // tầm" vì thế gần như không bao giờ đúng. Kết quả là bộ binh kéo tới cổng còn cỗ
+  // máy — thứ duy nhất phá nổi tường — ở lại nã vào thân tường: hai nửa của cùng
+  // một cuộc vây đứng ở hai nơi, đúng cái mà cả bản này sinh ra để chấm dứt.
+  //
+  // Điểm neo vẫn là ô tường CHẶN ĐƯỜNG TÔI. Đây là chỗ phải cẩn thận nhất trong cả
+  // hàm: bản đầu của cơ chế công thành từ xa hỏi "ô tường gần nhất trong tầm" và bị
+  // phép đo bác ngay (58,0% unit-tick đứng gặm cả vành tường mà không bao giờ đi
+  // qua cái lỗ mình vừa mở). Neo vào ô chắn đường rồi CHỈ đi sang cánh cửa của đúng
+  // cạnh đó thì tính chất tự-tắt vẫn còn: hết bị chặn là hết bắn.
+  if (w && !w.gate) {
+    const g = wallGateCell(w);
+    if (g && !(w.maxHp && w.hp <= w.maxHp * CONFIG.SIEGE.FINISH_WALL_HP)) {
+      if (cheb(u.x, u.y, g.x, g.y) <= R) w = g;
+      else if (gateSeekStep(u, w, siegeStandoff(u))) { u.siegeWall = g; return true; }
+    }
+  }
   // Thẻ thông tin đọc trường này để nói ra "phá tường · cách N ô" (xem 14-ui-panels).
   // Trên bản đồ thì không cần thêm gì: rangedStrike đã bắn ra đúng vệt tên/đá từ chỗ
   // đứng tới bức tường, nên chuyện này TỰ NÓ nhìn thấy được.
   u.siegeWall = w || null;
   if (!w) return false;
+  u.siegeHold = false;                  // quân bắn không bao giờ "đứng chờ": bắn là việc của nó
   const d = cheb(u.x, u.y, w.x, w.y);
   const stand = siegeStandoff(u);
   // XA HƠN TẦM thì vẫn phải tiến — trả false để nhường lại cho bước hành quân bên
@@ -570,6 +779,13 @@ function siegeWallFromRange(u, tribe, dest) {
 function tickSoldier(u, tribe) {
   if (u.cooldown > 0) u.cooldown--;
   bashWall(u);
+  // XOÁ DẤU ĐẦU MỖI TICK, đúng khuôn `u.wallBump` (moveToward xoá ở đầu mỗi lần
+  // gọi). `siegeHold` chỉ được phép đúng ở những tick mà binh pháp công thành THẬT
+  // SỰ chạy và THẬT SỰ quyết định đứng chờ; để nó tự sống qua các tick thì một
+  // người lính đã bỏ đi đánh chỗ khác vẫn mang cờ "đang đợi máy bắn đá" trên thẻ
+  // thông tin — một trạng thái được ghi nhớ mà không ai xoá, đúng họ với "mục tiêu
+  // dính chặt". Trạng thái tính lại mỗi tick thì không có gì để mà cũ.
+  u.siegeHold = false;
 
   // TỐC ĐỘ PHÂN SỐ trên một lưới nguyên (kỵ binh). moveToward/stepDownField dùng
   // u.speed làm SỐ BƯỚC mỗi tick, nên 1,7 ô/tick không thể biểu diễn trực tiếp:
@@ -808,6 +1024,22 @@ function tickSoldier(u, tribe) {
     return;
   }
 
+  // 2e. BINH PHÁP CÔNG THÀNH cho quân CẬN CHIẾN — nửa còn thiếu, đối xứng với 2d.
+  //     Xem CONFIG.SIEGE để biết ba phép đo đã sinh ra nó; tóm tắt: 91% sát thương
+  //     lên tường rơi vào thân tường máu đầy trong khi cổng chỉ ăn 5,8%, và 36,3%
+  //     tổng số cái chết trên bản đồ xảy ra trong 8 ô quanh một bức tường địch.
+  //
+  //     Nằm ĐÚNG SAU 2d và trước 3 vì đây là cùng một câu: "bức tường quyết định
+  //     chỗ tôi đứng". Hai nấc chứ không một, vì hai binh chủng trả lời khác nhau —
+  //     quân bắn thì LÙI VỀ ĐÚNG TẦM và bắn, quân cận chiến thì ĐI TÌM CỔNG hoặc
+  //     ĐỨNG CHỜ CỖ MÁY. Gộp làm một hàm thì một trong hai vế sẽ phải mang một
+  //     nhánh `if` cho binh chủng kia, và đó là chỗ lần sau người ta sửa nhầm.
+  if (!target && !defendSpot && tribe.warTarget !== null && tribe.warField
+      && meleeSiegeDoctrine(u, tribe, null)) {
+    u.combatTarget = null;
+    return;
+  }
+
   // 3. Chinh phạt. Hành quân đường dài đi theo FLOW FIELD (BFS từ toàn bộ công
   // trình địch) chứ không nhắm sẵn một toà nhà cụ thể từ bên kia bản đồ.
   //
@@ -922,6 +1154,13 @@ function tickSoldier(u, tribe) {
     // mà đó mới đúng là lúc vòng vây đang siết, tức là lúc chuyện này xảy ra nhiều
     // nhất. Thiếu nó thì bản sửa tự tắt đúng vào lúc nó cần chạy.
     if (siegeWallFromRange(u, tribe, target)) return;
+    // ...và nửa thứ hai ĐỐI XỨNG cho quân cận chiến, đúng cùng lý do: nấc 2e chỉ
+    // bắt được quãng hành quân. Vòng vây siết chặt nhất đúng vào lúc mỗi người lính
+    // đã nhắm được một toà nhà sau bức tường — không có dòng này thì cả binh pháp
+    // công thành tự tắt ở đúng lúc nó cần chạy, y hệt cái bẫy mà dòng trên đã sập
+    // một lần rồi. `isBuilding` KHÔNG được xét ở đây: một người lính đuổi theo một
+    // người ĐANG ĐỨNG SAU TƯỜNG cũng đang đâm vào đúng bức tường ấy.
+    if (meleeSiegeDoctrine(u, tribe, target)) return;
     // Truy đuổi cự ly gần: đi tham lam. Nhưng phải có lối thoát — con mồi có thể
     // nấp sau một dải rừng, và khi đó lính sẽ ép mặt vào mép rừng mãi.
     moveToward(u, target.x, target.y);
@@ -1312,7 +1551,7 @@ function plantCamp(u, tribe) {
   u.camp = b;
   u.campReadyAt = tick + C.COOLDOWN;
   addFx({ type: 'spark', x: u.x, y: u.y, life: 16, maxLife: 16, color: '#d8b25c' });
-  addHotspot(u.x, u.y, 4, `${tribe.name} dựng trại tiếp tế`);
+  addHotspot(u.x, u.y, 4, TL('{tribe} dựng trại tiếp tế', { tribe: tribe.name }));
   return true;
 }
 

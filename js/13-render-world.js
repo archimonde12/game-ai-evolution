@@ -710,6 +710,17 @@ const AGE_MAT = [null,
 
 function ageMat(tribe) { return AGE_MAT[clamp(tribe.age || 1, 1, AGE_MAT.length - 1)]; }
 
+// TÊN VẬT LIỆU MÁI cho phần chữ. Bảng bộ lạc hiện nó trong tooltip ("Đồ Đồng —
+// mái đồng"), nên nó là chữ cho người đọc chứ không phải nhãn nội bộ như trông
+// có vẻ. Dịch qua Tc() với mã theo BẬC chứ không lấy chính chuỗi làm khoá: 'đồng'
+// một mình quá ngắn và quá thường, thêm nó vào từ điển là mở đường cho bộ vá dữ
+// liệu chạm nhầm vào một trường khác cũng mang đúng chữ ấy. AGE_MAT giữ nguyên
+// tiếng Việt và không bao giờ bị vá.
+function roofMatName(age) {
+  const a = clamp(age || 1, 1, AGE_MAT.length - 1);
+  return Tc('roof.mat.' + a, AGE_MAT[a].name);
+}
+
 // MÀU MÁI. Cái MÁI là mảng màu lớn nhất của sprite (~34% chiều cao) nên đổi sắc nó
 // thì cả cụm nhà đổi theo, thấy được tới tận minimap. Chỉ đụng MÁI, KHÔNG đụng thân
 // — nhờ vậy vẫn đọc ra "bộ lạc nào" qua tường, còn chất liệu mái kể "thời đại nào":
@@ -5557,17 +5568,36 @@ function spriteBox(d, cs) {
     // nguyên chép tay ở đây đã đúng bằng may mắn suốt ba bản; bậc thứ tư (lầu cổng)
     // là bậc đầu tiên nó sẽ sai.
     const hMul = wallHeightMul(d.o);
-    // Lầu cổng đội một cái mái nhô lên 0,26 ô nữa (xem drawWall) — không cộng vào
-    // đây thì bấm đúng cái nóc đó là bấm vào bãi cỏ.
-    const extra = d.o.corner ? 0.30 : (d.o.gate && !d.o.door) ? 0.34 : 0.15;
-    const h = cs * (sp.h * hMul + extra);
+    // Phần dôi lên trên khối, tính bằng PIXEL chứ không bằng phân số ô — vì thứ cao
+    // nhất trên lầu cổng là cột cờ, và cột cờ có sàn pixel (xem gatePennant).
+    //
+    // Mái vát (0,36 ô) và cột cờ (0,78 ô) cùng mọc từ MỘT mốc `capY`, không chồng
+    // lên nhau, nên phần dôi là max(hai cái) = cột cờ, KHÔNG phải tổng. Cộng chúng
+    // lại là hộp bấm cao thêm nửa ô so với hình — không ai thấy, nhưng nó phá đúng
+    // cái bất biến khiến hàm này tồn tại: hộp bấm PHẢI là hình vẽ, không phải một
+    // ước lượng rộng rãi quanh nó.
+    //
+    // Bản 3.38 để 0,34 ô — vừa khít cái mái cũ, tức là đã bỏ quên TRỌN lá cờ suốt
+    // một bản: bấm trúng lá cờ là bấm vào bãi cỏ.
+    const isGateTower = d.o.gate && !d.o.door;
+    const extraPx = isGateTower ? gatePennant(cs).poleH + INK_SLOP
+                  : cs * (d.o.corner ? 0.30 : 0.15);
+    const h = cs * sp.h * hMul + extraPx;
     // Lầu cổng cũng tràn ngang như tháp góc. 0,08 -> 0,16 sau khi ĐO BẰNG PIXEL:
     // mái vát dựng từ `bx − cs·0,08` tới `bx + bw + cs·0,08`, nhưng nét viền sáng ở
     // mép mái (lineWidth cs·0,07) còn ăn thêm nửa bề dày ra mỗi bên nữa — và bề dày
     // nét vẽ thì không nằm trong bất cứ công thức toạ độ nào. Cùng đúng lý do đã
     // phải ĐO thay vì SUY ở hộp bấm máy bắn đá (3.31): công thức cho 2,4 ô, vết mực
     // thật chạm 2,54.
-    const ov = d.o.corner ? cs * 0.10 : (d.o.gate && !d.o.door) ? cs * 0.16 : 0;
+    // Ở 3.39 con số này thôi là một hằng số: nó DỰNG LẠI đúng biểu thức của drawWall
+    //     nửa phần khối phình ra   + mép mái   + nửa bề dày nét  + vết mực đo được
+    // Viết thành `cs * 0,33` thì nó đúng ở cs 9 và hụt 0,1px ở cs 14, vì hai số hạng
+    // cuối KHÔNG co theo cs. Đây là lần thứ năm trong tệp này một hằng số chép tay
+    // suýt tách hộp bấm khỏi hình vẽ.
+    const ov = d.o.corner ? cs * 0.10
+             : isGateTower ? cs * (GATE_TOWER_W - 1) / 2 + cs * 0.08
+                             + Math.max(1, cs * 0.07) / 2 + INK_SLOP
+             : 0;
     // Đoạn DỌC được đùn khối: mặt trên phủ trọn footprint ô rồi NÂNG LÊN `h`, nên
     // hình của nó bắt đầu ở `py - h` chứ không ở `py + cs - h`. Lấy hộp của đoạn
     // ngang cho nó thì bấm vào mặt trên một bức tường dọc luôn trượt — cùng con
@@ -6037,10 +6067,10 @@ function drawHudBar() {
   // một chữ "TẠM DỪNG" thì lúc kỷ nguyên kết thúc, thanh trạng thái nói dối rằng
   // chính người xem đã dừng nó lại và đang có gì đó chờ họ bấm.
   const ended = eraState !== 'playing';
-  const state = ended ? '🏆 KỶ NGUYÊN KẾT THÚC'
-              : !running ? '⏸ TẠM DỪNG'
-              : slowmoLeft > 0 ? '⏳ quay chậm'
-              : ticksPerSecond >= 600 ? '⏭ tua' : '▶';
+  const state = ended ? T('🏆 KỶ NGUYÊN KẾT THÚC')
+              : !running ? T('⏸ TẠM DỪNG')
+              : slowmoLeft > 0 ? T('⏳ quay chậm')
+              : ticksPerSecond >= 600 ? T('⏭ tua') : '▶';
   ctx.fillStyle = ended ? '#f0cf85' : !running ? '#e09a3c' : slowmoLeft > 0 ? '#7cc2b4' : '#b1a58c';
   ctx.fillText(state, 11, y + 16);
   const sw = ctx.measureText(state).width;
@@ -6053,16 +6083,17 @@ function drawHudBar() {
   const tw = ctx.measureText(`${ticksPerSecond} tick/s`).width;
   ctx.font = `12.5px ${F_DISPLAY}`;
   ctx.fillStyle = '#b1a58c';
-  ctx.fillText(`Kỷ nguyên ${era}`, 19 + sw + tw + 14, y + 16);
-  const ew = ctx.measureText(`Kỷ nguyên ${era}`).width;
+  const eraText = T('Kỷ nguyên {n}', { n: era });
+  ctx.fillText(eraText, 19 + sw + tw + 14, y + 16);
+  const ew = ctx.measureText(eraText).width;
   ctx.font = `10.5px ${F_DATA}`;
   ctx.fillStyle = '#7b7160';
-  ctx.fillText(`${tick.toLocaleString('vi-VN')} / ${CONFIG.ERA.MAX_TICKS.toLocaleString('vi-VN')}`,
+  ctx.fillText(`${locNum(tick)} / ${locNum(CONFIG.ERA.MAX_TICKS)}`,
                19 + sw + tw + 14 + ew + 14, y + 16);
 
   ctx.textAlign = 'right';
   ctx.fillStyle = fpsAvg < 34 ? '#e05b40' : '#5c5346';
-  ctx.fillText(`${units.length} quân · ${Math.round(fpsAvg)} fps`, W - 11, y + 16);
+  ctx.fillText(T('{n} quân · {fps} fps', { n: units.length, fps: Math.round(fpsAvg) }), W - 11, y + 16);
   ctx.textAlign = 'left';
 }
 
@@ -6191,7 +6222,7 @@ function layoutToasts(hudTop) {
   ctx.font = `15px ${F_DISPLAY}`;
   let needW = 0;
   for (const t of mapToasts) {
-    const s = t.count > 1 ? `${t.text}  ×${t.count}` : t.text;
+    const s = t.count > 1 ? `${Tv(t.text)}  ×${t.count}` : Tv(t.text);
     needW = Math.max(needW, ctx.measureText(s).width);
   }
   needW += 30 + 32;                                            // con dấu + hai lề
@@ -6210,7 +6241,7 @@ function layoutToasts(hudTop) {
   const rows = [], blockers = [];
   let y = ty;
   for (const t of mapToasts) {
-    const txt = fitText(t.count > 1 ? `${t.text}  ×${t.count}` : t.text, maxText);
+    const txt = fitText(t.count > 1 ? `${Tv(t.text)}  ×${t.count}` : Tv(t.text), maxText);
     const tw = ctx.measureText(txt).width;
     const boxW = 30 + 16 + tw + 16;
     rows.push({ txt, tw, y });
@@ -6245,8 +6276,8 @@ function layoutToasts(hudTop) {
 //     mỏng nhất, và người xem phải đọc ra được điều đó mà không cần bấm vào.
 //   · BẬC — năm bậc theo thời đại (WALL.TIERS), đổi cả vật liệu lẫn kiểu đỉnh.
 function wallTierSpec(w) {
-  const T = CONFIG.WALL.TIERS;
-  return T[clamp(w.tier || 1, 1, T.length - 1)];
+  const TIERS = CONFIG.WALL.TIERS;
+  return TIERS[clamp(w.tier || 1, 1, TIERS.length - 1)];
 }
 
 // HỆ SỐ CHIỀU CAO CỦA MỘT Ô TƯỜNG — một hàm, hai chỗ đọc (drawWall và spriteBox).
@@ -6272,12 +6303,82 @@ function wallTierSpec(w) {
 // 1,06 đảo hẳn chiều: khối cửa NHÔ LÊN chứ không thụt xuống, đúng như một cổng
 // thành thật (tường dày lên và cao lên ở chỗ có lối đi), và cái vòm vì thế có chỗ
 // để cao. Nhịp hình bóng nay do HAI LẦU CỔNG gánh — chúng mới là thứ phải nhô.
+// ============================================================
+// PHASE 3.38 — CỔNG PHẢI CAO HƠN GÓC, VÀ TRƯỚC BẢN NÀY NÓ THẤP HƠN
+// ============================================================
+// Chú thích trên nói đúng ý định ("nhịp hình bóng nay do HAI LẦU CỔNG gánh") nhưng
+// ba con số thì phản lại nó. Đo bằng pixel thật ở bậc tường cao nhất, cs = 9 (mức
+// thu phóng MẶC ĐỊNH — đo `zoomSelect`, không đoán):
+//     thân tường  7,4px
+//     lầu cổng    9,6px      <- thứ đáng lẽ phải cao nhất
+//     ô góc      10,0px      <- thứ thật sự cao nhất
+// Vành thành có BỐN góc và BỐN cổng, cùng cỡ, cách đều nhau — nên "đường bao
+// thấp-CAO-thấp" mà cả cái cổng dựa vào để đọc được từ xa đang bị bốn cái góc nói
+// át, và mắt không có cách nào biết chỗ nhô lên nào là lối đi. Đó không phải một
+// khiếm khuyết thẩm mỹ, nó là tín hiệu SAI: chỗ dễ vỡ nhất của bức tường trông
+// giống hệt chỗ chắc nhất.
+//
+// Chênh 2,2px giữa lầu cổng và thân tường cũng là một con số cần nói thẳng: ở mức
+// thu phóng người ta chơi thật, cả "nhịp hình bóng" của bản trước rộng đúng hai
+// pixel. Bài học Phase 3.14 — hình bóng đọc được còn màu thì không — chỉ đúng khi
+// hình bóng ĐỦ LỚN để có bóng.
+//
+// Con số mới, đo lại ở cùng điều kiện: thân 7,4 · góc 10,0 · khối cổng 11,4 · lầu
+// cổng 15,5. Lầu cổng nay gấp 2,1 lần thân tường và cao hơn góc 55%, tức là bốn
+// chỗ cao nhất trên vành thành là bốn cái cổng — đúng thứ tự thông tin.
+//
+// Ô GÓC GIỮ NGUYÊN 1,35. Hạ góc xuống thì cổng nổi lên mà không phải trả gì, nhưng
+// bốn cái góc cũng đang làm việc của chúng (nói cho mắt biết vành thành kết thúc ở
+// đâu, và bức tường là một HÌNH chứ không phải bốn đoạn rời). Nâng cổng lên là cộng
+// thêm thông tin; hạ góc xuống là đổi thông tin này lấy thông tin kia.
+// PHASE 3.39 — NỚI THÊM MỘT NẤC NỮA, và lần này nới theo CHIỀU CÒN LẠI.
+//
+// Bản 3.38 chỉ có một đòn bẩy: chiều cao. Nó đưa lầu cổng từ 9,6 lên 15,5px ở mức
+// thu phóng mặc định, đủ để cổng thắng ô góc — nhưng bề NGANG thì vẫn đúng một ô
+// lưới, y hệt một viên tường thường. Một cái tháp cao gấp đôi mà không dày hơn tí
+// nào đọc ra là "một viên tường bị kéo dãn", không đọc ra là một công trình; khối
+// lượng mới là thứ nói "chỗ này người ta xây kiên cố hơn".
+//
+// Nên vòng này đi hai chiều cùng lúc: cao 2,10 -> 2,70 và rộng 1,00 -> 1,34 ô
+// (GATE_TOWER_W dưới đây). Diện tích bóng của lầu cổng vì thế gấp 1,72 lần bản
+// trước, trong khi chiều cao một mình chỉ cho 1,29.
+//
+// Ô GÓC VẪN GIỮ 1,35, cùng lý do đã viết ở 3.38: hạ góc xuống là đổi thông tin này
+// lấy thông tin kia, còn nâng cổng lên là cộng thêm.
 function wallHeightMul(w) {
   if (w.corner) return 1.35;
-  if (w.door) return 1.06;    // khối cổng — ba ô giữa, nhô nhẹ trên thân tường
-  if (w.gate) return 1.30;    // lầu cổng — hai ô kẹp hai bên khối cổng
+  if (w.door) return 1.80;    // khối cổng — ba ô giữa, nhô rõ trên thân tường
+  if (w.gate) return 2.70;    // lầu cổng — hai ô kẹp hai bên, cao nhất vành thành
   return 1;
 }
+
+// Bề ngang lầu cổng, tính theo ô lưới. Đứng RIÊNG khỏi wallHeightMul vì nó đi vào
+// một biểu thức khác (`bw`), nhưng cùng một luật: cả drawWall lẫn spriteBox phải
+// đọc chung một nguồn, nếu không thì hộp bấm lệch khỏi hình vẽ — đúng con lỗi
+// "hộp bấm tưởng sprite trùng chân đế" đã cắn bốn lần.
+const GATE_TOWER_W = 1.34;
+
+// Hình học CỜ HIỆU trên nóc lầu cổng, MỘT nguồn cho cả hai phía: drawWall vẽ nó,
+// spriteBox phải bao được nó. Tách ra thành hàm vì cả ba số đều có SÀN PIXEL
+// (`Math.max`) — mà sàn pixel chính là thứ làm mọi phép quy đổi "0,78 ô" sai ở
+// đúng mức thu phóng nhỏ nhất, nơi sàn thắng tỉ lệ. Chép tay sang spriteBox thì
+// nó đúng ở cs 9 và sai ở cs 4, tức là sai theo kiểu không ai nhìn thấy.
+function gatePennant(cs) {
+  return {
+    poleH: Math.max(3.4, cs * 0.78),
+    fw:    Math.max(3.6, cs * 0.56),
+    fh:    Math.max(2.9, cs * 0.42)
+  };
+}
+
+// Bề dày nét vẽ + khử răng cưa ăn thêm ra NGOÀI mọi công thức toạ độ. ĐO chứ không
+// suy (bài học 3.31: công thức cho 2,4 ô, vết mực thật chạm 2,54): vẽ lầu cổng lên
+// một canvas trống rồi quét kênh alpha ở cả bốn mức thu phóng có thật —
+//     cs  4 · 6 · 9 · 14  ->  vết mực vượt công thức 1,3 · 1,1 · 1,4 · 1,9 px
+// Không co theo cs, vì phần lớn nó là `Math.max(1, cs*0.07)` cộng một viền AA. Lấy
+// 2,2 để hộp bấm phủ hết ở CẢ BỐN mức — thừa 0,3..0,9px thì không ai thấy, thiếu
+// 0,2px ở cs 14 thì bấm trúng nóc cờ là bấm vào bãi cỏ.
+const INK_SLOP = 2.2;
 
 function drawWall(w, px, py, cs) {
   const t = tribes[w.tribeId];
@@ -6333,8 +6434,12 @@ function drawWall(w, px, py, cs) {
   // chân) sẽ phủ lên mặt trước của ô y — và điều đó ĐÚNG: mặt trước của một ô bị
   // ô đứng ngay trước nó che khuất, nên cả dãy đọc ra là MỘT dải liền, chỉ ô cuối
   // cùng phía nam còn thấy mặt trước.
-  const bw = vertical ? cs * 0.62 : cs;
-  const bx = vertical ? px + (cs - bw) / 2 : px;
+  // Lầu cổng phình ra hai bên (xem GATE_TOWER_W). Nó ĐÈ lên 0,17 ô của viên trụ
+  // cửa đứng cạnh, và điều đó đúng: chân một cái tháp thì phải chạm vào thứ nó
+  // đỡ. Hai công thức cũ (`px` cho ngang, `px + (cs-bw)/2` cho dọc) hoá ra là một
+  // khi viết bằng tâm ô — nên gộp lại, thay vì thêm một nhánh thứ ba cho cổng.
+  const bw = (vertical ? cs * 0.62 : cs) * ((w.gate && !w.door) ? GATE_TOWER_W : 1);
+  const bx = px + cs / 2 - bw / 2;
   // "Dải đỉnh" — vùng mặt trên mà mọi kiểu đỉnh bám vào. Ngang thì nó chỉ là một
   // vạch mỏng ở mép trên khối; dọc thì nó là cả footprint đã nâng lên.
   const capX = bx, capW = bw;
@@ -6378,16 +6483,30 @@ function drawWall(w, px, py, cs) {
   // Bản này dựng nó thành một CÔNG TRÌNH có bốn tầng thông tin, xếp theo thứ tự đọc
   // được từ xa tới gần — nên mỗi mức thu phóng vẫn còn đúng lượng chi tiết nó chở nổi:
   //   1. ĐƯỜNG BAO   (mọi cs): thấp-CAO-thấp-CAO-thấp, làm bởi wallHeightMul
-  //   2. LẦU CỔNG    (cs>=5): mái vát + lỗ châu mai trên hai ô cao
-  //   3. VÒM CỬA     (cs>=5): vòm cuốn liền ba ô, có ĐÁ KHOÁ ĐỈNH màu bộ lạc
-  //   4. CÁNH CỬA GỖ (cs>=9): hai cánh, đinh tán, then ngang, khe sáng ở giữa
-  if (w.gate && cs >= 5) {
+  //   2. LẦU CỔNG    (cs>=3): mái vát + CỜ HIỆU + lỗ châu mai trên hai ô cao
+  //   3. VÒM CỬA     (cs>=3): vòm cuốn liền ba ô, có ĐÁ KHOÁ ĐỈNH màu bộ lạc
+  //   4. CÁNH CỬA GỖ (cs>=6): hai cánh, đinh tán, then ngang, khe sáng ở giữa
+  //
+  // NGƯỠNG HẠ XUỐNG Ở PHASE 3.38, và không phải "hạ cho chắc" — đo `zoomSelect` thì
+  // game có ĐÚNG BỐN mức thu phóng (4 · 6 · 9 · 14), nên mỗi ngưỡng không phải một
+  // dải liên tục mà là một quyết định bật/tắt cho từng mức cụ thể. Bảng cũ:
+  //     cs 14 (Rất gần) : đủ 4 tầng
+  //     cs  9 (Gần, MẶC ĐỊNH) : đủ 4 tầng, cánh cửa gỗ vừa đúng chạm ngưỡng
+  //     cs  6 (Thường)  : mất cánh cửa VÀ mất châu mai
+  //     cs  4 (Toàn cảnh): mất SẠCH — cái cổng không được vẽ một nét nào
+  // Tức là ở hai trong bốn mức, cổng thành không có cửa; ở một trong bốn, nó không
+  // tồn tại. Một ngưỡng đặt ở 5 và 9 nghe như "chỉ vẽ khi còn đọc được", nhưng nó
+  // được viết mà không tra bảng thu phóng — và bảng ấy chỉ có bốn giá trị.
+  if (w.gate && cs >= 3) {
     if (isTowerGate) {
       // ---- LẦU CỔNG ----
       // Không phải "một cái tháp góc thứ năm": tháp góc có mũ VUÔNG đội trên đỉnh,
       // lầu cổng có MÁI VÁT nghiêng vào phía cửa. Hai đường bao khác nhau, và đó là
       // cách người xem phân biệt bốn góc thành với bốn cổng thành mà không phải đếm.
-      const roofH = cs * 0.26;
+      // Mái cao theo thân: 0,26 -> 0,36 ô. Giữ 0,26 trên một cái tháp vừa cao thêm
+      // 29% và rộng thêm 34% thì cái mái tụt xuống thành một nếp gấp mỏng trên một
+      // khối lớn — đúng cái làm nó thôi đọc ra là mái.
+      const roofH = cs * 0.36;
       const roofTop = capY - roofH;
       // Hướng vát: nghiêng về phía CÁNH CỬA, đọc từ `gp` (±2) — không suy từ toạ độ.
       const inward = w.gp > 0 ? -1 : 1;
@@ -6409,10 +6528,70 @@ function drawWall(w, px, py, cs) {
       ctx.strokeStyle = 'rgba(255,246,226,0.28)';
       ctx.lineWidth = Math.max(1, cs * 0.07);
       ctx.stroke();
+      // ---- CỜ HIỆU (Phase 3.38) ----
+      // Tầng thông tin thứ năm, và là tầng DUY NHẤT sống sót ở mức Toàn cảnh. Chiều
+      // cao giải quyết được "chỗ nào nhô lên", nhưng ở cs 4 thì cả lầu cổng chỉ cao
+      // 6,9px và mọi chi tiết bên trong nó đều dưới một pixel — nên thứ còn đọc được
+      // phải là MÀU, không phải hình. Đây là chiều ngược của bài học Phase 3.14
+      // ("màu chỉ đọc được khi có mẫu đứng cạnh để so"), và nó không mâu thuẫn: ở
+      // đây mẫu đối chứng luôn có mặt — cả vành thành xám đá chạy quanh nó.
+      //
+      // SÀN 2,2px cho bề ngang lá cờ, chứ không để nó co theo cs. Một lá cờ đúng tỉ
+      // lệ ở cs 4 rộng 1,8px, tức là nó biến mất đúng ở mức thu phóng sinh ra để
+      // nhìn toàn bản đồ — mức mà một dấu hiệu "cổng ở đây" đáng giá nhất. Cùng họ
+      // với những `Math.max(1, ...)` rải khắp tầng vẽ này: dưới một ngưỡng pixel thì
+      // tỉ lệ đúng không còn là mục tiêu, đọc được mới là.
+      //
+      // Cờ chĩa RA NGOÀI cổng (đọc `gp`, không suy từ toạ độ — cùng luật đã viết cho
+      // hướng mái vát), nên hai lá cờ của một cổng xoè ra hai phía như một cặp.
+      const PEN = gatePennant(cs);
+      const poleH = PEN.poleH;
+      const fx0 = bx + bw * 0.5;
+      const fy0 = vertical ? capY + cs * 0.3 : capY;
+      ctx.strokeStyle = 'rgba(30,22,15,0.75)';
+      ctx.lineWidth = Math.max(1, cs * 0.07);
+      ctx.beginPath();
+      ctx.moveTo(fx0, fy0);
+      ctx.lineTo(fx0, fy0 - poleH);
+      ctx.stroke();
+      const fw2 = PEN.fw, fh2 = PEN.fh;
+      const out = w.gp > 0 ? 1 : -1;
+      ctx.fillStyle = t.color;
+      ctx.beginPath();
+      ctx.moveTo(fx0, fy0 - poleH);
+      ctx.lineTo(fx0 + out * fw2, fy0 - poleH + fh2 * 0.44);
+      ctx.lineTo(fx0, fy0 - poleH + fh2);
+      ctx.closePath();
+      ctx.fill();
+      // VIỀN CHỈ Ở MỨC "RẤT GẦN", và con số 12 phải đo HAI LẦN mới ra.
+      //
+      // Bản đầu viền ở mọi cỡ. Đếm pixel màu bộ lạc trong khung quanh lầu cổng:
+      //     cs 14 -> 9 px · cs 9 -> 3 px · cs 6 -> 0 px · cs 4 -> 0 px
+      // Đúng hai mức thu phóng cần lá cờ nhất thì nó KHÔNG CÓ MỘT PIXEL NÀO. Nguyên
+      // nhân là số học: ở cs 4 lá cờ là một tam giác ~2 px², còn nét viền rộng 0,7px
+      // chạy hết chu vi của chính nó — nét viền phủ gần trọn phần tô. Một chi tiết
+      // trang trí thêm vào để làm rõ hình đã XOÁ mất thứ nó tô điểm.
+      //
+      // Bản sửa thứ nhất đặt ngưỡng ở 8 và nới sàn kích thước. Đo lại:
+      //     cs 14 -> 9 px · cs 9 -> 2 px · cs 6 -> 4 px · cs 4 -> 4 px
+      // Hai mức nhỏ đã chữa xong, nhưng cs 9 — mức MẶC ĐỊNH, mức người ta nhìn nhiều
+      // nhất — lại tụt xuống thấp hơn cả cs 4. Ngưỡng 8 bật viền cho một lá cờ vẫn
+      // còn quá nhỏ (~6 px²) để chịu nổi nó. Bài học: khi một hiệu ứng phụ thuộc
+      // kích thước, ngưỡng phải đo Ở TỪNG MỨC THU PHÓNG CÓ THẬT (4 · 6 · 9 · 14),
+      // chứ không suy từ "8 thì chắc đủ to".
+      //
+      // Cùng họ với bài học "hai công thức cùng tả một đường cong" ở đá khoá đỉnh,
+      // nhưng ngược chiều: ở đây hai NÉT VẼ tranh nhau cùng một vài pixel, và bên
+      // thắng là bên vẽ sau. Dưới một ngưỡng kích thước thì thêm nét là bớt thông tin.
+      if (cs >= 12) {
+        ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+        ctx.lineWidth = Math.max(0.7, cs * 0.035);
+        ctx.stroke();
+      }
       // Lỗ châu mai — hai khe tối dọc trên mặt trước. Đây là chi tiết nói "có người
       // đứng gác trong này", và nó chỉ có ở lầu cổng: thân tường thường có răng cưa
       // trên đỉnh, không có khe.
-      if (cs >= 8 && !vertical) {
+      if (cs >= 6 && !vertical) {
         ctx.fillStyle = 'rgba(26,20,14,0.7)';
         for (const o of [0.3, 0.62]) {
           ctx.fillRect(bx + bw * o, baseY - h * 0.72, Math.max(1, bw * 0.08), h * 0.32);
@@ -6457,7 +6636,7 @@ function drawWall(w, px, py, cs) {
         ctx.fillRect(inner - (dir2 > 0 ? 0 : bw * 0.06), baseY - h, bw * 0.06, h);
         // Bệ chân trụ — một gờ ngang ở đáy, thứ làm cái trụ đứng trên đất thay vì
         // mọc ra từ đó.
-        if (cs >= 8) {
+        if (cs >= 6) {
           ctx.fillStyle = 'rgba(255,246,226,0.14)';
           ctx.fillRect(bx, baseY - h * 0.14, bw, Math.max(1, cs * 0.07));
         }
@@ -6513,7 +6692,12 @@ function drawWall(w, px, py, cs) {
         ctx.stroke();
 
         // ---- CÁNH CỬA GỖ, chỉ khi còn đọc được ----
-        if (cs >= 9) {
+        // 9 -> 6 ở Phase 3.38. Ngưỡng cũ rơi ĐÚNG BẰNG mức thu phóng mặc định (cs 9),
+        // nghĩa là cánh cửa — thứ làm cái cổng trông ra cổng — chỉ tồn tại ở hai
+        // trong bốn mức, và ở mức mặc định nó sống sót nhờ một dấu bằng. Khối cổng
+        // vừa cao thêm 46% (wallHeightMul 1,06 -> 1,55) nên ở cs 6 lối đi nay cao
+        // 4,6px thay vì 3,1px — đủ chỗ cho hai cánh và một then ngang.
+        if (cs >= 6) {
           const leafTop = baseY - dh * 0.72;
           // CẮT THEO ĐÚNG ĐƯỜNG VÒM VỪA VẼ, nên ván gỗ không thể tràn ra ngoài lối
           // đi ở bất kỳ bậc thành nào.
@@ -6870,7 +7054,7 @@ function renderWorld() {
       ctx.textAlign = 'center';
       ctx.fillStyle = 'rgba(251,238,224,0.72)';
       ctx.font = `7px ${F_UI}`;
-      ctx.fillText('KỶ', x0 + SEAL / 2, y0 + 11);
+      ctx.fillText(T('KỶ'), x0 + SEAL / 2, y0 + 11);
       ctx.fillStyle = '#fbeee0';
       ctx.font = `700 14px ${F_DISPLAY}`;
       ctx.fillText(String(era), x0 + SEAL / 2, y0 + H - 6);
@@ -6916,8 +7100,8 @@ function renderWorld() {
     // --hud-top), nên căn giữa khung hình giờ đúng nghĩa là giữa chỗ trống. Vẫn
     // cắt cho vừa: ở cửa sổ hẹp, câu đầy đủ dài hơn cả khung.
     ctx.fillText(fitText(building
-      ? `🏗 ${owner.name} ĐANG DỰNG KỲ QUAN — ${Math.round(prog * 100)}% · cả thiên hạ kéo tới chặn`
-      : `🏛 KỲ QUAN của ${owner.name} — còn ${left} tick là thống nhất thiên hạ`, W - 24),
+      ? T('🏗 {tribe} ĐANG DỰNG KỲ QUAN — {pct}% · cả thiên hạ kéo tới chặn', { tribe: owner.name, pct: Math.round(prog * 100) })
+      : T('🏛 KỲ QUAN của {tribe} — còn {left} tick là thống nhất thiên hạ', { tribe: owner.name, left }), W - 24),
                  W / 2, barH - 8);
     ctx.textAlign = 'left';
   }

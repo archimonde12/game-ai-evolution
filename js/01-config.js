@@ -14,7 +14,7 @@
 // ============================================================
 // CHÚA TỂ — CIVILIZATION SIM
 // ------------------------------------------------------------
-// Khác hẳn evolution sim ở index.html: đơn vị ở đây KHÔNG tiến hoá theo cá
+// Khác hẳn evolution sim ở evolution.html: đơn vị ở đây KHÔNG tiến hoá theo cá
 // thể. Cái tiến hoá là "gen chiến lược" (policy) của CẢ BỘ LẠC — bộ trọng số
 // quyết định bộ lạc dồn dân vào gỗ hay lương, nuôi bao nhiêu lính, hiếu chiến
 // tới đâu, có vội lên thời đại không. Cuối mỗi kỷ nguyên, policy của bộ lạc
@@ -1019,20 +1019,30 @@ const CONFIG = {
       // số đủ để cứu Kỳ quan sẽ làm cái ruộng bất tử, còn con số đủ khiêm tốn cho
       // cái ruộng thì với Kỳ quan là làm tròn số. Trải 17 lần thì chỉ có phần trăm
       // mới nói được cùng một câu cho cả hai đầu.
-      // TƯỜNG THÀNH ĐÃ RỜI KHỎI NHÁNH NÀY ở Phase 3.30, và đó là một quyết định về
-      // chỗ đứng chứ không phải về con số. Tường không do ai xây, không do ai trả
-      // tiền, và giờ nó lên bậc theo THỜI ĐẠI (xem WALL.TIERS) — cột mốc chung của
-      // cả bộ lạc. Buộc nó vào một nhánh nghiên cứu ở nhà chính là trộn hai đồng
-      // hồ khác nhau vào một con số: người xem nhìn bức tường dày lên mà không biết
-      // nó dày lên vì bộ lạc vừa lên đời hay vì vừa nghiên cứu xong.
+      // TƯỜNG THÀNH QUAY LẠI NHÁNH NÀY ở Phase 3.41, sau khi đã bị lấy ra ở 3.30.
+      // Lập luận cũ — "buộc tường vào một nhánh nghiên cứu là trộn hai đồng hồ vào
+      // một con số, người xem nhìn tường dày lên mà không biết vì sao" — vẫn đúng
+      // về hình thức và đã được trả lời chứ không phải bị bỏ qua: HAI ĐỒNG HỒ NAY
+      // ĐỌC Ở HAI CHỖ KHÁC NHAU.
+      //   · ĐƯỜNG BAO vẫn hoàn toàn theo THỜI ĐẠI (WALL.TIERS: rào gỗ → đất nện →
+      //     đá → gạch mạ → men ngọc). Nhìn hình bức tường là biết bộ lạc ở đời nào,
+      //     y nguyên như trước, không một pixel nào đổi theo nghiên cứu.
+      //   · CON SỐ MÁU theo nghiên cứu, và thẻ thông tin của ô tường ghi thẳng ra
+      //     "(Nề đá +N%)" — đúng dòng mà thẻ công trình đã ghi từ 3.30.
+      // Tức là cái trộn vào nhau ở bản cũ là do CẢ HAI cùng nói bằng độ dày; tách
+      // ra thành hình-bóng vs con-số thì mỗi đồng hồ có một mặt đồng hồ riêng.
       //
-      // Nhánh Nề đá mất đi 520 ô khách hàng lớn nhất của nó, nên nó cũng RẺ đi
-      // tương ứng (110/90/60 → 90/70/50): một nhánh vẫn đáng mua cho 15-25 toà nhà
-      // và cho tháp canh, không phải một nhánh vẫn giữ giá cũ với nửa tác dụng.
+      // Vì sao đáng lấy lại: 520 ô tường là khách hàng lớn nhất mà nhánh này từng
+      // có, và mất chúng thì lý do tồn tại số một của nhánh — "thứ duy nhất trong
+      // bảng có ích cho bộ lạc ĐANG THUA" — mất theo, vì kẻ đang thua là kẻ đang
+      // bị vây. Một nhánh cứu kẻ yếu mà không chạm được vào bức tường đang bị đục
+      // là một nhánh nói một đằng làm một nẻo.
+      //
+      // Giá quay lại đúng mức cũ (90/70/50 → 110/90/60), vì tác dụng cũng quay lại.
       masonry: { label: 'Nề đá',       short: 'Nề đá',    icon: '🧱', build: 'town', age: 1,
-                 atk: 0, def: 0, applies: [], scope: 'Mọi công trình · Tháp canh',
+                 atk: 0, def: 0, applies: [], scope: 'Mọi công trình · Tháp canh · Tường thành',
                  bhp: 0.18,
-                 cost: { wood: 90, stone: 70, food: 50 } },
+                 cost: { wood: 110, stone: 90, food: 60 } },
       // ============================================================
       // QUÂN NHU — nhánh thứ chín, và nhánh duy nhất mua BÁN KÍNH
       // ============================================================
@@ -1064,7 +1074,60 @@ const CONFIG = {
       supplyline: { label: 'Quân nhu',  short: 'Quân nhu', icon: '🎒', build: 'shrine', age: 2,
                     atk: 0, def: 0, applies: [], scope: 'Trại tiếp tế · Đội hậu cần',
                     rate: 0.3, slots: 2, reach: 2.5,
-                    cost: { food: 110, wood: 90, gold: 45 } }
+                    cost: { food: 110, wood: 90, gold: 45 } },
+      // ============================================================
+      // NỎ LIÊN CHÂU (Phase 3.38) — nhánh thứ mười, mở ở THIÊN TRIỀU, và là nhánh
+      // đầu tiên có một hiệu ứng KHÔNG PHẢI một đường cong
+      // ============================================================
+      // Chín nhánh trên đều cùng một hình dạng: mỗi cấp cộng thêm một ít vào một
+      // con số. Liên châu có ba trường và đúng một trong ba KHÔNG lên theo cấp:
+      //   · `shots` — tháp bắn HAI mũi tên vào HAI mục tiêu khác nhau. Mở ở cấp 1
+      //     và ĐỨNG YÊN ở đó. Đây là quyết định, không phải chỗ quên: mỗi mũi tên
+      //     là một nhân tử, nên 3-4 mũi ở cấp 2-3 sẽ nhân với +40%/+60% sát thương
+      //     thành 4,2x-6,4x hoả lực gốc — tức là tháp canh một mình xoá sổ mọi đạo
+      //     quân trên bản đồ, và cả cơ chế công thành ngừng tồn tại. Một cánh cửa
+      //     mở một lần thì mở một lần.
+      //   · `tatk` +20%/cấp và `thp` +50%/cấp — hai vế lên theo cấp, để nhánh vẫn
+      //     có một dải liên tục cho bộ não leo, đúng lý do đã viết cho `cityPlan`:
+      //     một ngưỡng bật/tắt thì mọi giá trị trên ngưỡng cho ra cùng một kết quả
+      //     và không còn gradient nào để chọn lọc đọc.
+      //
+      // VÌ SAO ĐẮT ĐẾN THẾ, và vì sao đắt bằng ĐÁ: yêu cầu gốc gọi đúng tên vấn đề
+      // ("khá imba nên cần một lượng lớn đá"). Với COST_STEP [1 · 1,85 · 3,1] thì ba
+      // cấp tốn 300 + 555 + 930 = 1.785 đá, trong khi kho đá một bộ lạc Thiên Triều
+      // đo được là ~600-700. Nghĩa là nhánh này KHÔNG mua được bằng tiền đang có; nó
+      // phải mua bằng một quyết định đã làm từ trước — kéo người ra mỏ đá — và đó
+      // đúng là thứ mà gen `fortify` điều khiển (xem POLICY_SPEC.fortify, nơi phép
+      // đo cho thấy `fortify` gần như là toàn bộ lý do nghề đập đá tồn tại). Một
+      // nhánh nghiên cứu nối vào một gen sẵn có thì tín hiệu chọn lọc lên gen ấy
+      // MẠNH thêm; một nhánh nối vào ví tiền thì ai cũng mua được như nhau.
+      //
+      // Cùng vòng với máu tường +50% và với việc tháp dời ra vành tường, và ba thứ
+      // đó là MỘT thay đổi chứ không phải ba: tường dày hơn chỉ kéo dài thời gian
+      // chờ nếu bên thủ không bắn trả được; tháp bắn mạnh hơn chỉ là số nếu nó đứng
+      // giữa làng ngoài tầm trận đánh.
+      // MỘT CẤP DUY NHẤT (`maxLv: 1`, đổi ở Phase 3.40 theo yêu cầu) — nhánh đầu
+      // tiên trong game không có ba cấp, nên đáng nói vì sao nó KHÔNG nên có.
+      //
+      // Phần thưởng thật của nhánh này là mũi tên THỨ HAI, và mũi tên là một NHÂN
+      // TỬ: nó nhân đôi sản lượng của mọi cái tháp cùng lúc. Bảy nhánh kia cộng
+      // vào một con số nên cấp 2 và cấp 3 chỉ là "thêm chút nữa"; ở đây cấp 2 phải
+      // chọn giữa hai điều tệ ngang nhau — hoặc thêm mũi tên nữa (cấp 3 thành 4
+      // mũi, tức 4 lần hoả lực gốc, và cơ chế công thành ngừng tồn tại), hoặc chỉ
+      // cộng thêm % lên một thứ đã nhân đôi, tức là hai cấp sau bán một thứ nhạt
+      // hơn hẳn cấp đầu với giá đắt gấp đôi rồi gấp ba. Cả hai đều là một lựa chọn
+      // tồi giả trang thành nội dung.
+      //
+      // GIÁ GỘP LẠI LÀM MỘT. Đây là phần dễ làm sai nhất của việc cắt ba cấp xuống
+      // một: giữ nguyên bảng giá cũ thì nhánh này lặng lẽ RẺ ĐI 5,95 lần (tổng ba
+      // cấp cũ = 300 × [1 + 1,85 + 3,1] = 1.785 đá, cấp 1 chỉ 300), mà lý do nó đắt
+      // là vì nó mạnh — cắt số cấp không làm nó yếu đi tí nào. 850 đá ≈ nửa tổng
+      // giá cũ, đổi lấy đúng phần hiệu lực mà cấp 1 vốn đã chở (75% sát thương của
+      // cấp 3 cũ, và trọn vẹn mũi tên thứ hai).
+      volley:     { label: 'Nỏ liên châu', short: 'Liên châu', icon: '🏯', build: 'tower', age: 5,
+                    atk: 0, def: 0, applies: [], scope: 'Chỉ Tháp canh',
+                    maxLv: 1, shots: 1, tatk: 0.20, thp: 0.50,
+                    cost: { stone: 850, gold: 470, wood: 300 } }
       // NGỰA CHIẾN đã bị XOÁ khỏi bảng nâng cấp — xem CONFIG.HERO.MOUNT_AGE.
       // Nó từng là nhánh thứ sáu (Chuồng ngựa, Đồ Sắt, 3 cấp). Lý do bỏ: nó là
       // nhánh DUY NHẤT mà phần thưởng chính là một hình ảnh, không phải một con
@@ -2243,16 +2306,47 @@ const CONFIG = {
     // là KINH TẾ: mỏ nằm trong vành là mỏ mà thợ địch không tới được, nên bức
     // tường lần đầu tiên tranh chấp TÀI NGUYÊN chứ không chỉ tranh chấp lối vào.
     RADIUS: [0, 18, 22, 28, 34, 40],
-    // Máu MỘT Ô tường — GẤP ĐÔI bản trước. Không ai phải phá cả bức tường; con số
-    // đáng cân là "một cỗ máy bắn đá đục thủng một ô mất bao lâu":
-    //     Đồ Đá     300 máu / 60 sát thương mỗi 26 tick = ~130 tick
-    //     Thiên Triều 1800 / 60                          = ~780 tick
-    // và với bộ binh (đập tường 1,4) thì lần lượt là 5.500 và 23.000 tick — tức là
-    // KHÔNG BAO GIỜ. Đó chính là điều đáng có: tường thành là lý do thứ hai để tồn
-    // tại một Xưởng thợ, sau Kỳ quan. Trước bản này `BUILD_PENALTY` chỉ làm bộ binh
-    // phá nhà chậm; giờ nó làm bộ binh phá thành BẤT KHẢ, và khoảng cách giữa hai
-    // câu đó là toàn bộ giá trị của một cỗ máy.
-    HP: [0, 300, 520, 840, 1280, 1800],
+    // Máu MỘT Ô tường. Không ai phải phá cả bức tường; con số đáng cân là "một cỗ
+    // máy bắn đá đục thủng một ô mất bao lâu", và với bộ binh (đập tường 20% sức)
+    // thì mọi con số đều quy về một chữ: KHÔNG BAO GIỜ. Đó chính là điều đáng có —
+    // tường thành là lý do thứ hai để tồn tại một Xưởng thợ, sau Kỳ quan.
+    //
+    // ĐƯỜNG CONG ĐỔI Ở PHASE 3.39 (theo yêu cầu: 900 ở đời đầu, 3.600 ở đời cuối).
+    // Cái được sửa KHÔNG phải độ dày, mà là KHOẢNG CÁCH GIỮA HAI ĐỜI LIỀN NHAU:
+    //
+    //          đời 1   đời 2   đời 3   đời 4   đời 5    trải rộng   bước lớn nhất
+    //   cũ       450     780    1260    1920    2700       6,00×      ×1,73
+    //   mới      900    1275    1800    2550    3600       4,00×      ×1,42
+    //
+    // Bảng cũ có bước đầu ×1,73 rồi thuôn dần xuống ×1,41, nghĩa là cú nhảy đau
+    // nhất rơi đúng vào lúc chênh lệch còn dễ quyết định ván đấu: một bộ lạc vừa
+    // lên Đồ Đồng có tường dày gấp 1,73 lần hàng xóm còn ở Đồ Đá, mà ở giai đoạn
+    // ấy chưa ai có đủ cỗ máy để bù. Bảng mới lấy TỈ LỆ HẰNG √2 cho cả bốn bước
+    // (1,42 · 1,41 · 1,42 · 1,41) — chênh lệch giữa hai đời liền nhau nay ở đâu
+    // cũng như nhau, và không chỗ nào đau bằng chỗ đau nhất của bảng cũ.
+    //
+    // Giá phải trả, nói thẳng: đây KHÔNG phải một phép đổi trung tính. Nâng sàn từ
+    // 450 lên 900 là nhân đôi tường đời đầu, và trần 2.700 → 3.600 là +33%. Thứ
+    // duy nhất rẻ đi là VIỆC ĐI SAU MỘT ĐỜI.
+    //
+    // NHƯNG "gấp đôi tường đời đầu" hoá ra gần như không ai cảm thấy, và đó là chỗ
+    // phép đo bác một suy luận nghe rất hợp lý. Đo sát thương THẬT lên tường trong
+    // ván đang chạy (effAttack × hệ số phá nhà, chia cho nhịp đánh):
+    //     bộ binh Đồ Đồng   1,82/đòn  ->  5.604 tick cho MỘT ô  (cũ 3.429)
+    //     bộ binh Thiên Triều 7,56    ->  3.808 tick             (cũ 2.856)
+    //     máy bắn đá Thiên Triều 550  ->    301 tick             (cũ 226)
+    // Bộ binh không phá nổi tường ở CẢ HAI bảng — 3.429 hay 5.604 thì đều dài hơn
+    // một kỷ nguyên, nên nhân đôi một con số vốn đã là "không bao giờ" chẳng đổi
+    // được lựa chọn nào. Mà máy bắn đá thì mở khoá ở ĐỜI 3 (UNLOCK_UNIT), tức là
+    // ở đời 1–2 KHÔNG AI phá được tường bằng bất cứ giá nào. Sàn 900 vì thế là một
+    // con số gần như chỉ tồn tại trên bảng.
+    //
+    // Chỗ nó thật sự đổi là QUÁI: đo 60 con đang sống, 8,4 sát thương mỗi đòn lên
+    // tường -> một ô tường đời 1 nay cầm chân chúng 857 tick thay vì 429. Nghĩa là
+    // thay đổi này rơi gần trọn vào thế cuộc THỦ THÀNH, nơi điểm số đo bằng số tick
+    // trụ được. Vòng này KHÔNG chỉnh lại độ khó của thủ thành cho khớp — ghi ra đây
+    // để lần sau ai thấy thủ thành dễ đi thì biết chỗ mà nhìn.
+    HP: [0, 900, 1275, 1800, 2550, 3600],
     // CỔNG THÀNH — ba ô ở CHÍNH GIỮA mỗi cạnh, máu mỏng hơn hẳn.
     //
     // Vì sao một điểm yếu cố ý lại làm bức tường TỐT HƠN: không có cổng thì mọi ô
@@ -2341,6 +2435,106 @@ const CONFIG = {
       { name: 'Thành gạch',   h: 0.74, face: '#94836b', top: '#d8c79c', cap: 'slit'   },
       { name: 'Thành men ngọc', h: 0.82, face: '#7d8b83', top: '#bcd6c6', cap: 'tile' }
     ]
+  },
+
+  // ================================================================
+  // BINH PHÁP CÔNG THÀNH (Phase 3.41) — bên CÔNG cuối cùng cũng biết mình
+  // đang đứng trước cái gì
+  // ================================================================
+  // Tường thành có mặt từ Phase 3.29 và đã có đủ mọi thứ TRỪ một bên công biết
+  // cách đánh nó. Đo một kỷ nguyên chinh phạt 16.923 tick, ba con số nói hết:
+  //
+  //   · 91,0% sát thương lên tường rơi vào THÂN TƯỜNG (máu đầy), chỉ 5,8% vào
+  //     CÁNH CỬA — đúng ba ô mà cả cơ chế cổng thành sinh ra để làm chỗ vỡ.
+  //     6.315 đòn vào thân, 583 đòn vào cửa. Câu "trận đánh ở cổng Nam" mà chú
+  //     thích GATE_SPAN hứa hẹn chưa từng xảy ra một lần nào.
+  //   · 96,5 sát thương mỗi đòn của máy bắn đá, 2,43 của bộ binh — gấp 40 lần.
+  //     Bộ binh + cung thủ + kỵ binh đánh 73,7% tổng số đòn và gây 15,7% tổng sát
+  //     thương. Ba phần tư số đòn là ba phần tư số người đứng trong tầm tháp canh
+  //     để làm một việc gần như không có tác dụng.
+  //   · 36,3% TỔNG SỐ CÁI CHẾT của cả bản đồ xảy ra trong 8 ô quanh một bức tường
+  //     địch. Hơn một phần ba quân đội chết ở chân thành.
+  //
+  // Nguyên nhân KHÔNG phải các con số cân bằng — chúng đúng, và chú thích HP đã
+  // tính sẵn "bộ binh không bao giờ phá nổi tường" như một ĐẶC TÍNH. Nguyên nhân
+  // là bên công không có một dòng nào nói cho nó biết hai điều mà bất kỳ ai nhìn
+  // bản đồ cũng thấy: cổng thì mỏng hơn thân tường, và cỗ máy thì phá được còn
+  // nắm đấm thì không.
+  //
+  // Hai luật dưới đây, cả hai đều KHÔNG NHỚ GÌ (tính lại mỗi tick từ ô tường đang
+  // chắn mặt) — bài học "mục tiêu dính chặt" đã cắn năm lần và lần nào cũng là một
+  // trạng thái được ghi nhớ qua nhiều tick.
+  SIEGE: {
+    // ---- LUẬT 1: TÌM CỔNG ----
+    // Đâm phải thân tường thì đi men theo tường tới CÁNH CỬA của chính cạnh đó,
+    // thay vì đứng đấm chỗ mình tình cờ chạm vào. Ô cổng được gán sẵn cho từng ô
+    // tường lúc dựng vành (`gx`/`gy` trong ensureWalls) chứ không dò lại ở đây:
+    // gán sẵn thì mỗi ô có ĐÚNG MỘT cái cổng của nó, nên một người lính đứng ở góc
+    // — chỗ cách đều hai cổng — không thể rung qua lại giữa hai lựa chọn. Đó là
+    // cùng một lý do đã viết cho `corner`/`dir`/`gp`: hình học tính một lần, ở nơi
+    // duy nhất biết kinh đô nằm ở đâu.
+    //
+    // 40 = bán kính vành lớn nhất (RADIUS đời 5), tức là kể cả người lính đứng
+    // đúng ô góc — chỗ xa cổng nhất có thể — vẫn đi tới được. Đặt thấp hơn thì
+    // luật này tự tắt ở đúng những bộ lạc có thành to nhất, tức là ở đúng chỗ nó
+    // cần nhất.
+    GATE_SEEK_R: 40,
+    // Cửa đã yếu hơn ngần này thì THÔI tìm cổng — cứ đục chỗ đang đứng. Không có
+    // vế này thì một đạo quân đang đứng trước một ô thân tường sắp thủng vẫn bỏ đi
+    // vòng nửa vành để tới cổng, tức là phí sạch công đã đánh. Cùng đúng cái ngoại
+    // lệ FINISH_HP_FRAC mà thang ưu tiên đã dùng ba chỗ.
+    FINISH_WALL_HP: 0.35,
+
+    // ---- LUẬT 2: ĐỢI CỖ MÁY ----
+    // Bộ binh KHÔNG đấm tường khi bộ lạc mình đang có máy bắn đá làm việc đó —
+    // đứng lùi ra ngoài tầm tháp canh chờ, rồi tràn vào lúc tường sắp vỡ.
+    //
+    // ĐIỀU KIỆN DỪNG KHÔNG PHẢI MỘT CÁI ĐỒNG HỒ, mà là MÁU CỦA CHÍNH BỨC TƯỜNG
+    // (POUR_HP). Đây là chỗ dễ viết sai nhất của cả khối: một bộ đếm "chờ tối đa N
+    // tick" cần một trường nhớ trên từng người lính, mà trường nhớ ấy phải được xoá
+    // ở đúng mọi nhánh thoát — đúng hình dạng đã sinh ra lỗi "mục tiêu dính chặt"
+    // lần thứ tư. Đo bằng máu tường thì luật KHÔNG NHỚ GÌ CẢ: mỗi tick hỏi lại
+    // "tường còn dày không, máy còn sống không", và cả hai câu trả lời đều nằm sẵn
+    // trên bản đồ. Máy chết -> hết điều kiện -> bộ binh đục như cũ, ngay tick sau,
+    // không cần một dòng dọn dẹp nào.
+    //
+    // Hệ quả phụ đáng giá: vì ngưỡng đo bằng máu tường chứ bằng thời gian, bộ binh
+    // ập tới ĐÚNG LÚC tường sắp thủng chứ không phải sau một khoảng chờ cố định.
+    WAIT: {
+      // TRẦN của bán kính "đáng chờ". Điều kiện thật chặt hơn con số này rất nhiều
+      // và nằm trong shouldWaitForSiege: cỗ máy phải ở trong TẦM BẮN CỦA CHÍNH NÓ
+      // tính tới đúng ô tường ấy, tức là đang bắn được ngay bây giờ. 34 chỉ còn là
+      // cái kẹp trần cho trường hợp một binh chủng tương lai có tầm rất xa.
+      //
+      // Vì sao phải siết: bản đầu dùng thẳng 34 ô và phép đo ghép cặp bác bỏ nó —
+      // -22% số lỗ thủng, -32% số công trình bị hạ, số người chết không giảm. Chờ
+      // một cỗ máy "ở gần đâu đó" không phải là chờ một cỗ máy đang phá tường.
+      ESCORT_R: 34,
+      // Đứng lùi ra ngần này ô. Tháp canh bắn 10 ô (BUILD.tower.range), nên 13 là
+      // đứng ngoài tầm nó — cái mà cả luật này mua được. Không lùi xa hơn: quãng
+      // đường từ chỗ chờ tới chỗ vỡ là quãng mà bên thủ được tự do bịt lỗ.
+      HOLD_R: 13,
+      // Tường tụt xuống dưới ngần này máu thì THÔI chờ, tràn vào. Đây là con số mà
+      // hai trục điều khiển (kỷ luật + nhánh Công thành) kéo lên xuống — xem
+      // pourThreshold trong 08-ai-combat.
+      //
+      // 0,45 -> 0,6 ở vòng hai, cùng lý do với ESCORT_R: ở 0,45 thì một bộ lạc kỷ
+      // luật trung bình đứng chờ tới khi tường còn 68% máu, và với nhịp bắn của một
+      // cỗ máy duy nhất thì quãng đó dài hơn nhiều so với thứ nó mua được.
+      POUR_HP: 0.6,
+      // Kỷ luật 0 kéo ngưỡng tràn lên gần 1 (gần như không chờ, tức là NGUYÊN hành
+      // vi cũ vẫn nằm trong dải gen), kỷ luật 1 kéo xuống POUR_HP. Bản này không
+      // XOÁ cách đánh cũ, nó biến cách đánh cũ thành một đầu của một trục tiến hoá
+      // — cùng đúng khuôn đã dùng cho `lead` của marchWithFormation.
+      POUR_UNDISCIPLINED: 0.92,
+      // Mỗi cấp nhánh Công thành hạ thêm ngưỡng tràn ngần này: một bộ lạc đã học
+      // công thành thì bộ binh của nó biết đợi lâu hơn. Đây là vế "thông minh lên"
+      // của nhánh — bảy nhánh kia mua CHỈ SỐ, nhánh này bắt đầu mua cả HÀNH VI.
+      POUR_PER_SIEGE_LV: 0.06,
+      // Có lỗ thủng trong ngần này ô thì thôi chờ — tràn qua lỗ. Lỗ mở ra 900 tick
+      // (WALL.RUBBLE) và đó là toàn bộ cửa sổ mà bên công mua được bằng cả cuộc vây.
+      BREACH_R: 14
+    }
   },
 
   // Hệ số chiều cao khi VẼ, không đụng gì tới luật chơi. 1 = đúng như bản phẳng cũ.

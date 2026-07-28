@@ -260,17 +260,17 @@ function unlockedUnit(tribe, type) { return tribe.age >= (CONFIG.AGE.UNLOCK_UNIT
 function wonderBlock(tribe) {
   // Thủ thành không có Kỳ quan: ở đó thước đo là số tick sống sót, một luật thắng
   // tức thì sẽ xoá sạch chính thứ mà chế độ đó sinh ra để đo.
-  if (gameMode === 'defend') return 'không có ở chế độ Thủ Thành';
-  if (!unlockedBuild(tribe, 'wonder')) return `chưa tới ${CONFIG.AGE.NAMES[CONFIG.AGE.UNLOCK_BUILD.wonder]}`;
+  if (gameMode === 'defend') return T('không có ở chế độ Thủ Thành');
+  if (!unlockedBuild(tribe, 'wonder')) return T('chưa tới {age}', { age: CONFIG.AGE.NAMES[CONFIG.AGE.UNLOCK_BUILD.wonder] });
   const need = CONFIG.WONDER.NEED_TOWNS;
   if (tribe.townsRazed < need) {
-    return `chưa hạ đủ kinh đô địch (${tribe.townsRazed}/${need})`;
+    return T('chưa hạ đủ kinh đô địch ({have}/{need})', { have: tribe.townsRazed, need });
   }
   // ĐỘC NHẤT — xét cả công trình ĐANG XÂY DỞ (`hp > 0`, không hỏi `done`). Chỉ xét
   // cái đã khánh thành thì ba bộ lạc kia vẫn đặt móng song song được, và luật này
   // chỉ còn cấm đúng một khoảnh khắc không ai gặp.
   const other = buildings.find(b => b.type === 'wonder' && b.hp > 0 && b.tribeId !== tribe.id);
-  if (other) return `${tribes[other.tribeId].name} đang giữ Kỳ quan — phải phá đã`;
+  if (other) return T('{tribe} đang giữ Kỳ quan — phải phá đã', { tribe: tribes[other.tribeId].name });
   return null;
 }
 function wonderAllowed(tribe) { return wonderBlock(tribe) === null; }
@@ -287,9 +287,16 @@ function wonderAllowed(tribe) { return wonderBlock(tribe) === null; }
 // KHÔNG xét tài nguyên ở đây, cũng đúng như wonderBlock: mức dự trữ phụ thuộc gen
 // `ageRush` nên nó là quyết định RIÊNG của từng bộ lạc, không phải luật chơi.
 // Hàm này chỉ trả lời về những cánh cửa CỨNG.
+// BẬC CUỐI được trả về nguyên văn, KHÔNG qua T(), và đó là cố ý. Bảng bộ lạc
+// phải phân biệt "hết đường lên" với "đang bị chặn" để không treo huy hiệu ⛯ lên
+// một bộ lạc đã đi hết cây thời đại — mà nó phân biệt bằng cách SO SÁNH giá trị
+// trả về. So sánh với một câu đã dịch thì đúng ở tiếng Việt và sai ở tiếng Anh:
+// huy hiệu "đang bị chặn" sẽ hiện vĩnh viễn trên kẻ mạnh nhất bàn cờ. Đặt tên
+// cho hằng số này để chỗ so sánh đi bằng danh tính chứ không đi bằng chữ.
+const AGE_MAXED = 'đã tới bậc cuối';
 function ageBlock(tribe) {
   const next = tribe.age + 1;
-  if (!CONFIG.AGE.COST[next]) return 'đã tới bậc cuối';
+  if (!CONFIG.AGE.COST[next]) return AGE_MAXED;
   const need = CONFIG.AGE.NEED_TOWERS[next] || 0;
   if (need > 0) {
     // Đếm tháp ĐÃ XÂY XONG. Đếm cả móng đang dựng thì cổng mở ngay lúc đặt móng,
@@ -299,7 +306,7 @@ function ageBlock(tribe) {
     for (const b of buildings) {
       if (b.tribeId === tribe.id && b.type === 'tower' && b.hp > 0 && b.done) have++;
     }
-    if (have < need) return `chưa đủ tháp canh (${have}/${need})`;
+    if (have < need) return T('chưa đủ tháp canh ({have}/{need})', { have, need });
   }
   return null;
 }
@@ -344,6 +351,152 @@ const ROAD_TARGETS = { depot: 1, barracks: 1, workshop: 1, stable: 1, tower: 1, 
 function roadBudget(tribe) {
   const cap = CONFIG.ROAD.MAX_CELLS[tribe.age] || 0;
   return Math.round(cap * (0.35 + tribe.policy.roadDrive));
+}
+
+// ------------------------------------------------------------------
+// SỐ THÁP MUỐN CÓ (Phase 3.38) — cùng lý do tồn tại như `roadBudget` ngay trên:
+// con số này được HỎI Ở HAI FILE (bộ não đặt móng, và pickJob tích đá cho nó), nên
+// nó phải là MỘT hàm. Bản trước để hai chỗ tự tra bảng, và cả hai tra sai theo cùng
+// một kiểu — lỗi trùng nhau thì không chỗ nào mâu thuẫn với chỗ nào, và vì thế
+// không ai thấy.
+//
+// ================================================================
+// VÌ SAO PHẢI SỬA: nửa "công trình" của gen `fortify` chưa từng chạy
+// ================================================================
+// Công thức cũ là `max(round(towerTarget + fortify*3), hạn ngạch + 1)`. Nhánh gen
+// kịch trần dải khởi tạo chỉ tới `round(3 + 0,7*3) = 5`, trong khi sàn hạn ngạch
+// (NEED_TOWERS ×2 từ Phase 3.35) là 5 · 9 · 15 ở đời 2 · 3 · 4. Đo 3 kỷ nguyên
+// chinh phạt, ~91.500 tick:
+//     đời 0-1 : nhánh gen thắng      581/581    (100%)
+//     đời >=2 : sàn hạn ngạch thắng  7.817/7.817 (100%)
+// Không phải "hiếm", là KHÔNG MỘT LẦN NÀO trong 7.817 mẫu. Từ Đồ Đồng trở đi, bộ
+// lạc `fortify` 0 và bộ lạc `fortify` kịch trần muốn đúng cùng một số tháp — và
+// "một lựa chọn không bao giờ thắng thì không phải một lựa chọn" (Phase 3.17).
+// Thủ phạm không phải gen: chính bản 3.35 nhân đôi NEED_TOWERS đã nâng sàn vượt
+// qua tầm với của một nhánh gen mà không ai đi đo lại.
+//
+// CHỮA: `fortify` cộng LÊN TRÊN cái sàn thay vì bị `max()` nuốt. Vẫn CỘNG chứ không
+// NHÂN vào `towerTarget` — lập luận cũ còn nguyên giá trị: nhân thì bộ lạc
+// `towerTarget` 0 vẫn ra 0 dù gen phòng thủ kịch trần, tức là giết đúng đời 0-1,
+// nơi duy nhất gen còn sống.
+//
+// Nhưng lượng CỘNG THÊM thì phải lớn dần theo sàn. Một khoản +3 cố định là 60% ở
+// đời 2 và chỉ còn 20% ở đời 4 — nghĩa là gen buông tay đúng lúc ván cờ được quyết.
+// Đây là ranh giới "số tuyệt đối vs tỉ lệ" đã trả giá hai lần (sàn quân 3.30, ramp
+// quyền năng 3.34): cái gì phải giữ nguyên TRỌNG SỐ khi nền văn minh lớn lên thì
+// phải neo vào quy mô, không neo vào một hằng số.
+//
+// `|| NEED_TOWERS[age]` là vế thứ hai, và nó chữa một lỗi RIÊNG mà phép đo trên vô
+// tình lôi ra: ở Hoàng Kim `NEED_TOWERS[6]` không tồn tại, nên sàn rơi từ 15 về 0.
+// Đo ở đời 5: bộ lạc đang đứng với 15 tháp mà chỉ còn "muốn" 2,55 — nghĩa là từ
+// giây đó trở đi, mọi cái tháp bị phá KHÔNG BAO GIỜ được dựng lại. Vành đai phòng
+// thủ lặng lẽ ngừng được bảo trì đúng ở thời đại duy nhất mà đối phương có máy bắn
+// đá đủ sức phá nó. Cùng họ "bảng tra thiếu một khoá" đã ba lần cho ra NaN im lặng,
+// và cùng cách chữa như `CONFIG.AGE.COST[age + 1] || CONFIG.AGE.COST[age]` trong
+// pickJob: lùi về bảng của bậc VỪA ĐẠT TỚI, vì một đế chế ở bậc cuối không bớt cần
+// phòng thủ chỉ vì nó hết bậc để leo.
+function towerWant(tribe) {
+  const p = tribe.policy;
+  // `+ 1` để có đệm: tháp bị phá là chuyện thường, và chạm đúng hạn ngạch rồi mất
+  // một cái thì cổng thời đại đóng lại giữa chừng.
+  const quota = CONFIG.AGE.NEED_TOWERS[tribe.age + 1]
+             || CONFIG.AGE.NEED_TOWERS[tribe.age] || 0;
+  const floor = quota ? quota + 1 : 0;
+  return Math.max(Math.round(p.towerTarget), floor)
+       + Math.round((p.fortify || 0) * (3 + floor * 0.5));
+}
+
+// ------------------------------------------------------------------
+// CHỖ ĐẶT THÁP CANH (Phase 3.38) — bám VÀNH TƯỜNG, không dồn về nhà chính
+// ------------------------------------------------------------------
+// Trước bản này mọi cái tháp đều đặt bằng `queueBuild(..., home.x, home.y)`, tức
+// là bốc ngẫu nhiên trong bán kính `expansion` quanh kinh đô. Hệ quả hình học:
+// tháp dày nhất ở TÂM, thưa dần ra ngoài — đúng ngược với việc nó phải làm. Một
+// cái tháp tầm 10 ô đứng giữa làng thì vòng tròn sát thương của nó nằm gọn trong
+// đất nhà; nó chỉ bắn được khi địch ĐÃ vào tới sân, tức là sau khi tường đã thủng
+// và mọi thứ nó lẽ ra bảo vệ đã bị đánh rồi.
+//
+// Đặt tháp ngay trong vành tường thì cùng cái tầm 10 ô ấy phủ RA NGOÀI — nó bắn
+// vào đúng đám đang đục tường, tức là nó tham gia trận công thành thay vì chờ
+// trận công thành kết thúc. Đây cũng là điều kiện để vòng này có nghĩa: máu tường
+// vừa +50%, mà tường dày hơn chỉ kéo dài thời gian chờ nếu bên thủ không bắn được
+// vào kẻ đang đục.
+//
+// HAI CON SỐ, và ràng buộc giữa chúng là thứ phải đúng: `INSET` 6 ô vào trong,
+// `SPREAD` 4 ô bán kính tìm chỗ. Bắt buộc SPREAD < INSET — findBuildSpot tìm trong
+// một HÌNH TRÒN quanh điểm neo, nên nếu bán kính tìm lớn hơn độ lún thì có những
+// lượt bốc rơi RA NGOÀI vành, và một cái tháp nằm ngoài tường là một cái tháp
+// không ai bảo vệ, dựng bằng tiền của bên thủ cho bên công đập. Chênh 2 ô là biên
+// an toàn: mọi chỗ hợp lệ nằm trong khoảng Chebyshev [R-10, R-2] tính từ kinh đô.
+//
+// TWELVE CUNG, và chọn cung THƯA NHẤT. Không phải để đẹp: tháp là thứ đắt và hữu
+// hạn (hạn ngạch NEED_TOWERS + gen `fortify`), nên hai cái tháp cạnh nhau là một
+// cung trống ở phía đối diện. Đếm lại mỗi lần đặt móng thì vành tự rải đều mà
+// không cần một bản quy hoạch nào — cùng cách `pickJob` rải người bằng phép chia
+// cho số người đang làm.
+//
+// TIE-BREAK BẰNG CHỖ TỪNG VỠ, không phải bằng ngẫu nhiên. Cùng lập luận với
+// `hitTick` của nhánh xây chồng: chỗ tường từng thủng là cách duy nhất bộ lạc biết
+// hướng địch đến mà không cần một bản đồ mối đe doạ nào. Hết hạn sau 4.000 tick vì
+// một cuộc chiến đã tàn thì hướng của nó cũng hết là thông tin.
+function towerAnchor(tribe) {
+  const R = wallRadius(tribe);
+  const INSET = 6, SPREAD = 4, SLOTS = 12, MEMORY = 4000;
+  const home = tribe.home;
+  // Chưa có tường (Đồ Đá) hoặc vành quá hẹp để lún vào -> giữ nguyên nếp cũ.
+  if (tribe.age < CONFIG.WALL.MIN_AGE || R <= INSET + SPREAD) {
+    return { x: home.x, y: home.y, r: undefined };
+  }
+  const RR = R - INSET;
+  // Điểm thứ i trên vành VUÔNG (Chebyshev — cùng hình học mà ensureWalls dựng, chứ
+  // không phải một vòng tròn xấp xỉ): chạy quanh chu vi, mỗi cạnh SLOTS/4 chỗ.
+  const at = (i) => {
+    const u = (i + 0.5) / SLOTS, s = Math.floor(u * 4) % 4, f = u * 4 - Math.floor(u * 4);
+    const a = Math.round(-RR + f * 2 * RR);
+    if (s === 0) return { x: home.x + a, y: home.y - RR };
+    if (s === 1) return { x: home.x + RR, y: home.y + a };
+    if (s === 2) return { x: home.x - a, y: home.y + RR };
+    return { x: home.x - RR, y: home.y - a };
+  };
+  const pts = [], count = new Array(SLOTS).fill(0);
+  for (let i = 0; i < SLOTS; i++) pts.push(at(i));
+  const nearestSlot = (x, y) => {
+    let bi = 0, bd = Infinity;
+    for (let i = 0; i < SLOTS; i++) {
+      const d = dist(pts[i].x, pts[i].y, x, y);
+      if (d < bd) { bd = d; bi = i; }
+    }
+    return bi;
+  };
+  // CHỈ ĐẾM THÁP CÒN GÁC ĐƯỢC VÀNH NÀY. Bản đầu đếm mọi cái tháp của bộ lạc, và đo
+  // ra hậu quả ngay: ở Hoàng Kim khoảng cách trung bình từ tháp tới kinh đô là 21,3
+  // ô trong khi vành tường đã ra tới 34 — nghĩa là cái tháp trung bình bắn xa 10 ô
+  // vẫn với KHÔNG TỚI chân tường của chính nó.
+  //
+  // Nguyên nhân không nằm ở chỗ đặt móng mà nằm ở THỜI GIAN: vành tường dựng lại ở
+  // bán kính mới mỗi lần lên đời (18 -> 22 -> 28 -> 34), còn tháp thì đứng nguyên
+  // chỗ nó được xây. Một cái tháp dựng sát vành Đồ Đồng là một cái tháp nằm sâu 12
+  // ô bên trong vành Hoàng Kim. Đếm cả nó thì cung ấy trông như đã có người gác, và
+  // cái tháp MỚI bị đẩy sang cung khác — vành mới vì thế được lấp bằng những chỗ
+  // trống của một vành đã không còn tồn tại.
+  //
+  // `RELEVANT` = INSET + SPREAD + 2: đúng bằng tầm với của một chỗ đặt hợp lệ quanh
+  // điểm neo, cộng hai ô đệm. Tháp xa hơn thế không phải tháp hỏng — nó thành tuyến
+  // trong, và đó là một vai có thật. Nó chỉ không còn được tính là đã gác vành ngoài.
+  const RELEVANT = INSET + SPREAD + 2;
+  for (const b of buildings) {
+    if (b.tribeId !== tribe.id || b.type !== 'tower' || b.hp <= 0) continue;
+    const si = nearestSlot(b.x, b.y);
+    if (dist(pts[si].x, pts[si].y, b.x, b.y) <= RELEVANT) count[si]++;
+  }
+  const br = tribe.lastBreach;
+  const hot = (br && tick - br.tick < MEMORY) ? nearestSlot(br.x, br.y) : -1;
+  let best = 0, bestScore = -Infinity;
+  for (let i = 0; i < SLOTS; i++) {
+    const score = -count[i] * 10 + (i === hot ? 6 : 0);
+    if (score > bestScore) { bestScore = score; best = i; }
+  }
+  return { x: pts[best].x, y: pts[best].y, r: SPREAD };
 }
 
 // Tìm tuyến từ (ax,ay) tới (bx,by), né gốc cây. Trả về mảng ô hoặc null.
@@ -587,7 +740,7 @@ function abandonDeadSites(tribe, sites) {
       b.buildTicks = CONFIG.BUILD.tower.buildTicks;
       b.hp = Math.min(b.maxHp, Math.max(b.hp, b.maxHp * 0.5));
       refund(tribe, b.paid || towerStackCost(b.level || 1, tribe));
-      logEvent(`🏯 ${tribe.name} bỏ dở tầng tháp — tháp cũ trở lại canh gác`, tribe.color);
+      logEvent(TL('🏯 {tribe} bỏ dở tầng tháp — tháp cũ trở lại canh gác', { tribe: tribe.name }), tribe.color);
       continue;
     }
     // HOÀN ĐÚNG SỐ ĐÃ TRẢ (`b.paid`), không tra lại bảng giá. Với mười hai loại
@@ -606,7 +759,7 @@ function abandonDeadSites(tribe, sites) {
     //     không để lại đống đổ nát, nó chỉ biến mất cùng đám cọc.
     destroyBuilding(b);
     b.hp = 0;                       // vòng lọc cuối tick dọn nó đi, đúng đường mà mọi công trình chết đi qua
-    logEvent(`🚧 ${tribe.name} dỡ móng ${CONFIG.BUILD[b.type].label} bỏ hoang — hoàn lại vật liệu`, tribe.color);
+    logEvent(TL('🚧 {tribe} dỡ móng {build} bỏ hoang — hoàn lại vật liệu', { tribe: tribe.name, build: () => CONFIG.BUILD[b.type].label }), tribe.color);
   }
 }
 
@@ -671,8 +824,8 @@ function maybeFoundColony(tribe, s) {
   if (queueBuild(tribe, 'town', c.x, c.y, C.SPOT_R)) {
     tribe.claims.shift();
     const victim = tribes[c.from];
-    logEvent(`🏯 ${tribe.name} LẬP ĐÔ trên nền kinh đô cũ của ${victim ? victim.name : 'kẻ bại trận'}`, tribe.color, true);
-    addHotspot(c.x, c.y, 10, `${tribe.name} lập đô trên đất chiếm`);
+    logEvent(TL('🏯 {tribe} LẬP ĐÔ trên nền kinh đô cũ của {victim}', { tribe: tribe.name, victim: victim ? victim.name : () => T('kẻ bại trận') }), tribe.color, true);
+    addHotspot(c.x, c.y, 10, TL('{tribe} lập đô trên đất chiếm', { tribe: tribe.name }));
   }
 }
 
@@ -703,7 +856,7 @@ function reanchorHome(tribe) {
   // công trình nào còn "đã có đường tới" theo nghĩa đang dùng.
   tribe.roadLinked = [];
   tribe.roadPlan = null;
-  logEvent(`${tribe.name} dời đô về ${best.x},${best.y}`, tribe.color);
+  logEvent(TL('{tribe} dời đô về {x},{y}', { tribe: tribe.name, x: best.x, y: best.y }), tribe.color);
 }
 
 const DEPOT_MIN_HAUL = 18;      // dưới ngần này ô thì gánh thẳng về còn rẻ hơn xây kho
@@ -743,7 +896,7 @@ function tribeBrain(tribe) {
       tribe.home = { x: anyVillager.x, y: anyVillager.y };
       tribe.rally = { x: anyVillager.x, y: anyVillager.y };
     }
-    if (queueBuild(tribe, 'town')) logEvent(`${tribe.name} dựng lại nhà chính ở vùng đất mới`, tribe.color);
+    if (queueBuild(tribe, 'town')) logEvent(TL('{tribe} dựng lại nhà chính ở vùng đất mới', { tribe: tribe.name }), tribe.color);
   } else {
     // Còn ít nhất một đô: kiểm xem cái đang neo `home` có còn đứng không.
     reanchorHome(tribe);
@@ -827,26 +980,34 @@ function tribeBrain(tribe) {
   if (s.bcount.heroHall === 0 && CONFIG.HERO.ENABLED && p.heroDrive > 0.3 && s.villagers >= 6) {
     queueBuild(tribe, 'heroHall', tribe.home.x, tribe.home.y);
   }
-  // SỐ THÁP MUỐN CÓ = max(gen, hạn ngạch lên đời). Sàn cứng này là nửa thứ hai của
-  // cơ chế NEED_TOWERS — không có nó thì một bộ lạc `towerTarget` thấp sẽ đứng
-  // trước cổng Đồ Sắt với đủ tiền, đủ mọi thứ, và không bao giờ hiểu ra rằng thứ
-  // nó thiếu là hai cái tháp mà chính gen của nó bảo đừng xây. Một điều kiện mà
-  // AI không biết cách thoả mãn thì nó không phải một cổng, nó là một bức tường —
-  // đúng cái phân biệt đã ghi ở bảng AGE.COST.
+  // SỐ THÁP MUỐN CÓ = sàn bắt buộc CỘNG phần gen muốn thêm — xem `towerWant`, nơi
+  // cả công thức lẫn phép đo đã bác bỏ công thức cũ được ghi lại.
   //
-  // `+ 1` để có đệm: tháp bị phá là chuyện thường, và chạm đúng hạn ngạch rồi mất
-  // một cái thì cổng đóng lại giữa chừng.
-  // `fortify` cộng THẲNG vào số tháp muốn có (0..+3), không nhân. Nhân thì một bộ
-  // lạc `towerTarget` 0 vẫn ra 0 dù gen phòng thủ của nó kịch trần — và "một lựa
-  // chọn không bao giờ thắng thì không phải lựa chọn" (Phase 3.17). Cộng thì hai
-  // gen thật sự độc lập: `towerTarget` là sở thích công trình, `fortify` là cả một
-  // chiến lược, và một bộ lạc có thể tới cùng con số tháp bằng hai con đường khác
-  // hẳn nhau về kinh tế.
-  const towerQuota = CONFIG.AGE.NEED_TOWERS[tribe.age + 1] || 0;
-  const wantTowers = Math.max(Math.round(p.towerTarget + (p.fortify || 0) * 3),
-                              towerQuota ? towerQuota + 1 : 0);
+  // Sàn cứng ấy là nửa thứ hai của cơ chế NEED_TOWERS — không có nó thì một bộ lạc
+  // `towerTarget` thấp sẽ đứng trước cổng Đồ Sắt với đủ tiền, đủ mọi thứ, và không
+  // bao giờ hiểu ra rằng thứ nó thiếu là hai cái tháp mà chính gen của nó bảo đừng
+  // xây. Một điều kiện mà AI không biết cách thoả mãn thì nó không phải một cổng,
+  // nó là một bức tường — đúng cái phân biệt đã ghi ở bảng AGE.COST.
+  //
+  // Hai gen vẫn thật sự độc lập: `towerTarget` là sở thích công trình (nó quyết một
+  // mình ở đời 0-1, khi chưa có hạn ngạch nào), `fortify` là cả một chiến lược (nó
+  // quyết phần vượt sàn, ở mọi thời đại). Một bộ lạc có thể tới cùng con số tháp
+  // bằng hai con đường khác hẳn nhau về kinh tế.
+  const wantTowers = towerWant(tribe);
   if (s.bcount.tower < wantTowers && s.bcount.barracks > 0) {
-    queueBuild(tribe, 'tower', tribe.home.x, tribe.home.y);
+    // Neo vành tường TRƯỚC, kinh đô là đường lui. Cái đường lui ấy bắt buộc phải
+    // có: `towerAnchor` bó chỗ tìm xuống một hình tròn 4 ô, và một cung vành đầy
+    // cây hoặc đã kín nhà sẽ trả về null — mà tháp canh là ĐIỀU KIỆN LÊN ĐỜI
+    // (NEED_TOWERS), nên một lần thất bại im lặng ở đây là một bộ lạc đứng mãi
+    // trước cổng thời đại. Đúng họ "một cơ chế thất bại không tiếng động là một cơ
+    // chế không tồn tại" đã ghi ở chính findBuildSpot.
+    //
+    // Không sợ trả tiền hai lần: mọi nhánh thoát sớm của queueBuild đều nằm TRƯỚC
+    // `pay`, nên lượt hỏng không rút ví.
+    const a = towerAnchor(tribe);
+    if (!queueBuild(tribe, 'tower', a.x, a.y, a.r)) {
+      queueBuild(tribe, 'tower', tribe.home.x, tribe.home.y);
+    }
   } else if (s.bcount.tower > 0 && s.bcount.barracks > 0) {
     // ĐÃ ĐỦ SỐ THÁP -> chuyển sang XÂY CHỒNG (xem CONFIG.BUILD.TOWER_STACK).
     //
@@ -998,8 +1159,8 @@ function tribeBrain(tribe) {
       // hôm qua trông thế nào, tức là không phát hiện được.
       tribe.ageFlashAt = aTick;
       tribe.ageFlashEnd = aTick + AGE_SWEEP_FRAMES + AGE_SWEEP_SPAN;
-      logEvent(`${tribe.name} tiến lên thời đại ${CONFIG.AGE.NAMES[tribe.age]}`, tribe.color, true);
-      addHotspot(tribe.home.x, tribe.home.y, 5, `${tribe.name} lên ${CONFIG.AGE.NAMES[tribe.age]}`);
+      logEvent(TL('{tribe} tiến lên thời đại {age}', { tribe: tribe.name, age: () => CONFIG.AGE.NAMES[tribe.age] }), tribe.color, true);
+      addHotspot(tribe.home.x, tribe.home.y, 5, TL('{tribe} lên {age}', { tribe: tribe.name, age: () => CONFIG.AGE.NAMES[tribe.age] }));
       addFx({ type: 'ageup', x: tribe.home.x, y: tribe.home.y, life: 46, maxLife: 46, color: tribe.color });
       // NGỰA CHIẾN mở ở Đồ Sắt và nó là một con số CỨNG trên cá thể (u.speedMult),
       // không đi qua bảng upBonus, nên không có dòng này thì anh hùng đang sống chỉ
@@ -1104,7 +1265,53 @@ function tribeBrain(tribe) {
       // biểu hiện thì tín hiệu chọn lọc mạnh lên, thêm gen mới thì nó loãng ra. Và
       // nó đúng về luật chơi: cỗ máy công thành chỉ có nghĩa với kẻ định đi phá
       // tường người khác.
-      siege: (s.catapults + s.ballistas) * 7 * (0.5 + p.aggression)
+      siege: (s.catapults + s.ballistas) * 7 * (0.5 + p.aggression),
+      // NỀ ĐÁ — nhánh này CHƯA TỪNG có mặt trong bảng điểm kể từ khi nó ra đời, nên
+      // nó rơi thẳng xuống lưới an toàn `?? 0,01` mười dòng dưới. Hệ quả không phải
+      // "hiếm khi được chọn" mà là "chỉ được chọn khi bộ lạc không còn một người
+      // lính, một cung thủ, một thầy lang, một cỗ máy nào" — vì lúc đó và chỉ lúc đó
+      // mọi điểm khác mới cùng bằng 0 và 0,01 mới thắng nổi `bestScore = 0`.
+      //
+      // Đây đúng con lỗi mà chú thích ở `?? 0.01` mô tả, và nó bắt được nhánh thứ
+      // BA trong dự án (sau Ngựa chiến 0/16 và Công thành 1/16). Điều đáng nói: cả
+      // ba lần, cảnh báo đã nằm sẵn ngay cạnh chỗ hỏng — nó nằm ở chỗ CHỌN, còn lỗi
+      // thì sinh ra ở chỗ THÊM MỘT NHÁNH MỚI, và hai chỗ đó cách nhau bảy chục dòng.
+      //
+      // Điểm theo SỐ CÔNG TRÌNH, cùng số học với `siege` (số cỗ máy) và `supplyline`
+      // (số trại): Nề đá cộng máu cho MỌI toà nhà, nên số nhà là số quân của nó.
+      // Nhân với `fortify` — cùng gen đã quyết bộ lạc này có bao nhiêu thợ đá và bao
+      // nhiêu tháp; nhánh nghiên cứu là bước tiếp theo trên CÙNG con đường ấy.
+      // Cộng TAY từ `bcount` chứ không đọc một trường `total` — `s.stats` không có
+      // trường ấy, và `undefined * 0,5` cho ra NaN, mà `NaN > bestScore` LUÔN false.
+      // Nghĩa là một dòng viết ra để CHỮA nhánh chết sẽ tự nó là một nhánh chết, im
+      // lặng y hệt, ở đúng chỗ vừa dán ba đoạn cảnh báo về chuyện đó.
+      // TƯỜNG THÀNH CỘNG VÀO ĐÂY từ Phase 3.41, cùng lúc với việc Nề đá lấy lại
+      // được nó. Không có dòng này thì nhánh vừa được trả lại khách hàng LỚN NHẤT
+      // của nó (một vành đời 5 có 320 ô, gấp hơn mười lần số toà nhà) mà bảng điểm
+      // vẫn tính như thể nó chưa có — đúng cái hình dạng "một tác dụng có thật mà
+      // không nhánh nào biết để chọn" đã giết nhánh Ngựa chiến (0/16) và nhánh Công
+      // thành (1/16). Đếm ô tường là một vòng duyệt Map, nhưng bảng điểm chỉ chạy ở
+      // NHỊP BỘ NÃO chứ không mỗi tick, nên nó rẻ hơn hẳn mọi lượt quét trong file.
+      //
+      // Trọng số 0,06 mỗi ô chứ không 0,5 như một toà nhà, và đó không phải một con
+      // số bốc: một ô tường 900-3.600 máu đứng cạnh một căn nhà 150 máu thì tưởng là
+      // phải NẶNG hơn, nhưng cái đang đếm là "một điểm nữa cộng vào bao nhiêu MÁU
+      // TỔNG" — 320 ô × 0,5 sẽ nhấn chìm cả bảy nhánh còn lại và Nề đá thành nhánh
+      // luôn thắng ở mọi bộ lạc có tường, tức là lại thành một lựa chọn không phải
+      // lựa chọn. 0,06 × 320 ≈ 19, ngang với 38 toà nhà: đáng kể, không áp đảo.
+      masonry: ((s.bcount.house + s.bcount.tower + s.bcount.barracks + s.bcount.town
+              + s.bcount.depot + s.bcount.farm) * 0.5
+              + tribeWallCells(tribe) * 0.06) * (0.4 + p.fortify),
+      // NỎ LIÊN CHÂU — viết CÙNG LÚC với nhánh, không để lần sau. Xem ba đoạn trên
+      // để biết vì sao dòng này là phần dễ quên nhất và đắt nhất của việc thêm một
+      // nhánh.
+      //
+      // Hệ số 1,2 nhỏ hơn hẳn `siege` (7) hay `hero` (14) vì số đếm ở đây LỚN: một
+      // bộ lạc Thiên Triều có 15-22 tháp, trong khi trần cứng của máy bắn đá là 3-7
+      // chiếc và anh hùng thì có một. 20 tháp × 1,2 × (0,5+0,5) = 24, tức là ngang
+      // ngửa `melee` với một đạo quân bình thường (~18) — đúng chỗ nó nên đứng: một
+      // lựa chọn thật, không phải một lựa chọn luôn thắng.
+      volley: s.bcount.tower * 1.2 * (0.5 + p.fortify)
     };
     let bestLine = null, bestScore = 0;
     for (const line of UPGRADE_LINES) {
@@ -1168,7 +1375,7 @@ function tribeBrain(tribe) {
     for (const k in cost) if (tribe.res[k] < cost[k] * cushion) { ready = false; break; }
     if (ready && queueBuild(tribe, 'wonder', tribe.home.x, tribe.home.y)) {
       tribe.wonderStarted = true;
-      logEvent(`🏛 ${tribe.name} khởi công KỲ QUAN`, tribe.color, true);
+      logEvent(TL('🏛 {tribe} khởi công KỲ QUAN', { tribe: tribe.name }), tribe.color, true);
     }
   }
 
@@ -1180,7 +1387,7 @@ function tribeBrain(tribe) {
       && s.bcount.town > 0 && canAfford(tribe, CONFIG.UNIT.VILLAGER.cost)) {
     pay(tribe, CONFIG.UNIT.VILLAGER.cost);
     tribe.trainQueue.villager++;
-    logEvent(`${tribe.name} gắng gượng gây dựng lại từ đầu`, tribe.color);
+    logEvent(TL('{tribe} gắng gượng gây dựng lại từ đầu', { tribe: tribe.name }), tribe.color);
     return;
   }
 
@@ -1480,8 +1687,8 @@ function tribeBrain(tribe) {
     if (tribe.warTarget !== null) {
       tribe.warTarget = null;
       logEvent(wonderWatch.phase === 'building'
-        ? `🛡 ${tribe.name} triệu hồi toàn quân về giữ công trường Kỳ quan`
-        : `🛡 ${tribe.name} triệu hồi toàn quân về giữ Kỳ quan`, tribe.color, true);
+        ? TL('🛡 {tribe} triệu hồi toàn quân về giữ công trường Kỳ quan', { tribe: tribe.name })
+        : TL('🛡 {tribe} triệu hồi toàn quân về giữ Kỳ quan', { tribe: tribe.name }), tribe.color, true);
     }
     const w = buildings.find(b => b.id === wonderWatch.buildingId && b.hp > 0);
     if (w) {
@@ -1493,8 +1700,8 @@ function tribeBrain(tribe) {
     if (tribe.warTarget !== wonderWatch.tribeId) {
       tribe.warTarget = wonderWatch.tribeId;
       logEvent(wonderWatch.phase === 'building'
-        ? `⚔ ${tribe.name} kéo quân san phẳng công trường Kỳ quan của ${tribes[wonderWatch.tribeId].name}`
-        : `⚔ ${tribe.name} dốc toàn lực chặn Kỳ quan của ${tribes[wonderWatch.tribeId].name}`, tribe.color, true);
+        ? TL('⚔ {tribe} kéo quân san phẳng công trường Kỳ quan của {victim}', { tribe: tribe.name, victim: tribes[wonderWatch.tribeId].name })
+        : TL('⚔ {tribe} dốc toàn lực chặn Kỳ quan của {victim}', { tribe: tribe.name, victim: tribes[wonderWatch.tribeId].name }), tribe.color, true);
     }
   } else if (gameMode !== 'defend' && s.soldiers >= CONFIG.WAR_MIN_ARMY) {
     // Ngưỡng dám đánh do gen aggression quyết định: hiếu chiến ~1 thì đánh cả khi
@@ -1514,10 +1721,10 @@ function tribeBrain(tribe) {
     }
     if (bestTarget && tribe.warTarget !== bestTarget.id) {
       tribe.warTarget = bestTarget.id;
-      logEvent(`⚔ ${tribe.name} tuyên chiến với ${bestTarget.name}`, tribe.color, true);
+      logEvent(TL('⚔ {tribe} tuyên chiến với {victim}', { tribe: tribe.name, victim: bestTarget.name }), tribe.color, true);
     } else if (!bestTarget && tribe.warTarget !== null) {
       tribe.warTarget = null;
-      logEvent(`${tribe.name} lui binh, tạm ngừng chinh phạt`, tribe.color);
+      logEvent(TL('{tribe} lui binh, tạm ngừng chinh phạt', { tribe: tribe.name }), tribe.color);
     }
   } else if (tribe.warTarget !== null && s.soldiers < CONFIG.WAR_MIN_ARMY / 2) {
     tribe.warTarget = null;
@@ -1602,7 +1809,7 @@ function tickTribeEconomy(tribe) {
   if (tribe.res.food < 0) {
     tribe.res.food = 0;
     if (!tribe.starving) {
-      logEvent(`${tribe.name} lâm vào NẠN ĐÓI`, '#d05a44', true);
+      logEvent(TL('{tribe} lâm vào NẠN ĐÓI', { tribe: tribe.name }), '#d05a44', true);
       // TOÀN DÂN BỎ VIỆC ĐI KIẾM ĂN. Nếu chỉ đổi pickJob thôi thì một người đang
       // đốn gỗ ở rìa bản đồ phải đi hết chuyến (có khi 60-80 tick) mới hỏi lại
       // "làm nghề gì" — quá chậm so với tốc độ chết đói. Đây là nút bấm khẩn cấp:
@@ -1827,13 +2034,13 @@ function tickWorship(tribe) {
     if (kind) {
       tribe.prayer = { kind, born: tick, until: tick + W.PRAYER_TTL };
       tribe.lastPrayerTick = tick;
-      logEvent(`${PRAYERS[kind].icon} ${tribe.name} khẩn cầu: ${PRAYERS[kind].label} — ${PRAYERS[kind].desc}`, tribe.color);
+      logEvent(TL('{icon} {tribe} khẩn cầu: {prayer} — {why}', { icon: PRAYERS[kind].icon, tribe: tribe.name, prayer: () => PRAYERS[kind].label, why: () => PRAYERS[kind].desc }), tribe.color);
     }
   }
   if (tribe.prayer && tick > tribe.prayer.until) {
     // Lời cầu không được đáp. Ghi lại thành sự kiện chứ không im lặng biến mất:
     // sự THINH LẶNG của Chúa Tể cũng là một hành động, và nó phải nhìn thấy được.
-    logEvent(`${tribe.name} cầu mãi không thấu — lời khẩn cầu tắt lịm`, '#6d6454');
+    logEvent(TL('{tribe} cầu mãi không thấu — lời khẩn cầu tắt lịm', { tribe: tribe.name }), '#6d6454');
     tribe.prayer = null;
   }
 }
@@ -1878,8 +2085,9 @@ function grantBlessing(tribe, kind, opts) {
   tribe.prayer = null;
   const home = tribe.home;
   addFx({ type: 'blessing', x: home.x, y: home.y, life: 60, maxLife: 60, color: tribe.color });
-  addHotspot(home.x, home.y, 9, `${tribe.name} được ban phước`);
-  logEvent(`${auto ? '✨ Chúa Tể đoái thương kẻ thành tâm nhất' : '🙏 Chúa Tể đáp lời'} — ${tribe.name} nhận ${PRAYERS[kind].label.toLowerCase()} (x${m.toFixed(2)})`,
+  addHotspot(home.x, home.y, 9, TL('{tribe} được ban phước', { tribe: tribe.name }));
+  logEvent(TL('{who} — {tribe} nhận {prayer} (x{mult})', { who: auto ? () => T('✨ Chúa Tể đoái thương kẻ thành tâm nhất') : () => T('🙏 Chúa Tể đáp lời'),
+      tribe: tribe.name, prayer: () => PRAYERS[kind].label.toLowerCase(), mult: m.toFixed(2) }),
            '#d8a544', true);
 }
 

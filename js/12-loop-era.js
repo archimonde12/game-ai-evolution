@@ -186,7 +186,7 @@ function simulationTick() {
       // lại, lính các bộ lạc khác vẫn kéo tới "công thành" một kẻ đã chết.
       for (const b of buildings) if (b.tribeId === t.id) destroyBuilding(b);
       buildings = buildings.filter(b => b.hp > 0);
-      logEvent(`☠ ${t.name} DIỆT VONG`, '#d05a44', true);
+      logEvent(TL('☠ {tribe} DIỆT VONG', { tribe: t.name }), '#d05a44', true);
     }
   }
 
@@ -238,15 +238,15 @@ function tickCapitalClock(t) {
   }
   if (done) {
     if (t.capitalLeft > 0) {
-      logEvent(`🏯 ${t.name} dựng xong kinh đô mới — thoát diệt vong`, t.color, true);
+      logEvent(TL('🏯 {tribe} dựng xong kinh đô mới — thoát diệt vong', { tribe: t.name }), t.color, true);
       t.capitalLeft = 0;
     }
     return false;
   }
   if (!t.capitalLeft) {
     t.capitalLeft = C.GRACE;
-    logEvent(`⏳ ${t.name} MẤT KINH ĐÔ — ${C.GRACE} tick để dựng lại, hoặc diệt vong`, '#d05a44', true);
-    addHotspot(t.home.x, t.home.y, C.CAMERA_W, `${t.name} mất kinh đô`);
+    logEvent(TL('⏳ {tribe} MẤT KINH ĐÔ — {n} tick để dựng lại, hoặc diệt vong', { tribe: t.name, n: C.GRACE }), '#d05a44', true);
+    addHotspot(t.home.x, t.home.y, C.CAMERA_W, TL('{tribe} mất kinh đô', { tribe: t.name }));
     return false;
   }
   // Đang có thợ đứng dựng thì đồng hồ ĐỨNG YÊN. Đếm ngược NGƯỢC (một biến `left`
@@ -257,8 +257,8 @@ function tickCapitalClock(t) {
   if (working) return false;
   t.capitalLeft--;
   if (t.capitalLeft === C.WARN_AT) {
-    logEvent(`⏳ ${t.name} còn ${C.WARN_AT} tick để có lại kinh đô`, '#d05a44', true);
-    addHotspot(t.home.x, t.home.y, C.CAMERA_W, `${t.name} sắp diệt vong`);
+    logEvent(TL('⏳ {tribe} còn {n} tick để có lại kinh đô', { tribe: t.name, n: C.WARN_AT }), '#d05a44', true);
+    addHotspot(t.home.x, t.home.y, C.CAMERA_W, TL('{tribe} sắp diệt vong', { tribe: t.name }));
   }
   return t.capitalLeft <= 0;
 }
@@ -373,10 +373,14 @@ function endEra() {
   const winner = (!defend && wonderWinnerTribe >= 0) ? tribes[wonderWinnerTribe] : ranked[0];
   const survived = winner.alive ? tick : winner.diedAtTick;
   if (defend && tick > survivalRecord) survivalRecord = tick;
+  // LÝ DO THẮNG cất thành {kind, ...} chứ không thành câu, vì eraHistory giữ nó
+  // lại và bảng Biên niên sử đọc ra hàng chục kỷ nguyên sau. Ghép sẵn thành câu
+  // thì mỗi dòng sử mang ngôn ngữ của lúc nó được ghi, và sau vài lần bấm L thì
+  // bảng biên niên là một bản song ngữ lẫn lộn không ai đọc được. Xem reasonText().
   const reason = defend
-    ? `trụ được ${survived} tick qua ${waveNumber} đợt`
-    : wonderWinnerTribe >= 0 ? 'giữ vững KỲ QUAN'
-    : tribes.filter(t => t.alive).length <= 1 ? 'thống nhất thiên hạ' : 'dẫn đầu khi hết kỷ nguyên';
+    ? { kind: 'survive', ticks: survived, waves: waveNumber }
+    : wonderWinnerTribe >= 0 ? { kind: 'wonder' }
+    : tribes.filter(t => t.alive).length <= 1 ? { kind: 'unify' } : { kind: 'lead' };
 
   eraHistory.unshift({
     era, winner: winner.name, color: winner.color, reason, tick,
@@ -385,8 +389,9 @@ function endEra() {
   });
   if (eraHistory.length > 12) eraHistory.pop();
   logEvent(defend
-    ? `★ Kỷ nguyên ${era} kết thúc — cả bốn bộ lạc bị quét sạch ở tick ${tick} (đợt ${waveNumber}). Trụ lâu nhất: ${winner.name}, ${survived} tick.`
-    : `★ Kỷ nguyên ${era} kết thúc — ${winner.name} ${reason}`, '#d8a544');
+    ? TL('★ Kỷ nguyên {era} kết thúc — cả bốn bộ lạc bị quét sạch ở tick {tick} (đợt {wave}). Trụ lâu nhất: {tribe}, {ticks} tick.',
+        { era, tick, wave: waveNumber, tribe: winner.name, ticks: survived })
+    : TL('★ Kỷ nguyên {era} kết thúc — {tribe} {reason}', { era, tribe: winner.name, reason: () => reasonText(reason) }), '#d8a544');
 
   // Anh hùng đáng nhớ nhất kỷ nguyên — xét cả những người đã chết lẫn người còn
   // đứng lúc màn hạ. Một dòng biên niên sử kiểu này làm cả kỷ nguyên có nhân vật
@@ -398,14 +403,15 @@ function endEra() {
   };
   for (const t of tribes) {
     for (const r of t.heroLine.history) {
-      consider(`${t.heroLine.dynasty} đời ${r.gen}`, t, r.kills, r.razed, r.lifespan);
+      consider(T('{dynasty} đời {gen}', { dynasty: t.heroLine.dynasty, gen: r.gen }), t, r.kills, r.razed, r.lifespan);
     }
   }
   for (const u of units) {
     if (u.type === 'hero') consider(u.name, tribes[u.tribeId], u.heroKills, u.heroRazed, tick - u.born);
   }
   if (fame) {
-    logEvent(`🏅 Anh hùng lừng danh nhất: ${fame.name} (${fame.t.name}) — ${fame.kills} mạng, ${fame.razed} công trình, sống ${fame.lifespan} tick`, fame.t.color, true);
+    logEvent(TL('🏅 Anh hùng lừng danh nhất: {hero} ({tribe}) — {kills} mạng, {razed} công trình, sống {life} tick',
+      { hero: fame.name, tribe: fame.t.name, kills: fame.kills, razed: fame.razed, life: fame.lifespan }), fame.t.color, true);
   }
 
   showEraCard(winner, reason);
@@ -429,10 +435,15 @@ function nextEraPolicies() {
   const runnerUp = ranked.find(t => t !== winner) || winner;
   const label = `K${era}·${winner.name}`;
   const out = [];
-  const keep = Object.assign({}, winner.policy); keep.__lineage = label + ' (nguyên bản)';
-  const m1 = mutatePolicy(winner.policy); m1.__lineage = label + ' (đột biến)';
-  const m2 = mutatePolicy(runnerUp.policy); m2.__lineage = `K${era}·${runnerUp.name} (đột biến)`;
-  const rnd = randomPolicy(); rnd.__lineage = 'ngẫu nhiên';
+  // DÒNG DÕI ghi thành {base, kind} chứ không phải một chuỗi đã ghép sẵn: phần
+  // `base` là tên riêng (K3·Xích Long) nên không dịch, còn `kind` là một trong
+  // bốn từ có bản dịch. Ghép sẵn ở đây thì cả chuỗi bị đông cứng vào state lúc
+  // gieo kỷ nguyên, và đổi ngôn ngữ giữa ván sẽ để lại "(đột biến)" trên một
+  // giao diện tiếng Anh cho tới hết kỷ nguyên. Xem lineageText().
+  const keep = Object.assign({}, winner.policy); keep.__lineage = { base: label, kind: 'orig' };
+  const m1 = mutatePolicy(winner.policy); m1.__lineage = { base: label, kind: 'mut' };
+  const m2 = mutatePolicy(runnerUp.policy); m2.__lineage = { base: `K${era}·${runnerUp.name}`, kind: 'mut' };
+  const rnd = randomPolicy(); rnd.__lineage = { kind: 'rand' };
 
   // Gen anh hùng cũng được thừa kế qua kỷ nguyên, nhưng KHÁC policy ở một điểm:
   // không có bản "nguyên bản" nào cả — startEra luôn đột biến từ hạt giống. Vì
@@ -536,9 +547,10 @@ const GOD_POWERS = [
     // suốt cả kỷ nguyên — đúng cái lỗi nhãn-lệch-số đã cắn ở nút Thiên Ma.
     get hint() {
       const S = godStrike();
-      return `Click 1 điểm: gây ${S.unit} sát thương lên mọi quân và ${S.build} lên nhà cửa `
-        + `trong bán kính ${S.r.toFixed(1)} ô (không phân biệt phe). MẠNH DẦN THEO THỜI GIAN — `
-        + `hiện ×${S.pow.toFixed(2)}, đỉnh ×${CONFIG.GOD.RAMP.PEAK} ở tick ${CONFIG.GOD.RAMP.PEAK_TICK.toLocaleString('vi-VN')}.`;
+      return T('Click 1 điểm: gây {unit} sát thương lên mọi quân và {build} lên nhà cửa trong bán kính {r} ô '
+        + '(không phân biệt phe). MẠNH DẦN THEO THỜI GIAN — hiện ×{pow}, đỉnh ×{peak} ở tick {peakTick}.',
+        { unit: S.unit, build: S.build, r: S.r.toFixed(1), pow: S.pow.toFixed(2),
+          peak: CONFIG.GOD.RAMP.PEAK, peakTick: locNum(CONFIG.GOD.RAMP.PEAK_TICK) });
     },
     // 45 -> 75. Ở mức cũ, một phát sét vào giữa đạo quân Thiên Triều không giết
     // nổi một người nào (bộ binh đời 5 có hơn 100 máu): người xem trả 25 Đức Tin
@@ -572,18 +584,18 @@ const GOD_POWERS = [
       }
       addFx({ type: 'bolt', x, y, life: 14, maxLife: 14, seed: tick % 97 });
       addFx({ type: 'boom', x, y, life: 22, maxLife: 22, r: S.r });
-      addHotspot(x, y, 8, 'Sét của Chúa Tể');
-      logEvent(`⚡ Chúa Tể giáng sét (×${S.pow.toFixed(2)})`, '#d8a544');
+      addHotspot(x, y, 8, TL('Sét của Chúa Tể'));
+      logEvent(TL('⚡ Chúa Tể giáng sét (×{pow})', { pow: S.pow.toFixed(2) }), '#d8a544');
     }
   },
   {
     id: 'rain', label: '🌧 Mưa Lành', name: 'Mưa Lành', tone: 'grow', cost: 16,
     get hint() {
       const pow = godPower();
-      return `Click 1 điểm: mọi bụi quả và ô ruộng CÒN SỐNG trong bán kính `
-        + `${godRadius(18, pow).toFixed(1)} ô đầy lại tức thì. Ô đã bị hái CẠN thì đã biến mất `
-        + `khỏi bản đồ — mưa không gọi lại được, nên đây là quyền năng phải bấm TRƯỚC khi ruộng quả tàn. `
-        + `Bán kính mạnh dần theo thời gian (hiện ×${pow.toFixed(2)}).`;
+      return T('Click 1 điểm: mọi bụi quả và ô ruộng CÒN SỐNG trong bán kính {r} ô đầy lại tức thì. '
+        + 'Ô đã bị hái CẠN thì đã biến mất khỏi bản đồ — mưa không gọi lại được, nên đây là quyền năng '
+        + 'phải bấm TRƯỚC khi ruộng quả tàn. Bán kính mạnh dần theo thời gian (hiện ×{pow}).',
+        { r: godRadius(18, pow).toFixed(1), pow: pow.toFixed(2) });
     },
     // ĐỌC resourceCells, KHÔNG đọc regrowList — và đây là một lỗi im lặng đã sống
     // suốt từ Phase 3.25. `regrowList` chỉ chứa ô có `regrow > 0`, mà bản 3.25 đặt
@@ -607,44 +619,46 @@ const GOD_POWERS = [
         gained += c.max - c.amount; c.amount = c.max; n++;
       }
       addFx({ type: 'boom', x, y, life: 26, maxLife: 26, r: R });
-      logEvent(`🌧 Mưa lành hồi sinh ${n} ô lương thực (+${Math.round(gained)} lương)`, '#63b4ad');
+      logEvent(TL('🌧 Mưa lành hồi sinh {n} ô lương thực (+{gain} lương)', { n, gain: Math.round(gained) }), '#63b4ad');
     }
   },
   {
     id: 'forest', label: '🌲 Rừng Mọc', name: 'Rừng Mọc', tone: 'grow', cost: 12,
     get hint() {
       const pow = godPower();
-      return `Click 1 điểm: mọc thêm 1 khu rừng (gỗ mới, đồng thời chặn đường + chặn tầm nhìn) `
-        + `bán kính ${godRadius(7, pow).toFixed(1)} ô. Mạnh dần theo thời gian (hiện ×${pow.toFixed(2)}) — `
-        + `về cuối kỷ nguyên đủ rộng để bịt một hướng tiến quân.`;
+      return T('Click 1 điểm: mọc thêm 1 khu rừng (gỗ mới, đồng thời chặn đường + chặn tầm nhìn) '
+        + 'bán kính {r} ô. Mạnh dần theo thời gian (hiện ×{pow}) — về cuối kỷ nguyên đủ rộng để bịt '
+        + 'một hướng tiến quân.', { r: godRadius(7, pow).toFixed(1), pow: pow.toFixed(2) });
     },
     apply(x, y) {
       const R = godRadius(7, godPower());
       let n = 0;
       scatterCluster(x, y, R, 2, 0.6, (px, py) => { if (addResource(px, py, 'wood', CONFIG.MAP.WOOD_PER_TREE)) n++; });
-      logEvent(`🌲 Chúa Tể gieo ${n} gốc cây`, '#5aa07c');
+      logEvent(TL('🌲 Chúa Tể gieo {n} gốc cây', { n }), '#5aa07c');
     }
   },
   {
     id: 'bless', label: '✨ Ban Phước', name: 'Ban Phước', tone: 'gift', cost: 42, needTribe: true,
     get hint() {
       const g = godGift();
-      return `Click 1 quân/nhà: bộ lạc đó nhận +${g.food} lương, +${g.wood} gỗ, +${g.stone} đá, +${g.gold} vàng. `
-        + `Mạnh dần theo thời gian (hiện ×${g.pow.toFixed(2)}) — một cái kho cuối kỷ nguyên lớn gấp hàng chục lần `
-        + `cái kho đầu kỷ nguyên, nên một món quà đứng yên là một món quà tan biến.`;
+      return T('Click 1 quân/nhà: bộ lạc đó nhận +{food} lương, +{wood} gỗ, +{stone} đá, +{gold} vàng. '
+        + 'Mạnh dần theo thời gian (hiện ×{pow}) — một cái kho cuối kỷ nguyên lớn gấp hàng chục lần cái kho '
+        + 'đầu kỷ nguyên, nên một món quà đứng yên là một món quà tan biến.',
+        { food: g.food, wood: g.wood, stone: g.stone, gold: g.gold, pow: g.pow.toFixed(2) });
     },
     apply(x, y, tribe) {
       const g = godGift();
       tribe.res.food += g.food; tribe.res.wood += g.wood; tribe.res.stone += g.stone; tribe.res.gold += g.gold;
-      logEvent(`✨ ${tribe.name} nhận thiên ân (×${g.pow.toFixed(2)})`, tribe.color);
+      logEvent(TL('✨ {tribe} nhận thiên ân (×{pow})', { tribe: tribe.name, pow: g.pow.toFixed(2) }), tribe.color);
     }
   },
   {
     id: 'plague', label: '☠ Dịch Bệnh', name: 'Dịch Bệnh', tone: 'harm', cost: 34, needTribe: true,
     get hint() {
-      return `Click 1 quân/nhà: mọi quân của bộ lạc đó mất ${Math.round(godPlagueFrac() * 100)}% máu tối đa. `
-        + `Nặng dần theo thời gian (${Math.round(CONFIG.GOD.PLAGUE_FRAC[0] * 100)}% đầu kỷ nguyên → `
-        + `${Math.round(CONFIG.GOD.PLAGUE_FRAC[1] * 100)}% ở tick ${CONFIG.GOD.RAMP.PEAK_TICK.toLocaleString('vi-VN')}).`;
+      return T('Click 1 quân/nhà: mọi quân của bộ lạc đó mất {now}% máu tối đa. Nặng dần theo thời gian '
+        + '({lo}% đầu kỷ nguyên → {hi}% ở tick {peakTick}).',
+        { now: Math.round(godPlagueFrac() * 100), lo: Math.round(CONFIG.GOD.PLAGUE_FRAC[0] * 100),
+          hi: Math.round(CONFIG.GOD.PLAGUE_FRAC[1] * 100), peakTick: locNum(CONFIG.GOD.RAMP.PEAK_TICK) });
     },
     // TỈ LỆ, nên nó KHÔNG nhân hệ số godPower — xem chú thích CONFIG.GOD.RAMP: một
     // phân số của máu tối đa đã tự leo theo thế giới rồi, nhân thêm lần nữa là leo
@@ -656,7 +670,7 @@ const GOD_POWERS = [
       const frac = godPlagueFrac();
       let n = 0;
       for (const u of units) if (u.tribeId === tribe.id) { u.hp -= u.maxHp * frac; n++; }
-      logEvent(`☠ Dịch bệnh càn quét ${tribe.name} (${n} người, −${Math.round(frac * 100)}% máu)`, tribe.color);
+      logEvent(TL('☠ Dịch bệnh càn quét {tribe} ({n} người, −{pct}% máu)', { tribe: tribe.name, n, pct: Math.round(frac * 100) }), tribe.color);
     }
   },
   {
@@ -675,14 +689,15 @@ const GOD_POWERS = [
       const S = worldBossScaled();
       const gate = worldBossGate();
       if (gate) return gate;
-      return `Thả một con THIÊN MA ở chính giữa bản đồ (click đâu cũng vậy). `
-        + `NÓ MẠNH DẦN THEO THỜI GIAN — thả lúc này: bậc ${S.rank}, `
-        + `${S.hp.toLocaleString('vi-VN')} máu · đòn ${Math.round(S.attack)} (đỉnh ở tick `
-        + `${CONFIG.WORLD_BOSS.RAMP.PEAK_TICK.toLocaleString('vi-VN')}). `
-        + `Đập tường thành như một cỗ máy bắn đá, hành quân tới bộ lạc ĐANG DẪN ĐẦU. Bộ lạc nào ra đòn cuối nhận `
-        + `${S.loot.food} lương · ${S.loot.wood} gỗ · ${S.loot.stone} đá · ${S.loot.gold} vàng, `
-        + `một THÁNH VẬT cấp ${CONFIG.ITEM.LEVEL_TAG[CONFIG.ITEM.MAX_LEVEL]} và MỘT CẤP NGHIÊN CỨU miễn phí; `
-        + `Chúa Tể được hoàn ${CONFIG.WORLD_BOSS.FAITH_REFUND} Đức Tin. Chỉ một con trên bản đồ cùng lúc.`;
+      return T('Thả một con THIÊN MA ở chính giữa bản đồ (click đâu cũng vậy). NÓ MẠNH DẦN THEO THỜI GIAN — '
+        + 'thả lúc này: bậc {rank}, {hp} máu · đòn {atk} (đỉnh ở tick {peakTick}). Đập tường thành như một cỗ '
+        + 'máy bắn đá, hành quân tới bộ lạc ĐANG DẪN ĐẦU. Bộ lạc nào ra đòn cuối nhận {food} lương · {wood} gỗ · '
+        + '{stone} đá · {gold} vàng, một THÁNH VẬT cấp {tier} và MỘT CẤP NGHIÊN CỨU miễn phí; Chúa Tể được hoàn '
+        + '{refund} Đức Tin. Chỉ một con trên bản đồ cùng lúc.',
+        { rank: S.rank, hp: locNum(S.hp), atk: Math.round(S.attack),
+          peakTick: locNum(CONFIG.WORLD_BOSS.RAMP.PEAK_TICK), food: S.loot.food, wood: S.loot.wood,
+          stone: S.loot.stone, gold: S.loot.gold, tier: CONFIG.ITEM.LEVEL_TAG[CONFIG.ITEM.MAX_LEVEL],
+          refund: CONFIG.WORLD_BOSS.FAITH_REFUND });
     },
     // `return`, KHÔNG phải gọi rồi bỏ. Thiếu đúng từ khoá này thì cả cơ chế hoàn tiền
     // ở castPower là mã chết — và nó ĐÃ là mã chết từ 3.30 tới giờ: castPower kiểm
@@ -725,8 +740,9 @@ function worldBossGate() {
   let best = 0;
   for (const t of tribes) if (t.alive && (t.age || 1) > best) best = t.age || 1;
   if (best >= need) return null;
-  return `🔒 CHƯA MỞ — Thiên Ma chỉ giáng thế khi thế giới đã đủ lớn để chịu nó: cần ít nhất `
-       + `MỘT bộ lạc tới ${CONFIG.AGE.NAMES[need]}. Cao nhất hiện giờ là ${CONFIG.AGE.NAMES[best] || '—'}.`;
+  return T('🔒 CHƯA MỞ — Thiên Ma chỉ giáng thế khi thế giới đã đủ lớn để chịu nó: cần ít nhất MỘT bộ lạc '
+       + 'tới {need}. Cao nhất hiện giờ là {best}.',
+       { need: CONFIG.AGE.NAMES[need], best: CONFIG.AGE.NAMES[best] || '—' });
 }
 
 // ============================================================
@@ -745,9 +761,9 @@ function worldBossPower(atTick) {
 }
 
 function worldBossRank(pow) {
-  const T = CONFIG.WORLD_BOSS.RANKS;
-  let name = T[0].name;
-  for (const r of T) if (pow >= r.at) name = r.name;
+  const RANKS = CONFIG.WORLD_BOSS.RANKS;
+  let name = RANKS[0].name;
+  for (const r of RANKS) if (pow >= r.at) name = r.name;
   return name;
 }
 
@@ -793,7 +809,7 @@ function spawnWorldBoss() {
   // Thiên Ma là quyền năng đầu tiên biết từ chối, và giờ nó có hai lý do để từ chối).
   const gate = worldBossGate();
   if (gate) { setGodHint(gate); return false; }
-  if (worldBossAlive()) { setGodHint('Đã có một Thiên Ma trên bản đồ rồi.'); return false; }
+  if (worldBossAlive()) { setGodHint(T('Đã có một Thiên Ma trên bản đồ rồi.')); return false; }
   const cx = Math.floor(CONFIG.GRID_WIDTH / 2), cy = Math.floor(CONFIG.GRID_HEIGHT / 2);
   // Hang giả cấp 1 — cùng thủ thuật mà splitMonster đang dùng, nên chỉ số lấy
   // thẳng từ bảng TYPES với statMult 1,0 chứ không bị nhân theo cấp hang nào.
@@ -823,9 +839,10 @@ function spawnWorldBoss() {
   const t = worldBossTarget();
   u.raidTribe = t ? t.id : -1;
   addFx({ type: 'boom', x: cx, y: cy, life: 40, maxLife: 40, r: 6 });
-  addHotspot(cx, cy, 26, `THIÊN MA ${S.rank} giáng thế`);
-  logEvent(t ? `🐉 THIÊN MA — ${S.rank}, ${S.hp.toLocaleString('vi-VN')} máu — giáng thế giữa bản đồ, nó đi về phía ${t.name}!`
-             : `🐉 THIÊN MA — ${S.rank}, ${S.hp.toLocaleString('vi-VN')} máu — giáng thế giữa bản đồ!`,
+  addHotspot(cx, cy, 26, TL('THIÊN MA {rank} giáng thế', { rank: () => worldBossRank(S.pow) }));
+  logEvent(t ? TL('🐉 THIÊN MA — {rank}, {hp} máu — giáng thế giữa bản đồ, nó đi về phía {tribe}!',
+                 { rank: () => worldBossRank(S.pow), hp: () => locNum(S.hp), tribe: t.name })
+             : TL('🐉 THIÊN MA — {rank}, {hp} máu — giáng thế giữa bản đồ!', { rank: () => worldBossRank(S.pow), hp: () => locNum(S.hp) }),
            '#b783cc', true);
   return true;
 }
@@ -845,7 +862,7 @@ function tickWorldBoss() {
   if (t.id === u.raidTribe) return;
   u.raidTribe = t.id;
   u.combatTarget = null;
-  logEvent(`🐉 Thiên Ma đổi hướng — nó nhắm vào ${t.name}`, '#b783cc');
+  logEvent(TL('🐉 Thiên Ma đổi hướng — nó nhắm vào {tribe}', { tribe: t.name }), '#b783cc');
 }
 
 // Ra đòn cuối thì được kho báu. Gọi từ dealDamage — cửa duy nhất mà mọi cái chết
@@ -854,10 +871,10 @@ function tickWorldBoss() {
 function onWorldBossSlain(u, tribeId) {
   faith = Math.min(CONFIG.GOD.FAITH_MAX, faith + CONFIG.WORLD_BOSS.FAITH_REFUND);
   addFx({ type: 'boom', x: u.x, y: u.y, life: 44, maxLife: 44, r: 7 });
-  addHotspot(u.x, u.y, 26, 'THIÊN MA gục ngã');
+  addHotspot(u.x, u.y, 26, TL('THIÊN MA gục ngã'));
   const t = tribeId >= 0 ? tribes[tribeId] : null;
   if (!t) {
-    logEvent('🐉 THIÊN MA gục ngã — không bộ lạc nào nhận được kho báu.', '#b783cc', true);
+    logEvent(TL('🐉 THIÊN MA gục ngã — không bộ lạc nào nhận được kho báu.'), '#b783cc', true);
     return;
   }
   // KHO BÁU ĐỌC HỆ SỐ CỦA CHÍNH CON QUÁI VỪA CHẾT (`u.bossPow`), không gọi lại
@@ -873,11 +890,13 @@ function onWorldBossSlain(u, tribeId) {
   };
   t.res.food += loot.food; t.res.wood += loot.wood; t.res.stone += loot.stone; t.res.gold += loot.gold;
   const up = grantBossSpoilUpgrade(t);
-  logEvent(`🐉 ${t.name} HẠ ĐƯỢC THIÊN MA ${u.bossRank || ''} — ${loot.food} lương · ${loot.wood} gỗ · ${loot.stone} đá · ${loot.gold} vàng về tay họ!`, t.color, true);
+  logEvent(TL('🐉 {tribe} HẠ ĐƯỢC THIÊN MA {rank} — {food} lương · {wood} gỗ · {stone} đá · {gold} vàng về tay họ!',
+    { tribe: t.name, rank: () => worldBossRank(u.bossPow || 1), food: loot.food, wood: loot.wood, stone: loot.stone, gold: loot.gold }), t.color, true);
   // Dòng thứ hai, và nó KHÔNG gộp vào dòng trên: hai phần thưởng này chạm vào hai
   // thứ khác hẳn nhau (một cái vào kho, một cái vào cả đạo quân đang đứng), nên gộp
   // lại thành một câu dài là làm mất phần đắt hơn trong hai phần.
-  if (up) logEvent(`${up.icon} Chiến lợi phẩm mở ra một bí thuật — ${t.name} nhận ngay ${up.label} cấp ${up.level}`, t.color, true);
+  if (up) logEvent(TL('{icon} Chiến lợi phẩm mở ra một bí thuật — {tribe} nhận ngay {line} cấp {lv}',
+    { icon: up.icon, tribe: t.name, line: () => CONFIG.UPGRADE.LINES[up.key].label, lv: up.level }), t.color, true);
 }
 
 // ============================================================
@@ -906,7 +925,7 @@ function grantBossSpoilUpgrade(t) {
     const r = t.research;
     t.research = null;
     applyUpgrade(t, r.line, r.level);
-    return Object.assign({ level: r.level }, CONFIG.UPGRADE.LINES[r.line]);
+    return Object.assign({ level: r.level, key: r.line }, CONFIG.UPGRADE.LINES[r.line]);
   }
   let best = null;
   for (const k of UPGRADE_LINES) {
@@ -916,7 +935,7 @@ function grantBossSpoilUpgrade(t) {
   if (!best) return null;
   const level = t.upgrades[best] + 1;
   applyUpgrade(t, best, level);
-  return Object.assign({ level }, CONFIG.UPGRADE.LINES[best]);
+  return Object.assign({ level, key: best }, CONFIG.UPGRADE.LINES[best]);
 }
 
 function tribeAt(x, y) {
@@ -984,7 +1003,7 @@ function autoGodTick() {
   if (tribeScore(lead) > tribeScore(second) * 2.2 && faith >= plague.cost && gameMode !== 'defend') {
     faith -= plague.cost;
     plague.apply(lead.home.x, lead.home.y, lead);
-    addHotspot(lead.home.x, lead.home.y, 7, `Dịch bệnh giáng xuống ${lead.name}`);
+    addHotspot(lead.home.x, lead.home.y, 7, TL('Dịch bệnh giáng xuống {tribe}', { tribe: lead.name }));
     lastAutoGodTick = tick;
     return;
   }
@@ -995,7 +1014,7 @@ function autoGodTick() {
     if (faith >= rain.cost) {
       faith -= rain.cost;
       rain.apply(last.home.x, last.home.y);
-      addHotspot(last.home.x, last.home.y, 5, `Mưa lành cho ${last.name}`);
+      addHotspot(last.home.x, last.home.y, 5, TL('Mưa lành cho {tribe}', { tribe: last.name }));
       lastAutoGodTick = tick;
       return;
     }
@@ -1019,7 +1038,7 @@ function castPower(id, gx, gy) {
   let tribe = null;
   if (power.needTribe) {
     tribe = tribeAt(x, y);
-    if (!tribe) { setGodHint('Không có bộ lạc nào ở chỗ đó — click vào 1 quân hoặc 1 toà nhà.'); return false; }
+    if (!tribe) { setGodHint(T('Không có bộ lạc nào ở chỗ đó — click vào 1 quân hoặc 1 toà nhà.')); return false; }
   }
   // TRỪ ĐỨC TIN SAU KHI apply THÀNH CÔNG, không phải trước. Thiên Ma là quyền năng
   // đầu tiên có thể TỪ CHỐI thi hành (đã có một con trên bản đồ rồi), và với thứ

@@ -139,14 +139,20 @@ function pickJob(tribe) {
   const roadStone = roadLeft > 0
     ? Math.min(180, roadLeft * CONFIG.ROAD.STONE_PER_CELL)
     : 0;
-  const towerQuota = CONFIG.AGE.NEED_TOWERS[tribe.age + 1] || 0;
-  const towerStone = towerQuota > 0
-    // Đọc GIÁ THẬT qua `buildCost`, không đọc bảng gốc: từ vòng 2 của Phase 3.35 giá
-    // tháp đổi theo thời đại, và một đích tích trữ tính bằng bảng gốc sẽ bắt thợ đá
-    // gom dư 67% ở Đồ Đá — đúng chiều ngược của cái lỗi mà cả khối chú thích trên
-    // vừa mô tả, và cũng đúng hình dạng `foodTarget` vs `wealth` của Phase 3.27.
-    ? Math.max(0, towerQuota + 1 - ((tribe.stats && tribe.stats.towersDone) || 0)) * (buildCost(tribe, 'tower').stone || 0)
-    : 0;
+  // Hỏi `towerWant` — CÙNG hàm mà bộ não dùng để quyết đặt móng (Phase 3.38). Bản
+  // trước dòng này tự tra `NEED_TOWERS` và chỉ tích đá cho HẠN NGẠCH, nên phần tháp
+  // mà gen `fortify` muốn thêm là một khoản chi có thật mà đích tích trữ không biết
+  // tới — đúng cái bẫy mà chính khối chú thích ngay trên vừa mô tả cho đường cái:
+  // thợ đá bị gọi về đúng lúc khoản chi đó sắp tới. Bỏ luôn điều kiện `> 0`: từ bản
+  // này sàn không bao giờ rơi về 0 ở bậc cuối, và ở đời 0-1 thì `towerWant` vẫn ra
+  // một hai cái tháp mà bộ lạc thật sự định xây.
+  //
+  // Đọc GIÁ THẬT qua `buildCost`, không đọc bảng gốc: từ vòng 2 của Phase 3.35 giá
+  // tháp đổi theo thời đại, và một đích tích trữ tính bằng bảng gốc sẽ bắt thợ đá
+  // gom dư 67% ở Đồ Đá — đúng chiều ngược của cái lỗi mà cả khối chú thích trên
+  // vừa mô tả, và cũng đúng hình dạng `foodTarget` vs `wealth` của Phase 3.27.
+  const towerStone = Math.max(0, towerWant(tribe) - ((tribe.stats && tribe.stats.towersDone) || 0))
+                   * (buildCost(tribe, 'tower').stone || 0);
   // QUỸ VÁ TƯỜNG (Phase 3.30). Từ bản này tường thành tự sửa bằng ĐÁ, và dưới
   // WALL.REGEN_RESERVE thì nó chỉ vá bằng một phần tư tốc độ. Đó là một khoản chi
   // CÓ THẬT và liên tục — nên đích tích trữ đá phải biết tới nó, đúng bài học đã
@@ -231,7 +237,7 @@ function tickVillager(u, tribe) {
         b.hp = Math.min(b.maxHp, b.maxHp * (0.25 + 0.75 * b.progress / b.buildTicks));
         if (b.progress >= b.buildTicks) {
           onBuildingComplete(b, tribe);
-          logEvent(`${tribe.name} xây xong ${CONFIG.BUILD[b.type].label}`, tribe.color);
+          logEvent(TL('{tribe} xây xong {build}', { tribe: tribe.name, build: () => CONFIG.BUILD[b.type].label }), tribe.color);
           u.buildTarget = null; u.task = 'idle';
         }
       } else {

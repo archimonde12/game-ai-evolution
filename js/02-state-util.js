@@ -235,6 +235,16 @@ function pave(x, y, tribeId) {
 
 // major = sự kiện đủ lớn để hiện thành thông báo nổi GIỮA BẢN ĐỒ. Người xem đang
 // nhìn khung hình, không nhìn cột nhật ký bên phải — biến cố lớn phải tự tìm đến mắt.
+// Danh tính của một dòng thông báo, dùng để GỘP bản trùng. Phải so bằng NỘI DUNG:
+// từ Phase 3.36 `text` có thể là một gói dịch-hoãn-lại (xem TL trong 00-i18n.js),
+// và hai lời gọi cùng một câu sinh ra hai đối tượng khác nhau — so bằng `===` thì
+// luôn sai và ba bản sao lại xếp chồng, đúng con lỗi mà chú thích dưới đã ghi là
+// đã chữa một lần rồi.
+function toastKey(v) {
+  if (!v || v.__t === undefined) return String(v);
+  return v.__t + '|' + (v.__p ? JSON.stringify(v.__p) : '');
+}
+
 function logEvent(text, color, major) {
   eventLog.push({ tick, text, color: color || '#9a8d78' });
   if (eventLog.length > CONFIG.LOG_MAX) eventLog.shift();
@@ -247,7 +257,7 @@ function logEvent(text, color, major) {
     // được đẩy lên ba lần và chiếm trọn cả ngăn thông báo. Trùng thì gia hạn dòng
     // cũ và đếm số lần, thay vì xếp chồng ba bản sao.
     const last = mapToasts[mapToasts.length - 1];
-    if (last && last.text === text) {
+    if (last && toastKey(last.text) === toastKey(text)) {
       last.life = last.maxLife;
       last.count = (last.count || 1) + 1;
     } else {

@@ -277,6 +277,7 @@ function heroRetreat(u, tribe) {
 function tickHero(u, tribe) {
   if (u.cooldown > 0) u.cooldown--;
   bashWall(u);   // xem 08-ai-combat: anh hùng đâm phải tường thì cũng phải đục được
+  u.siegeHold = false;   // xoá dấu đầu mỗi tick — xem chú thích cùng dòng ở tickSoldier
 
   // Chết già. Đặt ở đầu hàm và đi qua hp = 0 như mọi cái chết khác, để vòng dọn
   // xác trong simulationTick gọi onHeroDeath() đúng một lần — không tự gọi ở đây,
@@ -290,7 +291,7 @@ function tickHero(u, tribe) {
     // gì về anh hùng — đó chính là lý do cờ này mang giá trị "chết già" chứ không
     // mang giá trị "tử trận". Một cờ phải được đặt ở n chỗ thì sẽ có n-1 chỗ quên.
     u.diedOfAge = true;
-    logEvent(`🕯 Anh hùng ${u.name} của ${tribe.name} qua đời vì tuổi già`, tribe.color, true);
+    logEvent(TL('🕯 Anh hùng {hero} của {tribe} qua đời vì tuổi già', { hero: u.name, tribe: tribe.name }), tribe.color, true);
     return;
   }
 
@@ -436,6 +437,22 @@ function tickHero(u, tribe) {
     if (intruder) target = intruder;
   }
 
+  // BINH PHÁP CÔNG THÀNH — cùng nấc, cùng chỗ trong thang ưu tiên như bước 2e của
+  // lính: TRÊN hành quân, DƯỚI địch sát sườn và lệnh cứu nhà.
+  //
+  // Bản đầu chỉ gắn luật này vào nhánh "đuổi theo mục tiêu ở xa" ở cuối hàm, và
+  // phép đo bác ngay: anh hùng vẫn 0 đòn vào cánh cửa / 162 đòn vào thân tường sau
+  // 15.000 tick — y hệt bản chưa sửa. Lý do là nhánh HÀNH QUÂN ngay dưới đây `return`
+  // trước khi tới đó, và chính stepDownField trong nhánh ấy mới là thứ dí anh hùng
+  // vào tường (nó đặt `u.wallBump`, rồi bashWall ở đầu tick sau đục đúng ô đó). Cùng
+  // một hình dạng đã cắn ba lần trong tệp 08: một nấc viết đúng nhưng đặt SAU cái
+  // nấc luôn thắng nó thì không bao giờ chạy.
+  if (!target && !defendSpot && u.speed > 0 && tribe.warTarget !== null && tribe.warField
+      && meleeSiegeDoctrine(u, tribe, null)) {
+    u.combatTarget = null;
+    return;
+  }
+
   // Hành quân chinh phạt: y hệt lính — trường dẫn đường chỉ dùng để ĐI, mục tiêu
   // luôn nhận lại TẠI CHỖ khi tới nơi. Đây là cái bẫy đã ba lần làm chết mô phỏng
   // (trường luôn dẫn tới cái gần nhất, còn mục tiêu ghi nhớ lại là một cái khác).
@@ -532,6 +549,22 @@ function tickHero(u, tribe) {
       u.cooldown = CONFIG.UNIT.ATTACK_COOLDOWN;
     }
   } else if (u.speed > 0) {
+    // BINH PHÁP CÔNG THÀNH — y hệt lính, và anh hùng cần nó hơn ai hết. Đo trước
+    // bản này: 98,7% sát thương lên tường của anh hùng rơi vào THÂN TƯỜNG, chỉ 1%
+    // vào cánh cửa — tức là trong khi cả đạo quân đã kéo tới cổng, người được nhìn
+    // nhiều nhất trên bản đồ vẫn đứng đấm một chỗ ngẫu nhiên trên vành thành, một
+    // mình, trong tầm tháp canh. Đó là một cảnh SAI, và nó sai đúng ở chỗ dễ thấy
+    // nhất: hào quang chỉ huy của anh ta lúc đó không phủ lên một ai.
+    //
+    // Cùng một hàm với lính chứ không phải một bản riêng cho anh hùng — hai bản
+    // thì một bản sẽ được sửa còn bản kia thì không, đúng lý do đã ghi cho
+    // wallOnPathTo. `effRange` của anh hùng bằng 0 nên nó đi đúng nhánh cận chiến,
+    // kể cả vế ĐỢI CỖ MÁY: một anh hùng biết đợi máy bắn đá cũng là một anh hùng
+    // sống thêm được một kỷ nguyên, và tuổi thọ là một nửa hàm fitness của anh ta
+    // (xem heroFitness) — nên đây không phải một luật đi mượn, nó ăn thẳng vào
+    // vòng tiến hoá thứ hai.
+    if (tribe.warTarget !== null && tribe.warField
+        && meleeSiegeDoctrine(u, tribe, target)) { u.combatTarget = null; return; }
     moveToward(u, target.x, target.y);
     if (noProgress(u, target.id, dist(u.x, u.y, target.x, target.y), 30)) {
       u.stuck = 0;
@@ -566,7 +599,7 @@ function onHeroDeath(u) {
   }
   line.genes = mutateHeroGenes(line.best.genes);
   tribe.heroCooldownUntil = tick + CONFIG.HERO.RESPAWN_DELAY;
-  addHotspot(u.x, u.y, 6, `${u.name} ngã xuống`);
+  addHotspot(u.x, u.y, 6, TL('{hero} ngã xuống', { hero: u.name }));
 
   // ============================================================
   // GIA SẢN CỦA MỘT ĐỜI ANH HÙNG — chia theo CÁCH CHẾT (Phase 3.34)
@@ -617,8 +650,8 @@ function onHeroDeath(u) {
   }
   if (u.items.length) {
     logEvent(u.diedOfAge
-      ? `🎁 ${kept} món của ${u.name} vào kho gia bảo ${tribe.name} — người kế nhiệm nhận trọn bộ`
-      : `⚱ ${u.name} tử trận: ${u.items.length - kept} món thất lạc tại chỗ, ${kept} món về kho gia bảo`,
+      ? TL('🎁 {kept} món của {hero} vào kho gia bảo {tribe} — người kế nhiệm nhận trọn bộ', { kept, hero: u.name, tribe: tribe.name })
+      : TL('⚱ {hero} tử trận: {lost} món thất lạc tại chỗ, {kept} món về kho gia bảo', { hero: u.name, lost: u.items.length - kept, kept }),
       tribe.color, true);
   }
 }

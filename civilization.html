@@ -2,9 +2,8 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<title>Chúa Tể — Civilization Sim (máy tự chơi)</title>
+<title data-i18n-text>Chúa Tể — Civilization Sim (máy tự chơi)</title>
 <link rel="stylesheet" href="css/game.css">
-</style>
 </head>
 <body>
 
@@ -12,27 +11,36 @@
      Đặt fixed inset:0 z-index cao nên phủ kín cả khung trái lẫn cột dữ liệu. -->
 <div id="menuScreen">
   <div class="menu-inner">
-    <button id="menuResume" class="menu-resume">‹ Trở lại ván đang chơi</button>
+    <!-- Công tắc ngôn ngữ ghim ở góc trang bìa. Đây là thứ ĐẦU TIÊN người mở lần
+         đầu cần thấy — trước cả việc chọn thế cuộc — nên nó không được nấp sau
+         một trình đơn con. Hai nút thật chứ không phải một nút xoay vòng: người
+         đang đọc một trang toàn tiếng mình không biết thì không đoán được bấm
+         vào "VI" sẽ ra tiếng gì. -->
+    <div class="menu-lang" role="group" aria-label="Language / Ngôn ngữ">
+      <button class="lang-btn" data-lang="vi">Tiếng Việt</button>
+      <button class="lang-btn" data-lang="en">English</button>
+    </div>
+    <button id="menuResume" class="menu-resume" data-i18n>‹ Trở lại ván đang chơi</button>
     <div class="menu-head">
       <div class="seal menu-seal"><span class="k">SỬ</span><span class="n">史</span></div>
-      <div class="menu-eyebrow">Biên niên sử của một vị Chúa Tể</div>
-      <h1 class="menu-title">Chúa Tể</h1>
-      <div class="menu-sub">Bạn không điều khiển một ai — bạn ngồi xem một thế giới tự vận hành và tiến hoá qua từng kỷ nguyên. Chọn một <b>thế cuộc</b> để bắt đầu.</div>
+      <div class="menu-eyebrow" data-i18n>Biên niên sử của một vị Chúa Tể</div>
+      <h1 class="menu-title" data-i18n>Chúa Tể</h1>
+      <div class="menu-sub" data-i18n="menu.sub">Bạn không điều khiển một ai — bạn ngồi xem một thế giới tự vận hành và tiến hoá qua từng kỷ nguyên. Chọn một <b>thế cuộc</b> để bắt đầu.</div>
     </div>
     <div class="menu-modes">
       <button class="mode-card" data-mode="conquest">
         <div class="mc-icon">⚔</div>
-        <div class="mc-name">Chinh phạt</div>
-        <div class="mc-tag">Bốn bộ lạc tranh thiên hạ</div>
-        <div class="mc-desc">Xích Long, Thanh Vân, Hoàng Kim và Tử Vi đánh nhau cho tới khi chỉ còn một kinh đô đứng vững — hoặc một Kỳ quan khánh thành. Qua mỗi kỷ nguyên, chọn lọc kéo gen bộ lạc về phía hiếu chiến.</div>
-        <div class="mc-go">Vào thế cuộc →</div>
+        <div class="mc-name" data-i18n>Chinh phạt</div>
+        <div class="mc-tag" data-i18n>Bốn bộ lạc tranh thiên hạ</div>
+        <div class="mc-desc" data-i18n="menu.conquest.desc">Xích Long, Thanh Vân, Hoàng Kim và Tử Vi đánh nhau cho tới khi chỉ còn một kinh đô đứng vững — hoặc một Kỳ quan khánh thành. Qua mỗi kỷ nguyên, chọn lọc kéo gen bộ lạc về phía hiếu chiến.</div>
+        <div class="mc-go" data-i18n>Vào thế cuộc →</div>
       </button>
       <button class="mode-card" data-mode="defend">
         <div class="mc-icon">🛡</div>
-        <div class="mc-name">Thủ thành</div>
-        <div class="mc-tag">Cùng sống sót trước sóng quái</div>
-        <div class="mc-desc">Bốn bộ lạc ngừng đánh nhau, cùng chống những đợt quái mỗi lúc một dữ. Thành tích đo bằng số tick trụ được. Cùng bộ gen ấy nhưng môi trường khác hẳn — gen hiếu chiến trôi đi thay vì được chọn.</div>
-        <div class="mc-go">Vào thế cuộc →</div>
+        <div class="mc-name" data-i18n>Thủ thành</div>
+        <div class="mc-tag" data-i18n>Cùng sống sót trước sóng quái</div>
+        <div class="mc-desc" data-i18n="menu.defend.desc">Bốn bộ lạc ngừng đánh nhau, cùng chống những đợt quái mỗi lúc một dữ. Thành tích đo bằng số tick trụ được. Cùng bộ gen ấy nhưng môi trường khác hẳn — gen hiếu chiến trôi đi thay vì được chọn.</div>
+        <div class="mc-go" data-i18n>Vào thế cuộc →</div>
       </button>
     </div>
     <!-- THƯ KHỐ đứng TÁCH khỏi hàng thẻ thế cuộc, không thành thẻ thứ ba.
@@ -40,8 +48,8 @@
          loại trừ gì cả — nó là thứ đọc trước rồi vẫn quay lại chọn. Xếp chung một
          hàng ba thì nó đọc ra là "chế độ chơi thứ ba", và người mở lần đầu sẽ
          tưởng mình vừa bỏ lỡ một cách chơi. -->
-    <button id="menuCodex" class="menu-codex">📖 Thư khố — tra quái vật, quân lính, công trình, anh hùng</button>
-    <div class="menu-foot">Mở thẳng tập tin này là chạy được — không cần máy chủ. · <kbd>M</kbd> mở lại trình đơn · <kbd>Space</kbd> tạm dừng</div>
+    <button id="menuCodex" class="menu-codex" data-i18n>📖 Thư khố — tra quái vật, quân lính, công trình, anh hùng</button>
+    <div class="menu-foot" data-i18n="menu.foot">Mở thẳng tập tin này là chạy được — không cần máy chủ. · <kbd>M</kbd> mở lại trình đơn · <kbd>Space</kbd> tạm dừng</div>
   </div>
 </div>
 
@@ -51,8 +59,8 @@
     <div class="codex-head">
       <div class="seal codex-seal"><span class="k">KHỐ</span><span class="n">庫</span></div>
       <div class="codex-titles">
-        <div class="codex-eyebrow">Sách tra của người chép sử</div>
-        <h2 class="codex-title">Thư khố</h2>
+        <div class="codex-eyebrow" data-i18n>Sách tra của người chép sử</div>
+        <h2 class="codex-title" data-i18n>Thư khố</h2>
       </div>
       <button id="codexClose" class="codex-close" title="Đóng (Esc)">✕</button>
     </div>
@@ -78,16 +86,28 @@
          do trình duyệt bảo đảm, không còn phụ thuộc vào hai hằng số toạ độ mà ai
          cũng có thể sửa lệch. -->
     <div id="ovChips">
-      <button id="chipTribes" class="ov-chip" title="Hiện/ẩn bảng bộ lạc ngay trên khung hình">📋 Bộ lạc</button>
-      <button id="chipLog" class="ov-chip" title="Hiện/ẩn nhật ký biến cố ngay trên khung hình">📜 Nhật ký</button>
-      <!-- Thư khố ở ĐÂY chứ không ở bảng điều khiển dưới, và không phải vì thẩm mỹ:
-           bảng dưới đã kín đúng 800/800px sau Phase 3.17, nên thêm một nút 30px là
-           nó tràn xuống hàng thứ hai — đo thật, 3 hàng, thừa 6px. Mà hàng thứ hai
-           chính là thứ Phase 3.17 sinh ra để dẹp ("mấy cái nút bị rơi").
-           Chỗ này lại đúng họ hàng hơn: hai nút bên cạnh cũng là "mở một bảng tra
-           cứu ra xem", chỉ khác là chúng tra thứ ĐANG diễn ra còn Thư khố tra thứ
-           luôn đúng. Không có class `on` vì nó không phải công tắc bật/tắt. -->
-      <button id="chipCodex" class="ov-chip" title="Thư khố — tra quái vật, quân lính, công trình, anh hùng. Phím B.">📖 Thư khố</button>
+      <!-- PHASE 3.37 — HAI CHIP RỜI ĐI, MỘT NÚT DỌN VỀ. Ba việc này là MỘT việc.
+           Thư khố và công tắc ngôn ngữ là hai thứ người xem tìm đúng một lần rồi
+           thôi, nhưng chúng ngồi thường trực đè lên góc trên-trái bản đồ suốt cả
+           ván: hàng chip đo được 332px, trong đó 176px là của hai cái nút gần như
+           không ai bấm lần thứ hai. Cả hai vẫn còn nguyên hai đường vào, và cả
+           hai đường đều KHÔNG nằm trên khung hình: phím B / phím L, và trang bìa
+           (nút "📖 Thư khố" + hai nút ngôn ngữ ghim ở góc).
+
+           Chỗ trống nhường cho nút mở trang bìa — thứ trước đây là một ô vuông
+           30px chỉ vẽ mỗi chữ ☰, nằm lẫn giữa hai công tắc ở bảng điều khiển
+           dưới. KHÔNG THỂ phóng to nó tại chỗ cũ: đo thật, bảng dưới kín đúng
+           768/768px ở tiếng Anh và tràn 6px ở tiếng Việt — nhóm thứ ba ĐÃ rơi
+           xuống hàng thứ hai từ trước bản này. Dời nó lên đây vừa cho nó chỗ để
+           mang một cái nhãn đọc được, vừa trả 35px cho bảng dưới và kéo hàng
+           tiếng Việt về lại MỘT dòng. -->
+      <button id="btnMenu" class="ov-chip ov-menu" title="Trình đơn — đổi thế cuộc (Chinh phạt / Thủ thành). Phím M." data-i18n>☰ Thế cuộc</button>
+      <!-- Vạch ngăn, không phải trang trí: nút bên trái RỜI ván đang xem, hai nút
+           bên phải chỉ đổi CÁCH XEM chính ván đó. Không có vạch thì cả ba đọc ra
+           là một bộ ba công tắc cùng loại. -->
+      <span class="ov-div"></span>
+      <button id="chipTribes" class="ov-chip" title="Hiện/ẩn bảng bộ lạc ngay trên khung hình" data-i18n>📋 Bộ lạc</button>
+      <button id="chipLog" class="ov-chip" title="Hiện/ẩn nhật ký biến cố ngay trên khung hình" data-i18n>📜 Nhật ký</button>
       <div id="directorLabel"></div>
     </div>
     <div id="ovTribes" class="ov-panel" style="display:none;"></div>
@@ -104,7 +124,7 @@
     <div class="ctl-group">
       <button id="btnPause" class="ctl ctl-primary" data-running="true">Tạm dừng</button>
       <button id="btnStep" class="ctl ctl-icon" title="Chạy đúng MỘT tick rồi dừng lại">⏭</button>
-      <button id="btnNewEra" class="ctl" title="Bỏ kỷ nguyên đang chạy, gieo lại bản đồ và bắt đầu kỷ nguyên mới">↻ Kỷ mới</button>
+      <button id="btnNewEra" class="ctl" title="Bỏ kỷ nguyên đang chạy, gieo lại bản đồ và bắt đầu kỷ nguyên mới" data-i18n>↻ Kỷ mới</button>
     </div>
     <span class="ctl-div"></span>
     <div class="ctl-group">
@@ -122,22 +142,23 @@
         <option value="1600">1600 t/s</option>
       </select>
       <select id="zoomSelect" title="Thu phóng khung nhìn. Phím Z và X.">
-        <option value="4">⛰ Toàn cảnh</option>
-        <option value="6">⛰ Thường</option>
-        <option value="9" selected>⛰ Gần</option>
-        <option value="14">⛰ Rất gần</option>
+        <option value="4" data-i18n>⛰ Toàn cảnh</option>
+        <option value="6" data-i18n>⛰ Thường</option>
+        <option value="9" selected data-i18n>⛰ Gần</option>
+        <option value="14" data-i18n>⛰ Rất gần</option>
       </select>
       <select id="cameraSelect" title="Camera đạo diễn tự bám theo nơi đang có biến cố. Phím C.">
-        <option value="director" selected>🎬 Đạo diễn</option>
-        <option value="follow">🎯 Bám quân</option>
-        <option value="free">✥ Tự do</option>
+        <option value="director" selected data-i18n>🎬 Đạo diễn</option>
+        <option value="follow" data-i18n>🎯 Bám quân</option>
+        <option value="free" data-i18n>✥ Tự do</option>
       </select>
     </div>
     <span class="ctl-div"></span>
     <div class="ctl-group">
-      <button id="btnMenu" class="ctl ctl-icon" title="Trình đơn — đổi thế cuộc (Chinh phạt / Thủ thành). Phím M.">☰</button>
-      <label class="ctl-toggle" title="Hết kỷ nguyên thì tự gieo kỷ nguyên tiếp theo từ gen của bộ lạc thắng."><input type="checkbox" id="chkAutoEra" checked> Tự sang kỷ</label>
-      <label class="ctl-toggle" title="Mỗi biến cố lớn (kinh đô thất thủ, Kỳ quan khánh thành, một bộ lạc diệt vong) hạ tốc độ xuống một nhịp trong hơn một giây."><input type="checkbox" id="chkSlowmo" checked> Quay chậm</label>
+      <!-- ☰ ĐÃ RỜI KHỎI HÀNG NÀY, lên hàng chip trên khung hình (xem chú thích ở
+           #ovChips). Bảng này giờ chỉ còn những thứ điều khiển ván ĐANG chạy. -->
+      <label class="ctl-toggle" title="Hết kỷ nguyên thì tự gieo kỷ nguyên tiếp theo từ gen của bộ lạc thắng."><input type="checkbox" id="chkAutoEra" checked> <span data-i18n>Tự sang kỷ</span></label>
+      <label class="ctl-toggle" title="Mỗi biến cố lớn (kinh đô thất thủ, Kỳ quan khánh thành, một bộ lạc diệt vong) hạ tốc độ xuống một nhịp trong hơn một giây."><input type="checkbox" id="chkSlowmo" checked> <span data-i18n>Quay chậm</span></label>
     </div>
   </div>
   <!-- Dải "đang chọn": thay cho tấm thẻ nổi từng đè lên góc bản đồ.
@@ -152,7 +173,7 @@
        KHÔNG đẩy khung nhìn: nó phủ lên vùng hướng dẫn — đúng thứ đáng bị che, vì
        lúc vừa bấm vào một con quân thì không ai đang đọc luật chơi. -->
   <div id="inspectBar">
-    <div id="inspectEmpty"><b>Click</b> một quân, công trình hay hang ổ trên bản đồ để xem chi tiết ở đây · <b>F</b> để camera bám theo</div>
+    <div id="inspectEmpty" data-i18n="inspect.empty"><b>Click</b> một quân, công trình hay hang ổ trên bản đồ để xem chi tiết ở đây · <b>F</b> để camera bám theo</div>
     <!-- #insContent dùng `display: contents` nên các khối bên trong nó vẫn là con
          flex trực tiếp của #inspectBody — bọc thêm một lớp mà không đổi một pixel
          nào của bố cục. Cần lớp bọc này để nút ✕ đứng NGOÀI phần bị dựng lại 10
@@ -162,15 +183,19 @@
   </div>
   <div id="helpBar">
     <button id="helpToggle" type="button" aria-expanded="false" aria-controls="hotkeys legend">
-      <span class="ht-mark">?</span><span>Hướng dẫn &amp; luật chơi</span><span class="ht-chev">▾</span>
+      <span class="ht-mark">?</span><span data-i18n>Hướng dẫn &amp; luật chơi</span><span class="ht-chev">▾</span>
     </button>
   </div>
-  <div id="hotkeys">
+  <div id="hotkeys" data-i18n="hotkeys">
     <b>Phím tắt:</b> <kbd>Space</kbd> tạm dừng · <kbd>[</kbd> <kbd>]</kbd> chậm/nhanh · <kbd>F</kbd> bám quân đang chọn ·
     <kbd>C</kbd> đổi camera · <kbd>Z</kbd> <kbd>X</kbd> thu/phóng · <kbd>WASD</kbd> lia máy · <kbd>Esc</kbd> bỏ quyền năng ·
-    <kbd>1</kbd>…<kbd>5</kbd> đổi tờ ở cột phải · <kbd>B</kbd> mở Thư khố · <kbd>M</kbd> trình đơn
+    <kbd>1</kbd>…<kbd>5</kbd> đổi tờ ở cột phải · <kbd>B</kbd> mở Thư khố · <kbd>M</kbd> trình đơn · <kbd>L</kbd> đổi ngôn ngữ
   </div>
-  <div id="legend">
+  <!-- data-i18n="legend": khối này dùng MÃ TRA CỨU chứ không lấy nguyên văn làm
+       khoá như mọi chỗ khác. Nó dài hơn 20.000 ký tự và chứa cả thẻ con lẫn
+       #legendWonderHold — lấy trọn cả khối làm khoá thì chỉ cần sửa một dấu cách
+       trong bài luật là bản dịch rụng mất, im lặng. -->
+  <div id="legend" data-i18n="legend">
     <strong>Máy tự chơi hoàn toàn.</strong> 4 nền văn minh AI tự kiếm ăn, dựng nhà, lên thời đại và đánh nhau. Bạn là <strong style="color:var(--gold)">Chúa Tể</strong> — chỉ ngồi xem; muốn thì tiêu Đức Tin để can thiệp.
     <br>🌲 gỗ (chặn đường &amp; tầm nhìn, đốn hết thì mở ra lối đi) · 🫐 bụi quả · 🌾 ruộng · 🟡 vàng (không tái tạo — ngòi nổ chiến tranh) · 🪨 <strong>đá</strong> (ít cụm, cụm to — nhà nào không có mỏ đá gần thì cả kỷ nguyên không mở nổi hậu kỳ). Địa hình <strong>không chặn ai</strong>: vùng trũng tối là <em>đầm cạn</em>, đi qua được như mọi ô khác — vật cản duy nhất trên bản đồ là rừng.
     <br><strong style="color:var(--gold)">MỘT NGƯỜI LÍNH = MỘT DÂN THƯỜNG.</strong> Không ai ra lò từ hư không: mỗi suất quân <em>nuốt một dân thường</em> đang đứng gần cái lò đó, và nếu bộ lạc không còn ai để bắt thì cái lò <strong>đứng chờ</strong> với thanh tiến độ đầy. Vì thế &ldquo;dân&rdquo; và &ldquo;quân&rdquo; không còn là hai cái vòi chảy vào cùng một cái trần — chúng là <em>cùng một cái ví</em>, và bảng bộ lạc gộp chúng vào một cột <strong>dân/quân/trần</strong>. Giá tài nguyên đổi theo: phần <em>lương thực</em> của một suất quân được hoàn 75% (bộ lạc đã nuôi con người đó rồi), còn <em>gỗ · vàng · đá</em> giữ nguyên — giá một người lính chuyển từ &ldquo;nuôi một miệng ăn&rdquo; sang &ldquo;sắm một bộ đồ nghề&rdquo;. Có hai cái sàn để cơ chế này không tự ăn thịt nền kinh tế: không bao giờ bắt lính khi bộ lạc còn <strong>dưới 12 dân</strong> (giữ nguyên vẹn giai đoạn mở màn), và không bao giờ để dân thường tụt dưới <strong>45%</strong> quân số. <strong>Trần dân số một bộ lạc: 300</strong>, tính cả dân lẫn quân lẫn suất đang trong lò.
@@ -187,13 +212,13 @@
     <br><strong style="color:var(--gold)">Công và thủ:</strong> giờ mỗi đơn vị có <strong>giáp</strong> trừ thẳng vào từng đòn (sàn 25% đòn gốc — giáp không bao giờ vô hiệu hoá hẳn một loại quân). <strong>Click vào một quân hay tướng</strong> để đọc <strong>công/thủ</strong>, tầm bắn, nhịp đánh, tốc độ và phần do nâng cấp cộng vào.
     <br><strong style="color:var(--gold)">Đập tường là một chỉ số RIÊNG.</strong> Bộ binh, cung thủ, kỵ binh và cả <strong>Anh hùng</strong> chỉ chạm được <strong>20%</strong> sức đánh của mình vào công trình — nắm đấm không phá được tường. <strong style="color:var(--gold)">Vũ khí công thành</strong> (máy bắn đá, và mọi loại chuyên phá thành về sau) thì ngược lại: <strong>×3</strong>. Một cỗ máy bắn đá đập tường bằng <strong>60</strong>, một kỵ sĩ bằng <strong>2,6</strong> — cách nhau <strong>23 lần</strong>, dù ô &ldquo;Công&rdquo; của chúng chỉ là 20 với 13. Hệ quả: muốn <strong>phá thành</strong> thì phải dựng <strong>Xưởng thợ</strong>; một đạo quân đông tới mấy mà không có máy cũng chỉ gặm được tường rất chậm. Dòng <em>Đập tường</em> trong thẻ của mỗi quân đã tính sẵn con số này.
     <br><strong style="color:var(--gold)">TƯỜNG THÀNH — công trình đầu tiên KHÔNG ai xây.</strong> Ngay từ <strong>Đồ Đá</strong>, quanh mỗi kinh đô <em>tự mọc</em> một vành tường vuông, và nó <em>rộng ra mỗi đời</em> (bán kính <strong>18 → 22 → 28 → 34 → 40</strong> ô) bằng cách dựng lại cả vành ở bán kính mới — không đắp thêm lớp thứ hai, nếu không sau bốn đời nó thành một mê cung. Không ai trả tiền, không thợ nào tới xây. Đây là <em>vật cản có phe</em> đầu tiên của trò chơi: <strong style="color:var(--gold)">quân nhà đi xuyên qua</strong>, <strong style="color:#d05a44">quân địch và quái vật đứng lại</strong> — nhờ vậy nó tạo ra thứ mà một dải rừng không tạo nổi: một <em>bên trong</em> và một <em>bên ngoài</em>. Ở bán kính này nó còn tranh chấp cả <em>tài nguyên</em>: một mỏ nằm trong vành là mỏ mà thợ địch không tới được.
-    <br><strong style="color:var(--gold)">Năm bậc thành, một bậc mỗi đời</strong> — <em>rào gỗ</em> (cọc vót nhọn) → <em>tường đất</em> (dải màu bộ lạc chạy dọc đỉnh) → <em>tường đá</em> (răng cưa châu mai) → <em>thành gạch</em> (răng cưa + lỗ châu mai) → <strong style="color:var(--gold)">thành men ngọc</strong> (mái ngói úp + dải vàng lá). Đây là &ldquo;nâng cấp&rdquo; của tường thành và nó <strong>không đi qua bảng nghiên cứu</strong>: nhánh 🧱 Nề đá <em>không</em> chạm tới tường nữa — trộn hai đồng hồ vào một con số thì người xem nhìn tường dày lên mà không biết vì sao. Bốn <strong>góc</strong> là tháp vuông cao hơn thân.
+    <br><strong style="color:var(--gold)">Năm bậc thành, một bậc mỗi đời</strong> — <em>rào gỗ</em> (cọc vót nhọn) → <em>tường đất</em> (dải màu bộ lạc chạy dọc đỉnh) → <em>tường đá</em> (răng cưa châu mai) → <em>thành gạch</em> (răng cưa + lỗ châu mai) → <strong style="color:var(--gold)">thành men ngọc</strong> (mái ngói úp + dải vàng lá). Đây là &ldquo;nâng cấp&rdquo; của tường thành và nó <strong>không đi qua bảng nghiên cứu</strong>: bậc hình chỉ đọc <em>thời đại</em>. Nhánh 🧱 Nề đá thì cộng vào <em>con số máu</em> của từng ô tường — <strong>hai đồng hồ, hai mặt đồng hồ</strong>: nhìn hình bóng biết bộ lạc ở đời nào, click vào ô tường thì thẻ ghi thẳng &ldquo;Nề đá +N%&rdquo;. Bốn <strong>góc</strong> là tháp vuông cao hơn thân.
     <br><strong style="color:var(--gold)">CỔNG THÀNH — dựng lại thành một công trình.</strong> Bản trước cổng rộng <strong>3 ô</strong>: một ô cửa vòm kẹp giữa hai ô có vệt sáng. Ở mức thu phóng chơi thật (ô 7–11px) cái đó đọc ra là <em>&ldquo;một chỗ tường hơi khác màu&rdquo;</em> — mà cổng lại đúng là thứ cả người xem lẫn kẻ tấn công phải nhận ra <em>từ xa</em>. Nay nó rộng <strong>5 ô</strong>: <strong>ba ô cánh cửa</strong> ở giữa, kẹp giữa <strong>hai lầu cổng</strong> cao vượt lên. Bốn tầng thông tin, xếp theo thứ tự đọc được từ xa tới gần, nên mỗi mức thu phóng vẫn còn đúng lượng chi tiết nó chở nổi: <strong>(1) đường bao</strong> chạy <em>thấp·CAO·thấp·CAO·thấp</em> — nhịp này mắt đọc được ở mọi cỡ, và nó cũng là thứ phân biệt cổng với bốn góc thành; <strong>(2) lầu cổng</strong> có mái vát nghiêng vào phía cửa (tháp góc thì đội mũ vuông) và hai lỗ châu mai; <strong>(3) vòm cuốn liền ba ô</strong> — mỗi ô chỉ vẽ phần vòm của mình rồi ba mảnh khớp thành một đường cong duy nhất — với một <strong style="color:var(--gold)">đá khoá đỉnh</strong> hình nêm màu bộ lạc, chỗ duy nhất trên cả vành mang màu bộ lạc ở độ đậm đầy đủ; <strong>(4) hai cánh cửa gỗ</strong> đóng đinh tán trên hai đai sắt ngang, gặp nhau ở một <em>khe sáng</em> chạy đúng trục đối xứng — chính cái khe đó nói &ldquo;cửa này mở được&rdquo;, và đó là khác biệt duy nhất giữa một cái cổng và một mảng tường có hoa văn.
     <br>Chỉ <strong style="color:#d05a44">ba ô cánh cửa</strong> là mỏng (<strong>55% máu</strong> tường thường); <strong>hai lầu cổng dày như tường thường</strong>. Nghĩa là cổng nới từ 3 lên 5 ô mà <em>điểm yếu vẫn rộng đúng 3 ô như cũ</em>: bản này không làm thành trì dễ vỡ hơn, nó chỉ làm chỗ vỡ <em>đọc được</em> hơn. Cho cả 5 ô cùng mỏng thì một thay đổi được yêu cầu vì lý do <em>thẩm mỹ</em> sẽ lặng lẽ nới điểm yếu của mọi thành trì trong game thêm hai phần ba — và &ldquo;một thay đổi hình ảnh hoá ra là một thay đổi luật chơi&rdquo; đã cắn ba lần ở Phase 3.8.
     <br>Mỗi ô tường có máu riêng (<strong>300/520/840/1280/1800</strong> theo đời), nên &ldquo;phá thành&rdquo; không phải một trạng thái mà là một <strong>CHỖ</strong>: đạo quân dồn vào một ô, đục thủng nó, rồi cả dòng người tràn qua đúng cái lỗ đó — lỗ mở <strong>900</strong> tick rồi tự bịt lại ở 30% máu. Tường <strong>tự lành 0,1% máu mỗi tick</strong> sau 260 tick không bị đánh, nhưng từ bản này việc đó <strong style="color:var(--gold)">TỐN ĐÁ</strong>: mỗi ô đang vá rút 1 đá khỏi kho mỗi tick. Dưới <strong>120 đá</strong> thì nó vẫn vá — chỉ chậm còn <strong>25%</strong>, để bức tường không bao giờ ăn mất viên đá cuối cùng lẽ ra thành tháp canh hay Kỳ quan. Bộ binh đấm tường gần như vô hại (×0,2): phá thành là việc của <strong>máy bắn đá</strong> (×3), và đó là <em>lý do thứ hai</em> để tồn tại một Xưởng thợ, sau Kỳ quan. <strong>Loài bay</strong> thì đi trên đầu bức tường như không có gì ở đó. Bộ lạc gen <em>bành trướng</em> cao sẽ vĩnh viễn có nhà nằm <em>ngoài</em> tường — đó là cái giá của việc trải rộng, không phải một lỗi.
     <br><strong style="color:var(--gold)">🐉 THIÊN MA — quyền năng thứ sáu của Chúa Tể.</strong> Năm quyền năng cũ đều là một phép cộng hoặc trừ vào bảng số của một bộ lạc; sau khi hiệu ứng trôi qua, bản đồ trở lại đúng câu chuyện cũ. Thiên Ma thì để lại một <em>VẬT THỂ</em>: 75 Đức Tin thả một con quái xuống <em>chính giữa bản đồ</em>, nó <strong>đập tường thành như một cỗ máy bắn đá</strong> (×3) và hành quân thẳng tới <strong>bộ lạc đang dẫn đầu</strong> — không phải bộ lạc gần nhất, không phải ngẫu nhiên, nên người xem biết trước nó sẽ đi đâu. Nó đi <strong>1,45 ô/tick</strong>: chậm hơn kỵ binh (1,7) nhưng nhanh hơn mọi thứ khác trên bản đồ, nên bên bị nhắm <em>không kịp gọi hết quân về</em> — thứ mà ở tốc độ cũ (0,9, chậm hơn cả một dân thường) họ luôn kịp. Bộ lạc nào <strong>ra đòn cuối</strong> nhận <em>ba</em> phần thưởng nằm trên ba trục khác nhau: kho báu <strong>1.500 lương · 1.100 gỗ · 900 đá · 650 vàng</strong>, một <strong style="color:var(--gold)">Thánh vật cấp III</strong> (món mạnh nhất game, đường bình thường phải nung từ bốn món cấp 1) rơi ngay tại chỗ cho anh hùng nhặt, và <strong style="color:var(--gold)">MỘT CẤP NGHIÊN CỨU miễn phí</strong> — nhánh đang làm dở xong ngay, hoặc cộng thẳng một cấp vào nhánh đang cao nhất, áp <em>tức thì cho cả đạo quân đang sống</em>. Chúa Tể được hoàn <strong>60</strong> Đức Tin, tức chỉ mất 15 ròng nếu thế giới hạ được nó. Nghĩa là nó là một canh bạc có hình dạng đọc được: chắc chắn làm kẻ dẫn đầu chảy máu, nhưng nếu chính hắn hạ được nó thì hắn bỏ xa hơn nữa. Chỉ <strong>một con</strong> trên bản đồ cùng lúc.
     <br><strong style="color:var(--gold)">Và nó MẠNH DẦN THEO ĐỒNG HỒ KỶ NGUYÊN.</strong> Cho tới bản trước, con quái có đúng một bộ chỉ số dù thả ở tick 500 hay tick 25.000 — nghĩa là quyền năng đắt nhất chỉ có <em>một</em> thời điểm đúng để bấm, và thời điểm ấy là ngay khi đủ Đức Tin. 9.000 máu là tai hoạ ở Đồ Đá và là con thú cảnh ở Thiên Triều. Nay hệ số chạy <strong>tuyến tính</strong> theo tick, kẹp hai đầu: <strong>Sơ Giáng 5.580 máu</strong> ở tick 0, <strong>9.000</strong> quanh tick 8.400, tới <strong style="color:var(--gold)">Tận Thế 15.750 máu / đòn 227</strong> ở tick <strong>25.000</strong> và đứng yên từ đó. Tuyến tính chứ không phải một đường cong đẹp, vì người xem phải <em>nhẩm được</em> nó. <strong>Kho báu nhân theo cùng hệ số</strong> (tới 2.625 lương ở bậc đỉnh) — nếu phần thưởng đứng yên trong khi rủi ro leo dốc thì đường tối ưu lại quay về "thả sớm nhất có thể", tức cả cơ chế chỉ đổi con số mà không đổi quyết định. Đức Tin hoàn lại thì <em>không</em> nhân: đó là giá của người xem, không phải phần thưởng của bộ lạc. Hệ số <strong>đông cứng vào con quái lúc nó rơi xuống</strong>, không đọc lại đồng hồ — nếu không thì một trận vây 900 tick sẽ có con quái khoẻ dần lên giữa lúc đang bị đánh.
-    <br><strong style="color:var(--gold)">Nâng cấp quân sự:</strong> tám nhánh nghiên cứu (⚔ Rèn binh khí · 🛡 Giáp trụ · 🏹 Cung nỏ · 🐎 Mã thuật · 📜 Binh thư cho riêng Anh hùng · 🌿 Y thuật · 🧱 <strong style="color:var(--gold)">Nề đá</strong> — cộng <strong>18% máu mỗi cấp</strong> cho <em>mọi</em> công trình, kể cả tháp canh (<em>không</em> áp cho tường thành: tường lên bậc theo thời đại); nhánh duy nhất không chạm tới một người nào, và nhánh duy nhất có ích cho kẻ <em>đang thua</em> · 🪨 <strong style="color:var(--gold)">Công thành</strong> — mở ở Thiên Triều, làm máy bắn đá và nỏ thần <em>TO RA thật</em>, <strong>+14% kích thước mỗi cấp</strong> cùng với tầm và sát thương lan; cấp 3 thì cỗ máy rộng <strong>3,05 ô</strong>, vượt cả voi chiến để thành hình lớn nhất nhóm quân. Mỗi cấp đóng thêm một dấu vào hình bóng để đọc được cấp mà không cần vật đối chứng: <strong>I</strong> vành sắt + đai sắt bọc sàn xe · <strong>II</strong> mộc chắn che kíp vận hành · <strong>III</strong> cờ đuôi nheo ở đuôi xe), mỗi nhánh 3 cấp, mỗi nhánh gắn với một công trình. Khác thời đại ở đúng một điểm và đó là điểm quan trọng nhất: nâng cấp <strong>áp dụng ngay cho cả đạo quân đang sống</strong>, kể cả người đang đứng giữa trận — một bộ lạc đang thua có thể lật thế cờ mà không tuyển thêm ai. Xem bảng <strong>Nâng cấp quân sự</strong> ở tờ <strong>⚔ Bộ lạc</strong> cột phải, hoặc click vào Trại lính / Xưởng thợ / Chuồng ngựa / Đền thờ để xem nhánh nào đang chạy ở đó.
+    <br><strong style="color:var(--gold)">Nâng cấp quân sự:</strong> tám nhánh nghiên cứu (⚔ Rèn binh khí · 🛡 Giáp trụ · 🏹 Cung nỏ · 🐎 Mã thuật · 📜 Binh thư cho riêng Anh hùng · 🌿 Y thuật · 🧱 <strong style="color:var(--gold)">Nề đá</strong> — cộng <strong>18% máu mỗi cấp</strong> cho <em>mọi</em> công trình, kể cả tháp canh <strong style="color:var(--gold)">và từng ô tường thành</strong> (một vành đời 5 có 320 ô, nên tường là khách hàng lớn nhất của nhánh này); nhánh duy nhất không chạm tới một người nào, và nhánh duy nhất có ích cho kẻ <em>đang thua</em> — vì kẻ đang thua là kẻ đang bị vây · 🪨 <strong style="color:var(--gold)">Công thành</strong> — mở ở Thiên Triều, làm máy bắn đá và nỏ thần <em>TO RA thật</em>, <strong>+14% kích thước mỗi cấp</strong> cùng với tầm và sát thương lan; cấp 3 thì cỗ máy rộng <strong>3,05 ô</strong>, vượt cả voi chiến để thành hình lớn nhất nhóm quân. Mỗi cấp đóng thêm một dấu vào hình bóng để đọc được cấp mà không cần vật đối chứng: <strong>I</strong> vành sắt + đai sắt bọc sàn xe · <strong>II</strong> mộc chắn che kíp vận hành · <strong>III</strong> cờ đuôi nheo ở đuôi xe), mỗi nhánh 3 cấp, mỗi nhánh gắn với một công trình. Khác thời đại ở đúng một điểm và đó là điểm quan trọng nhất: nâng cấp <strong>áp dụng ngay cho cả đạo quân đang sống</strong>, kể cả người đang đứng giữa trận — một bộ lạc đang thua có thể lật thế cờ mà không tuyển thêm ai. Xem bảng <strong>Nâng cấp quân sự</strong> ở tờ <strong>⚔ Bộ lạc</strong> cột phải, hoặc click vào Trại lính / Xưởng thợ / Chuồng ngựa / Đền thờ để xem nhánh nào đang chạy ở đó.
     <br><strong style="color:var(--gold)">Anh hùng cưỡi ngựa từ Đồ Sắt</strong> — mặc định, không phải nâng cấp, không đòi Chuồng ngựa: cứ lên thời đại 3 là tướng có ngựa (giáp ngựa màu bộ lạc, chỏm lông đỏ) và đi nhanh hơn <strong>+0,45 ô/tick</strong>. Nhìn thấy tướng trên lưng ngựa là biết bộ lạc đó đã qua nửa cây thời đại, không cần mở bảng nào.
     <br><strong style="color:var(--gold)">Nhà bị đánh thì quân bỏ trận về cứu.</strong> Mỗi cú đánh vào một công trình bật <strong>báo động</strong> cho cả bộ lạc. Nhà thường: bán kính triệu hồi <em>tỉ lệ với giá trị toà nhà</em> — ruộng chỉ kéo được người đứng cách ~10 ô, trại lính ~49 ô. <strong style="color:var(--gold)">Kỳ quan và Kinh đô</strong>: <em>cả</em> đạo quân quay về, ở đâu cũng về — và từ lúc Kỳ quan khánh thành, chủ của nó <strong>bỏ hết mọi cuộc chinh phạt</strong>, dời luôn cờ tập kết về chân Kỳ quan.
     <br><strong style="color:var(--gold)">Đội hình &amp; hai gen mới về TRẬT TỰ:</strong> quân không còn mạnh ai nấy đi. Gen <em>kỷ luật đội hình</em> quyết định một người lính chịu <strong>đợi đồng đội</strong> tới mức nào khi hành quân (đo bằng số bước còn lại tới đích, so với trung vị của cả đạo quân) và đứng vào hàng chặt tới đâu lúc nghỉ — bộ binh hàng đầu, cung thủ tuyến sau, máy bắn đá sau cùng. Anh hùng cũng phải giữ hàng, nới thêm theo gen <em>dũng cảm</em> của chính mình. Kỷ luật cao thì cả khối tới nơi cùng lúc nhưng chậm và dễ ăn trọn một quả đá; kỷ luật thấp thì tới rải rác nhưng không bao giờ mất cả đạo quân trong một cú. Gen <em>quy hoạch xây dựng</em> kéo chỗ đặt nhà về một <strong>lưới neo ở kinh đô</strong>: quy hoạch cao thì phố xá thẳng hàng ra lối, quy hoạch thấp thì nhà mọc như nấm — mà mọc như nấm lại nhét được nhà vào mọi kẽ hở giữa rừng và đá.
@@ -244,12 +269,19 @@
       <div class="seal"><span class="k">KỶ</span><span class="n" id="statEra">1</span></div>
       <div class="rail-main">
         <div class="rail-top">
-          <span class="rail-name" id="railAge">Thời Đồ Đá</span>
+          <!-- data-i18n cho CHỮ CHỜ SẴN. renderEraPanel ghi đè ô này 10 lần/giây,
+               nhưng nó chỉ chạy ở nhịp `frameCount % 6`, nên trong mấy khung hình
+               đầu sau khi tải trang người xem đọc đúng cái chuỗi viết cứng ở đây.
+               Không dịch nó thì bật tiếng Anh xong vẫn thấy một dòng tiếng Việt
+               nháy lên ở đỉnh cột. Bị i18nApply đặt lại về chuỗi chờ sẵn mỗi lần
+               đổi ngôn ngữ cũng không sao: hook trong 17-i18n-boot gọi luôn
+               renderEraPanel() ngay sau đó. -->
+          <span class="rail-name" id="railAge" data-i18n>Thời Đồ Đá</span>
           <span class="rail-tick" id="statTick">0 / 0</span>
         </div>
         <div class="era-track"><i id="eraFill"></i></div>
         <div class="rail-bot">
-          <span>Đức Tin</span>
+          <span data-i18n>Đức Tin</span>
           <span class="faith-track"><i class="faith-fill" id="faithFill"></i></span>
           <span id="faithLabel">0 / 100</span>
         </div>
@@ -258,16 +290,16 @@
 
     <nav id="paneTabs" role="tablist" aria-label="Các tờ số liệu">
       <button class="pane-tab" role="tab" data-tab="god" aria-controls="pane-god" aria-selected="true" title="Quyền năng &amp; lời khẩn cầu — phím 1">
-        <span class="tb-ico">⚡</span><span class="tb-name">Chúa Tể</span><i class="tab-badge" id="badgePray"></i>
+        <span class="tb-ico">⚡</span><span class="tb-name" data-i18n>Chúa Tể</span><i class="tab-badge" id="badgePray"></i>
       </button>
       <button class="pane-tab" role="tab" data-tab="tribe" aria-controls="pane-tribe" aria-selected="false" title="Thế giới, bảng bộ lạc, nâng cấp — phím 2">
-        <span class="tb-ico">⚔</span><span class="tb-name">Bộ lạc</span>
+        <span class="tb-ico">⚔</span><span class="tb-name" data-i18n>Bộ lạc</span>
       </button>
       <button class="pane-tab" role="tab" data-tab="hero" aria-controls="pane-hero" aria-selected="false" title="Dòng dõi anh hùng — phím 3">
-        <span class="tb-ico">⚑</span><span class="tb-name">Anh hùng</span>
+        <span class="tb-ico">⚑</span><span class="tb-name" data-i18n>Anh hùng</span>
       </button>
       <button class="pane-tab" role="tab" data-tab="chron" aria-controls="pane-chron" aria-selected="false" title="Nhật ký, biên niên sử, đồ thị — phím 4">
-        <span class="tb-ico">☷</span><span class="tb-name">Biên niên</span>
+        <span class="tb-ico">☷</span><span class="tb-name" data-i18n>Biên niên</span>
       </button>
       <button class="pane-tab tab-gear" role="tab" data-tab="tune" aria-controls="pane-tune" aria-selected="false" title="Tham số chỉnh tay — phím 5">
         <span class="tb-ico">⚙</span>
@@ -280,62 +312,62 @@
 
   <!-- ===================== TỜ 1 — CHÚA TỂ ===================== -->
   <section class="tabpane on" id="pane-god" data-tab="god" role="tabpanel">
-    <h2>Quyền năng chúa tể</h2>
+    <h2 data-i18n>Quyền năng chúa tể</h2>
     <div class="panel">
       <div id="godButtons"></div>
-      <div id="godHint">Chọn 1 quyền năng rồi click lên bản đồ. Bỏ chọn: bấm lại nút đó hoặc phím Esc.</div>
+      <div id="godHint" data-i18n>Chọn 1 quyền năng rồi click lên bản đồ. Bỏ chọn: bấm lại nút đó hoặc phím Esc.</div>
       <div style="margin-top:9px;padding-top:8px;border-top:1px solid var(--rule);font-size:11.5px;">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
           <input type="checkbox" id="chkAutoGod">
-          <span>Chúa Tể <b style="color:var(--gold)">tự động</b> — tự đáp lời cầu &amp; can thiệp theo ngưỡng</span>
+          <span data-i18n="god.auto">Chúa Tể <b style="color:var(--gold)">tự động</b> — tự đáp lời cầu &amp; can thiệp theo ngưỡng</span>
         </label>
         <label style="display:flex;align-items:center;gap:6px;margin-top:6px;color:var(--bone-3);">
-          Ngưỡng Đức Tin để can thiệp
+          <span data-i18n>Ngưỡng Đức Tin để can thiệp</span>
           <input type="number" id="tuneAutoGod" min="20" max="100" step="5" value="60" autocomplete="off" style="width:58px;">
         </label>
-        <div style="color:var(--bone-3);margin-top:5px;line-height:1.5;">
+        <div style="color:var(--bone-3);margin-top:5px;line-height:1.5;" data-i18n="god.auto.priority">
           Ưu tiên: ① đáp lời kẻ <b>thành tâm nhất</b> · ② gieo dịch lên kẻ dẫn đầu khi nó bỏ xa &gt;2,2 lần
           · ③ cứu kẻ sắp chết đói. Bật/tắt cái này là bật/tắt cả một <b>áp lực chọn lọc</b> lên gen thành tâm.
         </div>
       </div>
     </div>
 
-    <h2>Lời khẩn cầu</h2>
+    <h2 data-i18n>Lời khẩn cầu</h2>
     <div class="panel" id="prayerPanel">
-      <div class="hint" id="prayerHint">Bộ lạc có Đền thờ sẽ dâng tế và khẩn cầu khi lâm nguy. Đáp lời thì hiệu lực nhân theo mức <b>thành tâm</b> của chính họ.</div>
+      <div class="hint" id="prayerHint" data-i18n="prayer.hint">Bộ lạc có Đền thờ sẽ dâng tế và khẩn cầu khi lâm nguy. Đáp lời thì hiệu lực nhân theo mức <b>thành tâm</b> của chính họ.</div>
       <div id="prayerBody"></div>
     </div>
   </section>
 
   <!-- ===================== TỜ 2 — BỘ LẠC ====================== -->
   <section class="tabpane" id="pane-tribe" data-tab="tribe" role="tabpanel">
-    <h2 id="defendTitle" style="display:none;">Thủ thành</h2>
+    <h2 id="defendTitle" style="display:none;" data-i18n>Thủ thành</h2>
     <div class="panel" id="defendPanel" style="display:none;">
       <div style="font-size:22px;font-weight:700;color:var(--gold);line-height:1.2;" id="defendSurvived">0</div>
-      <div style="font-size:11px;color:var(--bone-3);margin-bottom:8px;">tick đã trụ được · kỷ lục <span id="defendRecord" style="color:var(--bone-2)">0</span></div>
+      <div style="font-size:11px;color:var(--bone-3);margin-bottom:8px;" data-i18n="defend.record">tick đã trụ được · kỷ lục <span id="defendRecord" style="color:var(--bone-2)">0</span></div>
       <div class="kv">
-        <span class="label">Đợt hiện tại</span><span class="value" id="defendWave">0</span>
-        <span class="label">Đợt sau còn</span><span class="value" id="defendNext">—</span>
-        <span class="label">Quái đang tràn</span><span class="value" id="defendAssault">0</span>
-        <span class="label">Bộ lạc trụ được</span><span class="value" id="defendAlive">4 / 4</span>
+        <span class="label" data-i18n>Đợt hiện tại</span><span class="value" id="defendWave">0</span>
+        <span class="label" data-i18n>Đợt sau còn</span><span class="value" id="defendNext">—</span>
+        <span class="label" data-i18n>Quái đang tràn</span><span class="value" id="defendAssault">0</span>
+        <span class="label" data-i18n>Bộ lạc trụ được</span><span class="value" id="defendAlive">4 / 4</span>
       </div>
-      <div class="hint" style="margin-top:8px;">
+      <div class="hint" style="margin-top:8px;" data-i18n="defend.hint">
         Bốn bộ lạc <strong>không đánh nhau</strong> ở chế độ này — thứ được chọn lọc qua các kỷ nguyên đổi từ "đánh thắng" sang "<strong>sống lâu</strong>". Xem biểu đồ gen ở tờ <b>Biên niên</b> để thấy môi trường mới kéo gen nào lên.
         <br>Sóng sinh ra từ <strong>hang ổ còn sống</strong>; phá hết hang thì quái phải xuất phát tận rìa bản đồ — không chặn được sóng nhưng mua thêm rất nhiều thời gian.
       </div>
     </div>
 
-    <h2>Thế giới</h2>
+    <h2 data-i18n>Thế giới</h2>
     <div class="panel" id="eraPanel">
       <div class="kv">
-        <span class="label">Bộ lạc còn sống</span><span class="value" id="statAlive">4</span>
-        <span class="label">Tổng dân</span><span class="value" id="statPop">0</span>
-        <span class="label">Quái vật</span><span class="value" id="statMonsters">0</span>
-        <span class="label">Hang ổ còn lại</span><span class="value" id="statLairs">0</span>
+        <span class="label" data-i18n>Bộ lạc còn sống</span><span class="value" id="statAlive">4</span>
+        <span class="label" data-i18n>Tổng dân</span><span class="value" id="statPop">0</span>
+        <span class="label" data-i18n="stat.monsters">Quái vật</span><span class="value" id="statMonsters">0</span>
+        <span class="label" data-i18n>Hang ổ còn lại</span><span class="value" id="statLairs">0</span>
       </div>
     </div>
 
-    <h2>Bảng bộ lạc</h2>
+    <h2 data-i18n>Bảng bộ lạc</h2>
     <div class="board-wrap"><table class="board" id="tribeBoard"></table></div>
 
     <!-- BỘ GEN ĐANG SỐNG. Trước bản này gen chỉ hiện ở hai chỗ, và cả hai đều nói
@@ -348,18 +380,18 @@
          Hiện ĐỦ 20 gen chứ không 6: sáu gen kia được chọn để VẼ ĐƯỜNG qua nhiều
          kỷ nguyên (đường nào có tín hiệu chọn lọc), còn ở đây câu hỏi khác hẳn —
          "bốn nhà này là bốn ai" — và câu đó thì gen nào cũng có phần. -->
-    <h2>Bộ gen chiến lược</h2>
+    <h2 data-i18n>Bộ gen chiến lược</h2>
     <div class="panel" id="genomePanel">
       <div class="board-wrap"><table class="genome" id="genomeBody"></table></div>
-      <div class="hint" style="margin-top:7px;">
+      <div class="hint" style="margin-top:7px;" data-i18n="genome.hint">
         Gen chỉ đổi lúc <strong>giao kỷ</strong>. Vạch <span style="color:var(--gold)">▏</span> = <strong>nhà vô địch kỳ trước</strong>: cách nó bao xa là <em>bước đột biến</em>, bốn thanh lệch nhau bao nhiêu là <em>độ đa dạng</em> để chọn lọc.
       </div>
     </div>
 
-    <h2>Nâng cấp quân sự</h2>
+    <h2 data-i18n>Nâng cấp quân sự</h2>
     <div class="panel" id="upgradePanel">
       <div id="upgradeBody"></div>
-      <div class="hint" style="margin-top:8px;">
+      <div class="hint" style="margin-top:8px;" data-i18n="upgrade.hint">
         Khác <strong>thời đại</strong> (chỉ quân sinh ra SAU mới có chỉ số mới), nâng cấp áp dụng <strong style="color:var(--gold)">ngay lập tức cho cả đạo quân đang sống</strong> — kể cả người đang đứng giữa trận.
         Mỗi bộ lạc chỉ nghiên cứu <strong>một nhánh một lúc</strong>, và mất trắng nếu công trình chủ quản bị san phẳng giữa chừng.
         Click một quân trên bản đồ để xem <strong>công/thủ</strong> của riêng nó và phần do nâng cấp cộng vào.
@@ -369,19 +401,19 @@
 
   <!-- ===================== TỜ 3 — ANH HÙNG ==================== -->
   <section class="tabpane" id="pane-hero" data-tab="hero" role="tabpanel">
-    <h2>Anh hùng — tiến hoá cấp cá thể</h2>
+    <h2 data-i18n>Anh hùng — tiến hoá cấp cá thể</h2>
     <div class="panel">
-      <div style="font-size:11.5px;color:var(--bone-3);margin-bottom:7px;">
+      <div style="font-size:11.5px;color:var(--bone-3);margin-bottom:7px;" data-i18n="hero.fitness">
         Đời sau nhân bản từ tổ tiên có điểm cao nhất. Tính điểm theo:
         <select id="heroFitnessSelect" style="width:100%;margin-top:4px;">
-          <option value="personal" selected>Cá nhân — ai SỐNG LÂU nhất</option>
-          <option value="tribe">Vì bộ lạc — ai lập nhiều CHIẾN CÔNG nhất</option>
+          <option value="personal" selected data-i18n>Cá nhân — ai SỐNG LÂU nhất</option>
+          <option value="tribe" data-i18n>Vì bộ lạc — ai lập nhiều CHIẾN CÔNG nhất</option>
         </select>
       </div>
       <div id="heroBody"></div>
-      <div class="chart-title" style="margin-top:9px;"><span>gen "dũng cảm" qua các đời</span><span id="labelBrave">-</span></div>
+      <div class="chart-title" style="margin-top:9px;"><span data-i18n>gen "dũng cảm" qua các đời</span><span id="labelBrave">-</span></div>
       <canvas class="chart" id="chartHero" style="height:70px;"></canvas>
-      <div class="hint" style="margin-top:4px;">
+      <div class="hint" style="margin-top:4px;" data-i18n="hero.hint">
         Đây là vòng tiến hoá <strong>nhanh</strong> nằm trong vòng chậm: policy bộ lạc chỉ được chọn lọc 1 lần mỗi kỷ nguyên, còn dòng dõi anh hùng thì mỗi lần một anh hùng chết.
         Để ở chế độ <strong>Cá nhân</strong> rồi nhìn đường "dũng cảm" — cái tốt cho một cá thể và cái tốt cho tập thể không nhất thiết cùng hướng.
       </div>
@@ -390,39 +422,43 @@
 
   <!-- ===================== TỜ 4 — BIÊN NIÊN =================== -->
   <section class="tabpane" id="pane-chron" data-tab="chron" role="tabpanel">
-    <h2>Nhật ký</h2>
+    <h2 data-i18n>Nhật ký</h2>
     <div id="eventLog"></div>
 
-    <h2>Biên niên sử</h2>
-    <div id="eraHistory" class="hint">Chưa có kỷ nguyên nào khép lại. Nhà vô địch đầu tiên sẽ được ghi tên ở đây.</div>
+    <h2 data-i18n>Biên niên sử</h2>
+    <!-- data-i18n vì renderEraHistory() THOÁT SỚM khi chưa có kỷ nguyên nào khép
+         lại (`if (!eraHistory.length) return`), nên chuỗi viết cứng ở đây là thứ
+         người xem thật sự đọc suốt cả kỷ nguyên đầu tiên — không phải một chỗ
+         giữ chỗ thoáng qua. Cùng bẫy với #railAge. -->
+    <div id="eraHistory" class="hint" data-i18n>Chưa có kỷ nguyên nào khép lại. Nhà vô địch đầu tiên sẽ được ghi tên ở đây.</div>
 
-    <h2>Dân số theo bộ lạc</h2>
-    <div class="chart-title"><span>dân số (cùng trục)</span><span id="labelPop">-</span></div>
+    <h2 data-i18n>Dân số theo bộ lạc</h2>
+    <div class="chart-title"><span data-i18n>dân số (cùng trục)</span><span id="labelPop">-</span></div>
     <canvas class="chart" id="chartPop"></canvas>
-    <div class="chart-title" style="margin-top:10px;"><span>tổng thức ăn tồn kho</span><span id="labelFood">-</span></div>
+    <div class="chart-title" style="margin-top:10px;"><span data-i18n>tổng thức ăn tồn kho</span><span id="labelFood">-</span></div>
     <canvas class="chart" id="chartFood"></canvas>
 
-    <h2>Gen thắng cuộc qua các kỷ nguyên</h2>
+    <h2 data-i18n>Gen thắng cuộc qua các kỷ nguyên</h2>
     <div id="geneLegend"></div>
     <canvas class="chart" id="chartGenes" style="height:90px;"></canvas>
-    <div class="hint" style="margin-top:4px;">Mỗi đường = 1 gen chiến lược của nhà vô địch, chuẩn hoá về 0–1. Đường đi lên đều đặn qua nhiều kỷ nguyên = chọn lọc đang thật sự ưa chuộng gen đó trong thế giới này.</div>
+    <div class="hint" style="margin-top:4px;" data-i18n="genechart.hint">Mỗi đường = 1 gen chiến lược của nhà vô địch, chuẩn hoá về 0–1. Đường đi lên đều đặn qua nhiều kỷ nguyên = chọn lọc đang thật sự ưa chuộng gen đó trong thế giới này.</div>
   </section>
 
   <!-- ===================== TỜ 5 — THAM SỐ ===================== -->
   <section class="tabpane" id="pane-tune" data-tab="tune" role="tabpanel">
-    <h2>Tham số (live)</h2>
+    <h2 data-i18n>Tham số (live)</h2>
     <div id="tuning">
-      <label>Độ dài kỷ nguyên (tick) <input type="number" id="tuneEraTicks" step="1000" min="1000" autocomplete="off"></label>
-      <div class="hint">kỷ nguyên kết thúc khi chỉ còn 1 bộ lạc HOẶC chạm mốc này</div>
+      <label><span data-i18n>Độ dài kỷ nguyên (tick)</span> <input type="number" id="tuneEraTicks" step="1000" min="1000" autocomplete="off"></label>
+      <div class="hint" data-i18n>kỷ nguyên kết thúc khi chỉ còn 1 bộ lạc HOẶC chạm mốc này</div>
 
-      <label>Mutation chiến lược <input type="number" id="tuneMutation" step="0.01" min="0" max="1" autocomplete="off"></label>
-      <div class="hint">độ lệch chuẩn khi "gen chiến lược" của bộ lạc thắng được nhân bản sang kỷ nguyên sau</div>
+      <label><span data-i18n>Mutation chiến lược</span> <input type="number" id="tuneMutation" step="0.01" min="0" max="1" autocomplete="off"></label>
+      <div class="hint" data-i18n>độ lệch chuẩn khi "gen chiến lược" của bộ lạc thắng được nhân bản sang kỷ nguyên sau</div>
 
-      <label>Hệ số nuôi quân <input type="number" id="tuneUpkeep" step="0.1" min="0" autocomplete="off"></label>
-      <div class="hint">nhân với chi phí thức ăn/tick cho mỗi quân — cao thì đông dân là gánh nặng, thấp thì bùng nổ dân số vô hạn</div>
+      <label><span data-i18n>Hệ số nuôi quân</span> <input type="number" id="tuneUpkeep" step="0.1" min="0" autocomplete="off"></label>
+      <div class="hint" data-i18n>nhân với chi phí thức ăn/tick cho mỗi quân — cao thì đông dân là gánh nặng, thấp thì bùng nổ dân số vô hạn</div>
 
-      <label>Hệ số thu hoạch <input type="number" id="tuneGather" step="0.1" min="0.1" autocomplete="off"></label>
-      <div class="hint">nhân với tốc độ thu hoạch của mọi dân thường</div>
+      <label><span data-i18n>Hệ số thu hoạch</span> <input type="number" id="tuneGather" step="0.1" min="0.1" autocomplete="off"></label>
+      <div class="hint" data-i18n>nhân với tốc độ thu hoạch của mọi dân thường</div>
     </div>
   </section>
 </div>
@@ -439,7 +475,15 @@
      script thường thì chạy. Đây là lý do trò chơi vẫn mở được bằng cách
      bấm đúp civilization.html, không cần server.
      THỨ TỰ DƯỚI ĐÂY LÀ BẮT BUỘC: 01-config phải chạy trước vì có code
-     top-level đọc CONFIG ngay lúc tải. -->
+     top-level đọc CONFIG ngay lúc tải.
+     00-i18n + 00-lang-en đứng TRƯỚC tất cả vì T() được gọi ở cả code
+     top-level (xem cụm dựng nút quyền năng trong 15-input-boot), và
+     17-i18n-boot đứng SAU tất cả vì nó phải quét được CONFIG, UNIT_LABEL,
+     GOD_POWERS, PRAYERS — những thứ chỉ tồn tại khi mọi tệp đã nạp xong. -->
+<script src="js/00-i18n.js"></script>
+<script src="js/00-lang-en.js"></script>
+<script src="js/00-lang-en-legend.js"></script>
+<script src="js/00-lang-en-game.js"></script>
 <script src="js/01-config.js"></script>
 <script src="js/02-state-util.js"></script>
 <script src="js/03-territory.js"></script>
@@ -458,6 +502,6 @@
 <!-- Thư khố PHẢI đứng sau 13 (mượn withCanvas + mọi hàm vẽ) và sau 15 (dùng
      UNIT_LABEL, el(), showMenu). Script cổ điển nên thứ tự này là bắt buộc. -->
 <script src="js/16-codex.js"></script>
-</script>
+<script src="js/17-i18n-boot.js"></script>
 </body>
 </html>

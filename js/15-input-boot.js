@@ -58,7 +58,7 @@ window.addEventListener('mouseup', (e) => {
       if (castPower(armedPower, gx, gy)) {
         armedPower = null;
         simCanvas.classList.remove('god-armed');
-        setGodHint('Đã thi triển. Chọn quyền năng khác nếu muốn.');
+        setGodHint(T('Đã thi triển. Chọn quyền năng khác nếu muốn.'));
       }
     } else {
       selectAt(gx, gy);
@@ -130,7 +130,7 @@ window.addEventListener('keydown', (e) => {
   if (k === 'escape') {
     armedPower = null;
     simCanvas.classList.remove('god-armed');
-    setGodHint('Đã huỷ quyền năng đang chọn.');
+    setGodHint(T('Đã huỷ quyền năng đang chọn.'));
   }
   if (PAN_KEYS.includes(k) && document.activeElement.tagName !== 'INPUT') {
     pressedKeys.add(k); e.preventDefault();
@@ -175,7 +175,7 @@ window.addEventListener('keydown', (e) => {
     // vì im lặng đổi chế độ rồi để người dùng tự đoán vì sao camera không nhúc nhích.
     if (cameraMode === 'follow') { setCameraMode('director'); }
     else if (getSelected()) { setCameraMode('follow'); }
-    else setGodHint('Chọn một quân/công trình trên bản đồ trước rồi bấm F để bám theo.');
+    else setGodHint(T('Chọn một quân/công trình trên bản đồ trước rồi bấm F để bám theo.'));
   } else if (k === 'c') {
     setCameraMode(cameraMode === 'director' ? 'free' : 'director');
   } else if (k === 'z' || k === 'x') {
@@ -246,7 +246,7 @@ function pickDirectorTarget() {
   const t = alive[directorTourIndex];
   const town = buildings.find(b => b.tribeId === t.id && b.type === 'town' && b.hp > 0);
   return { x: town ? town.x : t.home.x, y: town ? town.y : t.home.y,
-           label: `Kinh đô ${t.name}`, weight: 0, tour: true };
+           label: T('Kinh đô {tribe}', { tribe: t.name }), weight: 0, tour: true };
 }
 
 function updateDirectorCamera() {
@@ -316,7 +316,7 @@ function updateDirectorCamera() {
     // thắng lại — nhãn "🎬 tên cảnh" vì thế chưa từng hiện ra lần nào, dù chữ đã
     // được gán đúng. Người xem không biết camera đang quay cái gì.
     el2.style.display = 'block';
-    el2.textContent = '🎬 ' + directorLabel;
+    el2.textContent = '🎬 ' + Tv(directorLabel);
   }
 }
 
@@ -413,17 +413,17 @@ const UNIT_LABEL = {
   ballista: 'Nỏ thần', elephant: 'Voi chiến', standard: 'Quân kỳ', quarter: 'Đội hậu cần'
 };
 function describeSelected(o) {
-  if (o.isLair) return 'Hang ổ cấp ' + (o.tier || 1);
+  if (o.isLair) return T('Hang ổ cấp {n}', { n: o.tier || 1 });
   // Ô tường không có `type`, nên nếu không đón ở đây nó rơi xuống dòng cuối và
   // trả về "undefined — Xích Long" trên nhãn camera bám. Xem cùng chú thích ở
   // renderOverlaySelected.
   if (o.isWall) {
     const t = tribes[o.tribeId];
-    return (o.corner ? 'Tháp góc' : o.door ? 'Cánh cổng' : o.gate ? 'Lầu cổng' : 'Tường thành') + ' — ' + (t ? t.name : '?');
+    return (o.corner ? T('Tháp góc') : o.door ? T('Cánh cổng') : o.gate ? T('Lầu cổng') : T('Tường thành')) + ' — ' + (t ? t.name : '?');
   }
   if (o.type === 'monster') {
     const s = CONFIG.MONSTER.TYPES[o.mType];
-    return (s ? s.label : 'Quái vật') + (o.assault ? ' (sóng)' : '');
+    return (s ? s.label : Tc('unit.monster', 'Quái vật')) + (o.assault ? T(' (sóng)') : '');
   }
   if (o.size !== undefined && CONFIG.BUILD[o.type]) {
     return CONFIG.BUILD[o.type].label + ' — ' + (tribes[o.tribeId] ? tribes[o.tribeId].name : '?');
@@ -522,7 +522,7 @@ const btnPause = el('btnPause');
 // Nhãn nút phải khớp với chữ trong phần phím tắt ("Space tạm dừng") và data-running
 // điều khiển dấu play/pause vẽ bằng CSS ::before — nên gom cả hai vào một chỗ.
 function setPauseUI(isRunning) {
-  btnPause.textContent = isRunning ? 'Tạm dừng' : 'Tiếp tục';
+  btnPause.textContent = isRunning ? T('Tạm dừng') : T('Tiếp tục');
   btnPause.dataset.running = isRunning ? 'true' : 'false';
 }
 btnPause.addEventListener('click', () => {
@@ -613,8 +613,8 @@ function enterGame(mode) {
   // tắt mà còn nằm đó thì người dùng tưởng nút không ăn.
   renderDefendPanel();
   logEvent(mode === 'defend'
-    ? '🛡 THỦ THÀNH — bốn bộ lạc ngừng đánh nhau, sóng quái bắt đầu tràn tới.'
-    : '⚔ CHINH PHẠT — bốn bộ lạc tranh thiên hạ.', '#d8a544', true);
+    ? TL('🛡 THỦ THÀNH — bốn bộ lạc ngừng đánh nhau, sóng quái bắt đầu tràn tới.')
+    : TL('⚔ CHINH PHẠT — bốn bộ lạc tranh thiên hạ.'), '#d8a544', true);
   // Vòng lặp vẽ chỉ được khởi động ở lần vào game đầu tiên: trước đó chưa có thế
   // giới nào để vẽ, nên startEra + rAF cùng bị hoãn tới đây.
   if (!bootDone) { bootDone = true; requestAnimationFrame(frame); }
@@ -645,13 +645,13 @@ el('heroFitnessSelect').addEventListener('change', (e) => {
   // Điểm cũ được chấm bằng thước cũ nên không so sánh được với thước mới; giữ lại
   // thì tổ tiên "tốt nhất" theo thước cũ sẽ khoá cứng dòng dõi mãi mãi.
   for (const t of tribes) if (t.heroLine) t.heroLine.best = null;
-  logEvent(`Chúa Tể đổi tiêu chí chọn lọc anh hùng: ${e.target.value === 'tribe' ? 'vì bộ lạc' : 'cá nhân'}`, '#d8a544', true);
+  logEvent(TL('Chúa Tể đổi tiêu chí chọn lọc anh hùng: {mode}', { mode: e.target.value === 'tribe' ? TL('vì bộ lạc') : TL('cá nhân') }), '#d8a544', true);
 });
 
 el('cameraSelect').addEventListener('change', (e) => {
   cameraMode = e.target.value;
   if (cameraMode === 'follow' && !getSelected()) {
-    setGodHint('Chế độ bám: hãy click một quân hoặc công trình để camera đi theo.');
+    setGodHint(T('Chế độ bám: hãy click một quân hoặc công trình để camera đi theo.'));
   }
   if (cameraMode !== 'director') {
     directorTarget = null;
@@ -664,25 +664,34 @@ el('cameraSelect').addEventListener('change', (e) => {
 // Nút quyền năng
 // Vạch màu bên trái mã hoá LÃNH VỰC của quyền năng — chu sa cho thứ gây hại, thanh
 // lục cho thứ nuôi lớn, vàng cho thứ ban tặng — nên nó là thông tin, không phải trang trí.
-el('godButtons').innerHTML = GOD_POWERS.map(p =>
-  `<button class="god-btn" id="god_${p.id}" data-tone="${p.tone}">` +
-    `<span class="gb-name">${p.name || p.label}</span>` +
-    `<span class="gb-cost">${p.cost}<i>đức tin</i></span>` +
-  `</button>`
-).join('');
-for (const p of GOD_POWERS) {
-  el('god_' + p.id).addEventListener('click', () => {
-    if (armedPower === p.id) {
-      armedPower = null;
-      simCanvas.classList.remove('god-armed');
-      setGodHint('Đã huỷ quyền năng đang chọn.');
-    } else {
-      armedPower = p.id;
-      simCanvas.classList.add('god-armed');
-      setGodHint(p.hint);
-    }
-  });
+//
+// Gói thành HÀM (Phase 3.36) vì đổi ngôn ngữ phải dựng lại cụm nút này: nó là một
+// trong số ít chỗ chỉ chạy ĐÚNG MỘT LẦN lúc tải trang, nên nếu không vẽ lại thì
+// sáu cái nút đắt nhất giao diện đứng nguyên tiếng cũ. Trình nghe gắn thẳng vào
+// từng nút chứ không uỷ quyền lên cha — và vì thế phải gắn lại sau mỗi lần dựng,
+// nên vòng lặp gắn nằm TRONG hàm, không đứng ngoài.
+function renderGodButtons() {
+  el('godButtons').innerHTML = GOD_POWERS.map(p =>
+    `<button class="god-btn" id="god_${p.id}" data-tone="${p.tone}">` +
+      `<span class="gb-name">${p.name || p.label}</span>` +
+      `<span class="gb-cost">${p.cost}<i>${T('đức tin')}</i></span>` +
+    `</button>`
+  ).join('');
+  for (const p of GOD_POWERS) {
+    el('god_' + p.id).addEventListener('click', () => {
+      if (armedPower === p.id) {
+        armedPower = null;
+        simCanvas.classList.remove('god-armed');
+        setGodHint(T('Đã huỷ quyền năng đang chọn.'));
+      } else {
+        armedPower = p.id;
+        simCanvas.classList.add('god-armed');
+        setGodHint(p.hint);
+      }
+    });
+  }
 }
+renderGodButtons();
 
 // Nút "Đáp lời" trong bảng khẩn cầu. Uỷ quyền sự kiện lên panel cha chứ không gắn
 // vào từng nút: bảng này được dựng lại innerHTML mỗi 6 frame, nên listener gắn
@@ -702,8 +711,8 @@ el('prayerPanel').addEventListener('click', (e) => {
 el('chkAutoGod').addEventListener('change', (e) => {
   autoGod = e.target.checked;
   setGodHint(autoGod
-    ? 'Chúa Tể tự động: sẽ tự đáp lời kẻ thành tâm nhất, và can thiệp khi Đức Tin vượt ngưỡng.'
-    : 'Đã tắt tự động — Đức Tin chỉ tiêu khi bạn bấm.');
+    ? T('Chúa Tể tự động: sẽ tự đáp lời kẻ thành tâm nhất, và can thiệp khi Đức Tin vượt ngưỡng.')
+    : T('Đã tắt tự động — Đức Tin chỉ tiêu khi bạn bấm.'));
 });
 el('tuneAutoGod').addEventListener('input', (e) => {
   const v = Number(e.target.value);

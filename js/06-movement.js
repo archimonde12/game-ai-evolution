@@ -162,12 +162,12 @@ function tickSpeed(u, base) {
 //     đời. Nếu lưu cấp vào từng ô lúc lát thì bản đồ sẽ đầy những tuyến vá chằng
 //     vá đụp, mà mắt đọc ra "lỗi hiển thị" chứ không đọc ra "lịch sử".
 function roadSpeedMult(tribeId) {
-  const T = CONFIG.ROAD.SPEED_BY_AGE;
+  const SPD = CONFIG.ROAD.SPEED_BY_AGE;
   const t = tribes[tribeId];
   // Kẹp cả hai đầu: một tribeId lạ (bộ lạc đã bị xoá sổ giữa kỷ nguyên) rơi về
   // cấp thấp nhất chứ không ra `undefined` — nhân undefined vào tốc độ là NaN, và
   // một đơn vị có speed NaN thì đứng im vĩnh viễn mà không báo lỗi ở đâu cả.
-  return T[clamp(t ? (t.age || CONFIG.ROAD.MIN_AGE) : CONFIG.ROAD.MIN_AGE, 1, T.length - 1)];
+  return SPD[clamp(t ? (t.age || CONFIG.ROAD.MIN_AGE) : CONFIG.ROAD.MIN_AGE, 1, SPD.length - 1)];
 }
 
 function roadSpeed(u, base) {
@@ -834,7 +834,13 @@ function rebuildUnitBuckets() {
   }
 }
 
-function findNearestEnemyUnit(x, y, tribeId, range, soldiersOnly) {
+// `skip` — mảng những kẻ ĐÃ bị nhắm trong cùng một lượt, thêm ở Phase 3.38 cho nỏ
+// liên châu (tháp bắn nhiều mũi vào nhiều mục tiêu). Tham số THỨ SÁU, đứng sau
+// `soldiersOnly`: chèn nó vào giữa thì mọi lời gọi bốn tham số vẫn chạy đúng nhưng
+// mọi lời gọi NĂM tham số lặng lẽ đổi nghĩa — `soldiersOnly` biến thành một mảng
+// truthy và tháp canh thôi bắn dân thường. Không có lỗi nào, chỉ có một luật chơi
+// khác. Mặc định `undefined` nên mọi lời gọi cũ giữ nguyên hành vi.
+function findNearestEnemyUnit(x, y, tribeId, range, soldiersOnly, skip) {
   const B = CONFIG.BUCKET_SIZE;
   const x0 = Math.floor((x - range) / B), x1 = Math.floor((x + range) / B);
   const y0 = Math.floor((y - range) / B), y1 = Math.floor((y + range) / B);
@@ -855,6 +861,7 @@ function findNearestEnemyUnit(x, y, tribeId, range, soldiersOnly) {
         // thường phải bỏ chạy khỏi anh hùng địch nữa, nếu không họ sẽ thản nhiên
         // hái quả bên cạnh người vừa một mình phá sập trại lính của họ.
         if (soldiersOnly && o.type === 'villager') continue;
+        if (skip && skip.indexOf(o) >= 0) continue;
         const d = dist(x, y, o.x, o.y);
         if (d <= range && d < bestD) { bestD = d; best = o; }
       }
@@ -881,10 +888,13 @@ function rebuildHeroIndex() {
   for (const u of units) if (u.type === 'hero' && u.hp > 0) heroIndex.push(u);
 }
 
-function findNearestEnemyHero(x, y, tribeId, range) {
+// `skip` — cùng vai và cùng lý do như ở findNearestEnemyUnit ngay trên (nỏ liên
+// châu, Phase 3.38). Ở đây nó đứng thứ năm vì hàm này không có `soldiersOnly`.
+function findNearestEnemyHero(x, y, tribeId, range, skip) {
   let best = null, bestD = range;
   for (const o of heroIndex) {
     if (o.tribeId === tribeId || o.hp <= 0) continue;
+    if (skip && skip.indexOf(o) >= 0) continue;
     const d = dist(x, y, o.x, o.y);
     if (d <= bestD) { bestD = d; best = o; }
   }

@@ -1,12 +1,14 @@
 # Chúa Tể — mô phỏng tiến hoá, chạy thẳng trong trình duyệt
 
 Hai trò chơi mô phỏng viết bằng JavaScript thuần, **không build, không phụ thuộc, không cần server**.
-Tải về rồi bấm đúp file `.html` là chạy.
+Tải về rồi bấm đúp file `.html` là chạy. Giao diện **song ngữ Việt / English** — mặc định tiếng Việt,
+đổi bằng phím <kbd>L</kbd>.
 
 | File | Là gì |
 |---|---|
+| [`index.html`](index.html) | **Trang chọn trò** — cái kệ. Mở thư mục hay mở gốc máy chủ là rơi vào đây, rồi chọn một trong hai trò bên dưới. |
 | [`civilization.html`](civilization.html) | **Chúa Tể** — trò chính. Mô phỏng văn minh kiểu AoE tự chơi lấy, người chơi là một vị thần chỉ ngồi xem và thi thoảng can thiệp. |
-| [`index.html`](index.html) | Bản mô phỏng tiến hoá đầu tiên — thú ăn cỏ / thú ăn thịt, tiến hoá ở tầng **cá thể**. |
+| [`evolution.html`](evolution.html) | **Tiến Hoá** — bản mô phỏng đầu tiên: thú ăn cỏ / thú ăn thịt, tiến hoá ở tầng **cá thể**. (Trước đây tệp này chính là `index.html`.) |
 
 ## Cái đang tiến hoá là gì
 
@@ -69,6 +71,10 @@ nó đọc được thẳng trên bản đồ.
 ```
 civilization.html      vỏ HTML + thứ tự nạp script
 css/game.css           toàn bộ giao diện
+js/00-i18n.js          bộ máy song ngữ: T()/TL(), vá nhãn trong dữ liệu, đổi ngôn ngữ
+js/00-lang-en.js       từ điển Anh — nhãn dữ liệu + khung giao diện
+js/00-lang-en-legend.js  từ điển Anh — riêng bài luật chơi ở khung trái
+js/00-lang-en-game.js  từ điển Anh — chữ do mã sinh ra lúc chạy
 js/01-config.js        mọi con số của trò chơi (CONFIG, mẫu bộ lạc)
 js/02-state-util.js    trạng thái toàn cục, tiện ích, sinh địa hình & bản đồ
 js/03-territory.js     lãnh thổ theo ảnh hưởng công trình
@@ -85,6 +91,7 @@ js/13-render-world.js  toàn bộ phần vẽ khung hình
 js/14-ui-panels.js     giao diện DOM ngoài canvas
 js/15-input-boot.js    chuột/phím, camera đạo diễn, vòng rAF, boot
 js/16-codex.js         Thư khố — sách tra quái/quân/công trình/anh hùng
+js/17-i18n-boot.js     nối dây công tắc ngôn ngữ; chạy CUỐI vì phải quét mọi bảng
 ```
 
 **Script cổ điển, không phải ES module** — và đó là lựa chọn có chủ ý: `<script type="module">` bị chặn
@@ -94,15 +101,60 @@ scope như hồi còn một file, nên tách được mà không cần một dò
 **thứ tự thẻ `<script>` trong `civilization.html` là bắt buộc** (`01-config.js` phải chạy trước, vì có
 code top-level đọc `CONFIG` ngay lúc tải).
 
+## Song ngữ Việt / English
+
+Mặc định **tiếng Việt**. Đổi bằng hai nút ở **trang bìa** (☰ Thế cuộc / phím <kbd>M</kbd> để mở lại),
+hoặc phím <kbd>L</kbd> bất cứ lúc nào — kể cả giữa ván. Lúc đang chơi **không** còn nút ngôn ngữ nào
+trên khung hình: nó là thứ người xem tìm đúng một lần rồi thôi, nhưng lại chiếm chỗ suốt cả ván.
+Cùng lý do đó, Thư khố cũng chỉ mở từ trang bìa hoặc phím <kbd>B</kbd>.
+
+Khoá tra cứu **chính là câu tiếng Việt**, không phải một mã như `tribe.destroyed`. Đó là lựa chọn về
+rủi ro: gõ nhầm một mã thì màn hình hiện đúng cái mã đó, im lặng, không có lỗi nào trong console —
+còn lấy chính câu tiếng Việt làm khoá thì chế độ mặc định là **hàm đồng nhất**, và thiếu một mục từ
+điển chỉ làm một câu rơi về tiếng Việt chứ không làm hỏng giao diện.
+
+Ba đường dịch, cho ba loại chữ khác hẳn nhau:
+
+| Loại | Cách làm | Vì sao |
+|---|---|---|
+| Nhãn trong dữ liệu (`CONFIG.BUILD.town.label`) | **vá thẳng vào dữ liệu** lúc đổi ngôn ngữ | Bị đọc ở hàng trăm nơi; bọc từng chỗ đọc là sửa hàng trăm điểm. Vá vào nguồn thì mọi chỗ đọc giữ nguyên không sửa một ký tự. |
+| Câu nội suy trong mã | `T('☠ {name} DIỆT VONG', {...})` | Dịch ngay lúc gọi, nên đổi ngôn ngữ là lần vẽ kế tiếp đã đúng. |
+| Chữ được **cất đi rồi mới hiện** (nhật ký, điểm nóng) | `TL(...)` gói lại, `Tv(...)` mở ra lúc vẽ | Dịch lúc ghi thì mỗi dòng đông cứng ở ngôn ngữ của thời điểm nó xảy ra, và bấm đổi ngôn ngữ để lại một cuốn nhật ký nửa Việt nửa Anh — thứ không tự sửa được, vì quá khứ thì không viết lại. |
+
+Tham số của `T()` được phép là **hàm**: `{ build: () => CONFIG.BUILD.depot.label }`. Đó không phải
+tiện nghi cú pháp mà là cách duy nhất đúng cho nhật ký — truyền chuỗi thì cái nhãn đông cứng ngay lúc
+ghi và cho ra câu lai *"Hoàng Kim finished a Kho hàng"*: khung câu dịch được, cái nhãn thì không.
+
+**Tên riêng giữ nguyên** ở cả hai ngôn ngữ — bốn bộ lạc (Xích Long, Thanh Vân, Hoàng Kim, Tử Vi) và
+tên dòng dõi anh hùng. Ngoài lý do chúng là danh từ riêng, việc đó còn né một va chạm thật: `Hoàng Kim`
+vừa là tên một bộ lạc vừa là tên thời đại 4.
+
+Tìm chỗ còn thiếu: mở game, bấm sang tiếng Anh, chơi một lúc rồi gõ `I18N.report()` trong console —
+nó in ra đúng những câu đã bị hỏi mà chưa có bản dịch.
+
 ## Chạy
 
 Bấm đúp `civilization.html`. Hết.
 
+Không nhớ tên tệp thì bấm đúp `index.html` — trang chọn trò, có đường dẫn sang cả hai
+(phím <kbd>1</kbd> / <kbd>2</kbd> chọn nhanh). Ngôn ngữ chọn ở đó đi thẳng sang Chúa Tể,
+vì cả hai dùng chung khoá `localStorage['civ.lang']`.
+
 Nếu muốn phục vụ qua HTTP (không bắt buộc):
 
 ```bash
-python3 -m http.server 8123
+python3 .claude/serve.py 8123
 ```
+
+Dùng tệp này chứ **đừng** dùng `python3 -m http.server`: bản có sẵn của Python không gửi
+`Cache-Control` nào cả, chỉ gửi `Last-Modified`. Trình duyệt gặp vậy thì **tự đoán** hạn dùng
+(khoảng 10% tuổi tệp), nên một tệp sửa vài ngày trước được coi là còn tươi hàng chục giờ —
+và trong ngần ấy thời gian nó phục vụ bản cũ mà không hỏi máy chủ lấy một lần. Sửa mã xong
+mở trang thấy y như cũ là vì thế, không phải vì mã sai. `serve.py` chỉ khác đúng một chỗ: nó
+gửi `Cache-Control: no-store`.
+
+Lưu ý: `no-store` chỉ có tác dụng với những lần tải **sau**. Nếu trình duyệt đã trót nhớ bản
+cũ thì phải nạp cứng **một lần** (`Cmd+Shift+R`) để đuổi nó đi.
 
 ## Giấy phép
 

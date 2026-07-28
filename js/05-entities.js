@@ -80,7 +80,7 @@ function startEra(policies) {
       color: tpl.color,
       dark: tpl.dark,
       policy: policies[i],
-      lineage: policies[i].__lineage || 'khởi tổ',
+      lineage: policies[i].__lineage || { kind: 'founder' },
       res: { food: CONFIG.START.food, wood: CONFIG.START.wood, gold: CONFIG.START.gold, stone: CONFIG.START.stone },
       age: 1,
       alive: true,
@@ -225,7 +225,7 @@ function startEra(policies) {
   clampCamera();
 
   mapToasts = [];
-  logEvent(`Kỷ nguyên ${era} — bốn bộ lạc lập quốc`, '#d8a544', true);
+  logEvent(TL('Kỷ nguyên {n} — bốn bộ lạc lập quốc', { n: era }), '#d8a544', true);
 }
 
 // Tra chỉ số gốc theo type. MỘT chỗ duy nhất — trước bản này chỗ này là một chuỗi
@@ -427,6 +427,19 @@ function emptyUpgrades() {
   return o;
 }
 
+// Cấp trần của MỘT nhánh. Mặc định là trần chung (3), nhưng nhánh nào khai `maxLv`
+// thì con số của nó thắng — xem `volley` trong config để biết vì sao một nhánh lại
+// đáng có đúng một cấp.
+//
+// PHẢI đi qua hàm này ở MỌI chỗ hỏi "hết cấp chưa" và "vẽ mấy chấm", vì hai câu đó
+// nằm ở bốn tệp khác nhau (05 chặn nghiên cứu · 11 chấm điểm · 14 vẽ bảng · 16 Thư
+// khố). Bỏ sót một chỗ thì hậu quả không phải một lỗi mà là một LỜI NÓI DỐI: thẻ
+// tra cứu ghi "3 cấp" cho một nhánh mà bộ não sẽ không bao giờ nâng quá cấp 1.
+function upgradeMaxLv(line) {
+  const L = CONFIG.UPGRADE.LINES[line];
+  return (L && L.maxLv) || CONFIG.UPGRADE.MAX_LEVEL;
+}
+
 // Giá của CẤP KẾ TIẾP. Nhân bảng giá gốc với hệ số leo theo cấp, làm tròn để
 // bảng hiển thị không ra "127,4999 vàng".
 function upgradeCost(line, nextLevel) {
@@ -510,6 +523,29 @@ function rebuildUpBonus(tribe) {
     slots: (Q.slots || 0) * qlv,
     reach: (Q.reach || 0) * qlv
   };
+  // NỎ LIÊN CHÂU — đường riêng thứ tư, cùng khuôn ba cái trên. Nhưng chú ý một chỗ
+  // KHÁC hẳn chúng: `shots` KHÔNG nhân với `vlv`. Nó là một cánh cửa mở ở cấp 1 rồi
+  // đứng yên, và lý do nằm ở CONFIG.UPGRADE.LINES.volley — mũi tên là nhân tử, nên
+  // để nó lên theo cấp là cho tháp canh 6,4 lần hoả lực gốc ở cấp 3.
+  //
+  // Viết `vlv > 0 ? V.shots : 0` chứ không phải `min(vlv,1) * V.shots`: hai cách cho
+  // cùng một số, nhưng cách đầu đọc ra là "có hay không", đúng thứ nó thật sự là.
+  const V = CONFIG.UPGRADE.LINES.volley;
+  const vlv = tribe.upgrades.volley || 0;
+  tribe.towerBonus = {
+    lv: vlv,
+    shots: vlv > 0 ? (V.shots || 0) : 0,
+    atk:   (V.tatk || 0) * vlv,
+    hp:    (V.thp  || 0) * vlv
+  };
+}
+
+// Hệ số MÁU của tháp canh do nhánh Liên châu cộng vào. Một hàm riêng chứ không đọc
+// thẳng `tribe.towerBonus.hp`, vì `buildingMaxHp` được gọi cả từ Thư khố với
+// `tribe` null — cùng cái bẫy mà `ageBuildHp` và `masonryMult` đã phải kẹp.
+function towerVolleyHpMult(tribe) {
+  const b = tribe && tribe.towerBonus;
+  return 1 + (b ? b.hp : 0);
 }
 
 // Bán kính / số suất / nhịp hồi THẬT của một trại tiếp tế, sau khi cộng nhánh Quân
@@ -588,7 +624,7 @@ function hasDoneBuilding(tribe, type) {
 // Nhánh này đã lên trần chưa / có đủ điều kiện để bắt đầu nghiên cứu chưa.
 function upgradeAvailable(tribe, line) {
   const L = CONFIG.UPGRADE.LINES[line];
-  if (tribe.upgrades[line] >= CONFIG.UPGRADE.MAX_LEVEL) return false;
+  if (tribe.upgrades[line] >= upgradeMaxLv(line)) return false;
   if (tribe.age < L.age) return false;
   return hasDoneBuilding(tribe, L.build);
 }
@@ -600,7 +636,7 @@ function startResearch(tribe, line) {
   pay(tribe, cost);
   tribe.research = { line, until: tick + CONFIG.UPGRADE.TICKS[next], level: next };
   const L = CONFIG.UPGRADE.LINES[line];
-  logEvent(`${L.icon} ${tribe.name} bắt đầu nghiên cứu ${L.label} cấp ${next}`, tribe.color);
+  logEvent(TL('{icon} {tribe} bắt đầu nghiên cứu {line} cấp {lv}', { icon: L.icon, tribe: tribe.name, line: () => L.label, lv: next }), tribe.color);
   return true;
 }
 
@@ -618,7 +654,7 @@ function tickResearch(tribe) {
   const hasBuild = buildings.some(b => b.tribeId === tribe.id && b.type === L.build && b.hp > 0 && b.done);
   if (!hasBuild) {
     tribe.research = null;
-    logEvent(`✖ ${tribe.name} mất ${L.label} cấp ${r.level} — ${CONFIG.BUILD[L.build].label} bị phá`, tribe.color);
+    logEvent(TL('✖ {tribe} mất {line} cấp {lv} — {build} bị phá', { tribe: tribe.name, line: () => L.label, lv: r.level, build: () => CONFIG.BUILD[L.build].label }), tribe.color);
     return;
   }
   if (tick < r.until) return;
@@ -645,7 +681,7 @@ function applyUpgrade(tribe, line, level) {
       if (u.tribeId === tribe.id && u.type === 'hero' && u.hp > 0) recomputeHeroStats(u);
     }
   }
-  logEvent(`${L.icon} ${tribe.name} hoàn thành ${L.label} cấp ${level}`, tribe.color, true);
+  logEvent(TL('{icon} {tribe} hoàn thành {line} cấp {lv}', { icon: L.icon, tribe: tribe.name, line: () => L.label, lv: level }), tribe.color, true);
   addHotspot(tribe.home.x, tribe.home.y, 3, `${tribe.name}: ${L.label} ${level}`);
   // NỀ ĐÁ chạm vào thứ đã tồn tại từ trước, không phải thứ sắp ra lò — nên nó phải
   // đi ĐƯỜNG RIÊNG, và đây là chỗ khác biệt lớn nhất giữa nó với bảy nhánh kia.
@@ -655,7 +691,14 @@ function applyUpgrade(tribe, line, level) {
   // NẰM TRÊN CÁ THỂ, gán một lần lúc đặt móng. Không có dòng này thì nhánh Nề đá
   // chỉ có tác dụng với những toà nhà xây SAU khi nghiên cứu xong — mà bộ lạc đang
   // bị vây, đúng đối tượng nhánh này sinh ra để cứu, thì không xây thêm gì nữa cả.
-  if (line === 'masonry') refreshBuildingHp(tribe);
+  // NỎ LIÊN CHÂU cũng cộng máu cho một thứ ĐÃ ĐỨNG SẴN trên bản đồ, nên nó phải đi
+  // cùng cửa với Nề đá. Bỏ nó ra khỏi điều kiện này thì +50% máu tháp chỉ có tác
+  // dụng với những cái tháp xây SAU khi nghiên cứu xong — mà ở Thiên Triều thì hạn
+  // ngạch tháp đã đầy từ lâu, nghĩa là con số ấy gần như không bao giờ hiện ra.
+  // Đúng cái bẫy mà chú thích ngay trên vừa mô tả cho Nề đá, chỉ khác là ở đây nó
+  // còn kín hơn: bộ lạc VẪN thấy tháp bắn mạnh hơn (sát thương đi qua tickDefender,
+  // đọc lại mỗi phát), nên một nửa nhánh chạy đúng và một nửa im lặng.
+  if (line === 'masonry' || line === 'volley') refreshBuildingHp(tribe);
 }
 
 // ============================================================
@@ -683,8 +726,8 @@ function towerStackMult(level) {
 // một `undefined` nhân vào máu cho NaN, và một toà nhà máu NaN thì không bao giờ
 // chết mà cũng không bao giờ đầy. `tribe` có thể null ở đường gọi của Thư khố.
 function ageBuildHp(tribe) {
-  const T = CONFIG.AGE.BUILD_HP;
-  return T[clamp((tribe && tribe.age) || 1, 1, T.length - 1)];
+  const HP_BY_AGE = CONFIG.AGE.BUILD_HP;
+  return HP_BY_AGE[clamp((tribe && tribe.age) || 1, 1, HP_BY_AGE.length - 1)];
 }
 
 function buildingMaxHp(b, tribe) {
@@ -692,7 +735,11 @@ function buildingMaxHp(b, tribe) {
   if (!spec) return b.maxHp;
   const t = tribe || tribes[b.tribeId];
   const stack = b.type === 'tower' ? towerStackMult(b.level) : 1;
-  return Math.round(spec.hp * stack * masonryMult(t) * ageBuildHp(t));
+  // Liên châu chỉ chạm THÁP CANH — nhân 1 cho mọi loại khác. Cùng chỗ, cùng dòng
+  // với `stack` là có chủ ý: cả hai đều là "hệ số riêng của tháp", và tách chúng ra
+  // hai nơi là mở đường cho lần sau sửa một mà quên một.
+  const volley = b.type === 'tower' ? towerVolleyHpMult(t) : 1;
+  return Math.round(spec.hp * stack * volley * masonryMult(t) * ageBuildHp(t));
 }
 
 // Tính lại maxHp cho MỌI công trình và MỌI ô tường của một bộ lạc.
@@ -711,9 +758,25 @@ function refreshBuildingHp(tribe) {
     if (d > 0) b.hp = Math.min(nm, b.hp + d);
     else b.hp = Math.min(b.hp, nm);
   }
-  // TƯỜNG THÀNH KHÔNG CÒN Ở ĐÂY từ Phase 3.30. Nề đá chỉ còn chạm tới thứ có
-  // người xây; tường lên bậc theo thời đại và cả vành được dựng lại ở ensureWalls
-  // lúc đó, nên nó không cần một đường cập nhật máu thứ hai.
+  // TƯỜNG THÀNH QUAY LẠI ĐÂY từ Phase 3.41. Phải đi qua đường này chứ không thể
+  // để ensureWalls lo: chữ ký `wallSig` chỉ gồm THỜI ĐẠI và danh sách kinh đô, nên
+  // nghiên cứu xong Nề đá không làm nó đổi và cả vành sẽ giữ nguyên máu cũ tới tận
+  // lần lên đời sau. Mà kể cả có nhét cấp Nề đá vào chữ ký thì cũng sai hướng hơn:
+  // ensureWalls DỰNG LẠI cả vành, tức là mọi ô đang thủng dở sẽ đầy máu trở lại —
+  // một bộ lạc sắp vỡ thành chỉ cần bấm nghiên cứu là xoá sạch công vây của địch.
+  //
+  // Cộng THẲNG vào máu hiện tại, đúng như vòng công trình ngay trên và cùng lý do:
+  // chỉ nới trần thì bức tường vừa được gia cố lại hiện ra là "đang hư hại".
+  for (const w of wallCells.values()) {
+    if (w.tribeId !== tribe.id) continue;
+    const nm = wallHpFor(tribe, w.door);
+    const d = nm - w.maxHp;
+    if (!d) continue;
+    w.maxHp = nm;
+    // Ô đang THỦNG (hp <= 0) chỉ nới trần, không được cộng máu: cộng vào là ô ấy
+    // sống lại giữa cửa sổ 900 tick mà bên công vừa trả giá cả cuộc vây để mở.
+    if (w.hp > 0) w.hp = d > 0 ? Math.min(nm, w.hp + d) : Math.min(w.hp, nm);
+  }
 }
 
 // ============================================================
@@ -748,8 +811,8 @@ function refreshBuildingHp(tribe) {
 // đang có.** Đồ Đá 60% sức đánh thì 60% giá; Thiên Triều 100% thì trả đủ. Không thể
 // mua rẻ một thứ mạnh, cũng không thể bị bắt trả đủ cho một thứ chưa mạnh.
 function towerAgeMult(age) {
-  const T = CONFIG.AGE.TOWER_ATK;
-  return T[clamp(age || 1, 1, T.length - 1)];
+  const ATK_BY_AGE = CONFIG.AGE.TOWER_ATK;
+  return ATK_BY_AGE[clamp(age || 1, 1, ATK_BY_AGE.length - 1)];
 }
 
 // Giá THẬT của một công trình với bộ lạc này, ngay lúc này. Mọi chỗ hỏi giá đều
@@ -804,7 +867,7 @@ function startTowerStack(tribe, b) {
   b.paid = cost;
   b.buildTicks = Math.round(CONFIG.BUILD.tower.buildTicks * Math.pow(CONFIG.BUILD.TOWER_STACK.TICK_STEP, lv));
   assignBuilders(tribe, b);
-  logEvent(`🏯 ${tribe.name} khởi công tháp canh tầng ${lv + 1}`, tribe.color);
+  logEvent(TL('🏯 {tribe} khởi công tháp canh tầng {lv}', { tribe: tribe.name, lv: lv + 1 }), tribe.color);
   return true;
 }
 
@@ -920,7 +983,13 @@ function spawnUnit(tribe, type, x, y) {
     const g = line.genes;
     u.genes = g;
     u.heroGen = line.gen;
-    u.name = `${line.dynasty} đời ${line.gen}`;
+    // Giữ RIÊNG hai mảnh cấu thành cái tên, không chỉ giữ chuỗi đã ghép. Tên anh
+    // hùng bị đọc ở hơn chục chỗ nên `u.name` vẫn phải là một chuỗi sẵn sàng dùng;
+    // nhưng có `dynasty` + `heroGen` thì đổi ngôn ngữ giữa ván ghép lại được cho
+    // cả những anh hùng ĐANG SỐNG (xem hook trong 17-i18n-boot). Không giữ thì
+    // họ mang chữ "đời 3" tới tận lúc tử trận.
+    u.dynasty = line.dynasty;
+    u.name = heroDisplayName(u);
     // Giữ lại hệ số thời đại lúc SINH RA: quân sinh sau khi lên thời đại mới có
     // chỉ số mới, quân cũ giữ chỉ số cũ (luật chung của game) — mà anh hùng phải
     // tính lại chỉ số mỗi lần nhặt đồ, nên cần nhớ hệ số của chính mình.
@@ -934,7 +1003,7 @@ function spawnUnit(tribe, type, x, y) {
     if (tribe.heirloom.length) {
       const take = tribe.heirloom.splice(0, CONFIG.ITEM.MAX_HELD);
       for (const r of take) u.items.push({ key: r.key, lv: r.lv || 1 });
-      logEvent(`🎁 ${u.name} thừa kế ${take.length} món gia bảo của ${tribe.name}`, tribe.color, true);
+      logEvent(TL('🎁 {hero} thừa kế {n} món gia bảo của {tribe}', { hero: u.name, n: take.length, tribe: tribe.name }), tribe.color, true);
     }
     u.itemSeekId = null;
     u.itemBestD = Infinity;
@@ -957,8 +1026,8 @@ function spawnUnit(tribe, type, x, y) {
     // y nguyên và "đường bỏ cuộc" không đổi được gì cả.
     u.retreatSince = tick;
     u.retreatBlockUntil = 0;
-    logEvent(`⚔ ${tribe.name} chiêu mộ anh hùng ${u.name}`, tribe.color, true);
-    addHotspot(u.x, u.y, 3, `Anh hùng ${u.name} xuất thế`);
+    logEvent(TL('⚔ {tribe} chiêu mộ anh hùng {hero}', { tribe: tribe.name, hero: u.name }), tribe.color, true);
+    addHotspot(u.x, u.y, 3, TL('Anh hùng {hero} xuất thế', { hero: u.name }));
   }
 
   u.maxStam = staminaCap(u);
@@ -1029,8 +1098,8 @@ function onBuildingComplete(b, tribe) {
     b.level = (b.level || 1) + 1;
     b.maxHp = buildingMaxHp(b, tribe);
     b.buildTicks = CONFIG.BUILD.tower.buildTicks;
-    logEvent(`🏯 ${tribe.name} hoàn thành tháp canh tầng ${b.level}`, tribe.color, true);
-    addHotspot(b.x, b.y, 3, `Tháp canh tầng ${b.level}`);
+    logEvent(TL('🏯 {tribe} hoàn thành tháp canh tầng {lv}', { tribe: tribe.name, lv: b.level }), tribe.color, true);
+    addHotspot(b.x, b.y, 3, TL('Tháp canh tầng {lv}', { lv: b.level }));
   }
   b.hp = b.maxHp;
   if (b.type === 'farm') {
@@ -1059,8 +1128,8 @@ function onBuildingComplete(b, tribe) {
     // Giữ một bản sao trong biến toàn cục rồi cập nhật bằng tay chính là họ lỗi
     // "snapshot vs live reference" đã cắn ở camera đạo diễn và ở flow field.
     b.wonderDoneAt = tick;
-    logEvent(`🏛 ${tribe.name} KHÁNH THÀNH KỲ QUAN! Giữ được ${CONFIG.WONDER.HOLD_TICKS} tick nữa là thống nhất thiên hạ.`, tribe.color, true);
-    addHotspot(b.x, b.y, 14, `Kỳ quan của ${tribe.name}`);
+    logEvent(TL('🏛 {tribe} KHÁNH THÀNH KỲ QUAN! Giữ được {hold} tick nữa là thống nhất thiên hạ.', { tribe: tribe.name, hold: CONFIG.WONDER.HOLD_TICKS }), tribe.color, true);
+    addHotspot(b.x, b.y, 14, TL('Kỳ quan của {tribe}', { tribe: tribe.name }));
   }
 }
 
@@ -1074,8 +1143,8 @@ function destroyBuilding(b) {
   if (b.type === 'wonder') {
     if (tribes[b.tribeId]) {
       tribes[b.tribeId].wonderStarted = false;
-      if (b.done) logEvent(`🏛 KỲ QUAN của ${tribes[b.tribeId].name} ĐỔ NÁT — đồng hồ dừng lại.`, '#d05a44', true);
-      else logEvent(`${tribes[b.tribeId].name} bị phá Kỳ quan khi còn dang dở`, '#d05a44');
+      if (b.done) logEvent(TL('🏛 KỲ QUAN của {tribe} ĐỔ NÁT — đồng hồ dừng lại.', { tribe: tribes[b.tribeId].name }), '#d05a44', true);
+      else logEvent(TL('{tribe} bị phá Kỳ quan khi còn dang dở', { tribe: tribes[b.tribeId].name }), '#d05a44');
     }
   }
   if (b.hp <= 0 || b.done) {
@@ -1099,13 +1168,15 @@ function wallTier(tribe) {
   return clamp(tribe.age, 1, CONFIG.WALL.TIERS.length - 1);
 }
 
-// Máu MỘT Ô tường. KHÔNG còn nhân Nề đá từ Phase 3.30 — tường lên bậc theo thời
-// đại, không theo bảng nghiên cứu (xem chú thích nhánh masonry trong config).
+// Máu MỘT Ô tường. NHÂN LẠI Nề đá từ Phase 3.41 (đã bị lấy ra ở 3.30 — xem chú
+// thích nhánh masonry trong config để biết vì sao lập luận cũ được trả lời chứ
+// không bị bỏ qua). Hai đồng hồ vẫn tách bạch: BẬC HÌNH đọc thời đại, CON SỐ MÁU
+// đọc nghiên cứu.
 // Cổng mỏng hơn: cùng một hàm, một tham số, nên không thể có hai nguồn sự thật.
 function wallHpFor(tribe, isGate) {
   const H = CONFIG.WALL.HP;
   const base = H[clamp(tribe.age, 1, H.length - 1)] || 0;
-  return Math.round(base * (isGate ? CONFIG.WALL.GATE_HP : 1));
+  return Math.round(base * (isGate ? CONFIG.WALL.GATE_HP : 1) * masonryMult(tribe));
 }
 
 // Dựng lại TOÀN BỘ vành tường của một bộ lạc khi có gì đó đổi.
@@ -1187,13 +1258,28 @@ function ensureWalls(tribe) {
       // dir = hướng bức tường CHẠY, không phải hướng nó nhìn. Cạnh trên/dưới chạy
       // ngang ('h'), cạnh trái/phải chạy dọc ('v'). Ô góc lấy 'c' — nó không chạy
       // theo hướng nào cả, nó là chỗ hai hướng gặp nhau.
+      // Phần tử 5 và 6 là Ô CÁNH CỬA CỦA CHÍNH CẠNH NÀY — chính giữa cạnh, tức là
+      // ô có d = 0 trên cùng cạnh. Tính ở đây, cùng chỗ và cùng lý do với `corner`,
+      // `dir` và `gp`: đây là nơi DUY NHẤT biết kinh đô nằm ở đâu, nên mọi câu hỏi
+      // hình học phải được trả lời một lần tại đây thay vì suy ngược ở tầng dưới
+      // ("hai chỗ cùng tính một hình học" là họ lỗi hai-nguồn-sự-thật đã cắn ở hình
+      // học kho hàng).
+      //
+      // Vì sao GÁN SẴN thay vì để bên công dò cổng gần nhất: một người lính đứng
+      // đúng Ô GÓC cách đều hai cái cổng, và một phép dò "cổng gần nhất" ở đó sẽ
+      // đổi đáp án theo từng bước chân — người lính rung qua lại giữa hai cổng và
+      // không bao giờ tới cái nào. Gán sẵn thì mỗi ô tường có ĐÚNG MỘT cái cổng của
+      // nó, vĩnh viễn, nên đường đi men theo tường là một đường đơn điệu.
+      // Ô góc thuộc về hai cạnh; nó nhận cổng của cạnh mà vòng lặp này đang dựng —
+      // hai bản ghi cùng key thì bản đầu thắng (`wallCells.has(key)` chặn bản sau),
+      // và cái nào thắng không quan trọng: cả hai đều cách nó đúng R bước.
       const ring = [
-        [t.x + d, t.y - R, corner ? 'c' : 'h', -1],
-        [t.x + d, t.y + R, corner ? 'c' : 'h', 1],
-        [t.x - R, t.y + d, corner ? 'c' : 'v', -1],
-        [t.x + R, t.y + d, corner ? 'c' : 'v', 1]
+        [t.x + d, t.y - R, corner ? 'c' : 'h', -1, t.x, t.y - R],
+        [t.x + d, t.y + R, corner ? 'c' : 'h', 1,  t.x, t.y + R],
+        [t.x - R, t.y + d, corner ? 'c' : 'v', -1, t.x - R, t.y],
+        [t.x + R, t.y + d, corner ? 'c' : 'v', 1,  t.x + R, t.y]
       ];
-      for (const [x, y, dir, side] of ring) {
+      for (const [x, y, dir, side, gx, gy] of ring) {
         if (n >= CONFIG.WALL.MAX_CELLS) break;
         if (x < 1 || y < 1 || x >= CONFIG.GRID_WIDTH - 1 || y >= CONFIG.GRID_HEIGHT - 1) continue;
         const key = x + ',' + y;
@@ -1216,7 +1302,11 @@ function ensureWalls(tribe) {
           // một hình học" là họ lỗi hai-nguồn-sự-thật đã cắn ở hình học kho hàng.
           // Nhờ nó, drawWall phân biệt được ô giữa vòm (gp 0), hai cánh (|gp| 1) và
           // hai lầu cổng (|gp| 2) mà không phải đo lại gì.
-          tier, dir, corner, gate: isGate, door: isDoor, gp: isGate ? d : null, side
+          tier, dir, corner, gate: isGate, door: isDoor, gp: isGate ? d : null, side,
+          // Ô CÁNH CỬA của cạnh này — chỗ mà bên công nên tới thay vì đứng đục ở
+          // đây. Xem khối chú thích của `ring` ngay trên, và wallGateCell bên
+          // 08-ai-combat để biết ai đọc nó.
+          gx, gy
         });
         n++;
       }
@@ -1237,6 +1327,16 @@ function ensureWalls(tribe) {
 // của Map, tức là vào việc ô nào được dựng trước. Gom về một mảng chỉ số theo
 // tribeId thì luật thành "mỗi tick bộ lạc có ngần này viên đá cho tường", đọc
 // được và đo được.
+// Số ô tường một bộ lạc đang có. Đặt CẠNH ensureWalls/tickWalls chứ không ở chỗ
+// gọi (bảng điểm nghiên cứu bên 11-tribe-brain): `wallCells` là dữ liệu của tệp
+// này, và một vòng duyệt Map viết ở tệp khác là chỗ mà lần sau ai đó đổi cấu trúc
+// dữ liệu tường sẽ không nghĩ tới. Chỉ chạy ở nhịp bộ não, không phải mỗi tick.
+function tribeWallCells(tribe) {
+  let n = 0;
+  for (const w of wallCells.values()) if (w.tribeId === tribe.id) n++;
+  return n;
+}
+
 function tickWalls() {
   if (!wallCells.size) return;
   const W = CONFIG.WALL;
@@ -1283,7 +1383,14 @@ function onWallBreached(w, attacker) {
   addFx({ type: 'boom', x: w.x, y: w.y, life: 20, maxLife: 20, r: 1.2 });
   const t = tribes[w.tribeId];
   if (!t) return;
-  addHotspot(w.x, w.y, 5, w.gate ? `Cổng thành ${t.name} vỡ` : `Tường thành ${t.name} vỡ`);
+  // HƯỚNG ĐỊCH ĐÃ VÀO — một chỗ, một thời điểm, hai con số. Ghi ở ĐÂY vì đây là
+  // nơi duy nhất trong game biết chắc chắn "tường vỡ ở đâu", và bên cần nó
+  // (`towerAnchor` — chọn cung nào của vành để dựng tháp tiếp theo) thì không có
+  // cách nào rẻ để tự tìm ra: nó sẽ phải duyệt cả `wallCells`, gần hai nghìn phần
+  // tử, đúng cái mà chú thích ở dealDamage đã cấm vì lý do hiệu năng. Một phép gán
+  // ở đây thay cho một vòng quét ở đó.
+  t.lastBreach = { x: w.x, y: w.y, tick };
+  addHotspot(w.x, w.y, 5, w.gate ? TL('Cổng thành {tribe} vỡ', { tribe: t.name }) : TL('Tường thành {tribe} vỡ', { tribe: t.name }));
   // CỔNG VỠ LUÔN ĐƯỢC MỘT DÒNG SỬ, không đi qua nhịp 400 tick của tường thường.
   // Cả bức tường chỉ có 20 ô cổng trên 320 ô (4 cạnh × GATE_SPAN 5), và ba ô cánh
   // cửa ở chính giữa một cạnh là chỗ mà cả người xem lẫn kẻ tấn công đều biết là
@@ -1295,13 +1402,13 @@ function onWallBreached(w, attacker) {
   // nó vẫn nằm ở đúng chỗ mà câu chuyện đang diễn ra.
   const by = attacker && attacker.tribeId >= 0 ? tribes[attacker.tribeId] : null;
   if (w.gate) {
-    logEvent(by ? `⛩ ${by.name} PHÁ CỔNG THÀNH của ${t.name}!`
-                : `⛩ Quái vật PHÁ CỔNG THÀNH của ${t.name}!`,
+    logEvent(by ? TL('⛩ {tribe} PHÁ CỔNG THÀNH của {victim}!', { tribe: by.name, victim: t.name })
+                : TL('⛩ Quái vật PHÁ CỔNG THÀNH của {victim}!', { victim: t.name }),
              by ? by.color : '#b783cc', true);
   } else if (tick - (t.wallLogAt || -99999) > 400) {
     t.wallLogAt = tick;
-    logEvent(by ? `🧱 ${by.name} chọc thủng tường thành ${t.name}!`
-                : `🧱 Quái vật chọc thủng tường thành ${t.name}!`,
+    logEvent(by ? TL('🧱 {tribe} chọc thủng tường thành {victim}!', { tribe: by.name, victim: t.name })
+                : TL('🧱 Quái vật chọc thủng tường thành {victim}!', { victim: t.name }),
              by ? by.color : '#b783cc', true);
   }
 }

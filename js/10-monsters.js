@@ -135,15 +135,15 @@ function feedLair(attacker, target, isBuilding) {
 }
 
 function promoteLair(l) {
-  const T = CONFIG.MONSTER.TIERS;
-  if (l.tier >= T.length) return;
-  const next = T[l.tier];         // 0-based: phần tử thứ `tier` chính là cấp kế tiếp
+  const TIERS = CONFIG.MONSTER.TIERS;
+  if (l.tier >= TIERS.length) return;
+  const next = TIERS[l.tier];         // 0-based: phần tử thứ `tier` chính là cấp kế tiếp
   l.tier++;
   // Máu CỘNG THÊM chứ không đặt lại: một cái hang đã bị đánh dở dang mà lên cấp
   // được hồi đầy máu thì mọi nỗ lực công phá trước đó bị xoá, và bộ lạc nào đang
   // đánh dở sẽ vĩnh viễn không bao giờ phá xong — đúng kiểu bế tắc mà người xem
   // đọc ra là "game ăn gian" chứ không phải "leo thang".
-  const add = next.hpBonus - (T[l.tier - 2] ? T[l.tier - 2].hpBonus : 0);
+  const add = next.hpBonus - (TIERS[l.tier - 2] ? TIERS[l.tier - 2].hpBonus : 0);
   l.maxHp += add;
   l.hp += add;
   // Bán kính lảng vảng nở ra theo cấp — và phải cập nhật cho CẢ ĐÀN đang sống,
@@ -153,10 +153,10 @@ function promoteLair(l) {
   // đàn quái vẫn bị xích ở bán kính cũ — người xem thấy một lời hứa không có thật.
   for (const u of units) if (u.type === 'monster' && u.lairId === l.id) u.roam = next.roam;
   addFx({ type: 'boom', x: l.x, y: l.y, life: 34, maxLife: 34, r: 5 });
-  addHotspot(l.x, l.y, l.tier >= 3 ? 12 : 7, `Hang ổ lên ${next.name}`);
+  addHotspot(l.x, l.y, l.tier >= 3 ? 12 : 7, TL('Hang ổ lên {tier}', { tier: () => next.name }));
   logEvent(l.tier >= 3
-    ? `👹 Một hang ổ đã hoá thành TỔ QUỶ — Chúa Hang thức giấc!`
-    : `🕳 Một hang ổ đã lớn thành ${next.name}`, '#b783cc', l.tier >= 3);
+    ? TL('👹 Một hang ổ đã hoá thành TỔ QUỶ — Chúa Hang thức giấc!')
+    : TL('🕳 Một hang ổ đã lớn thành {tier}', { tier: () => next.name }), '#b783cc', l.tier >= 3);
 }
 
 // Hang teo lại. Đối xứng với promoteLair nhưng KHÔNG đối xứng ở một chỗ: máu tối
@@ -165,22 +165,22 @@ function promoteLair(l) {
 // cấp sẽ chết ngay lập tức mà không ai đánh nốt — công lao thuộc về đồng hồ, không
 // thuộc về ai cả, và người xem không đọc ra được vì sao nó sập.
 function demoteLair(l) {
-  const T = CONFIG.MONSTER.TIERS;
-  const oldBonus = T[l.tier - 1].hpBonus;
+  const TIERS = CONFIG.MONSTER.TIERS;
+  const oldBonus = TIERS[l.tier - 1].hpBonus;
   l.tier--;
-  const newBonus = T[l.tier - 1].hpBonus;
+  const newBonus = TIERS[l.tier - 1].hpBonus;
   l.maxHp -= (oldBonus - newBonus);
   l.hp = Math.min(l.hp, l.maxHp);
-  for (const u of units) if (u.type === 'monster' && u.lairId === l.id) u.roam = T[l.tier - 1].roam;
-  logEvent(`🌤 Một hang ổ đã suy yếu, tụt về ${T[l.tier - 1].name}`, '#8d9490');
+  for (const u of units) if (u.type === 'monster' && u.lairId === l.id) u.roam = TIERS[l.tier - 1].roam;
+  logEvent(TL('🌤 Một hang ổ đã suy yếu, tụt về {tier}', { tier: () => TIERS[l.tier - 1].name }), '#8d9490');
 }
 
 function spawnMonster(lair, forceKey) {
-  const T = lairTierSpec(lair);
-  const key = forceKey || T.ladder[lair.spawnedTotal % T.ladder.length];
+  const TIER = lairTierSpec(lair);
+  const key = forceKey || TIER.ladder[lair.spawnedTotal % TIER.ladder.length];
   const spec = CONFIG.MONSTER.TYPES[key];
   lair.spawnedTotal++;
-  const m = T.statMult;
+  const m = TIER.statMult;
   const u = {
     id: nextId++, tribeId: -1, type: 'monster', mType: key,
     x: clamp(lair.x + Math.round(randRange(-3, 3)), 0, CONFIG.GRID_WIDTH - 1),
@@ -193,7 +193,7 @@ function spawnMonster(lair, forceKey) {
     facingX: 1, facingY: 0, lungeUntil: 0, swingAt: 0,
     lairId: lair.id, lairX: lair.x, lairY: lair.y,
     threat: spec.threat * m,
-    combatTarget: null, stuck: 0, progKey: null, progBest: Infinity, roam: T.roam,
+    combatTarget: null, stuck: 0, progKey: null, progBest: Infinity, roam: TIER.roam,
     // Quái không nhận hào quang, nhưng vẫn cần hai trường này vì effAttack() dùng chung.
     auraUntil: 0, auraMult: 1,
     carry: { type: null, amount: 0 }, fleeTimer: 0,
@@ -289,7 +289,7 @@ function applyMonsterHeal(u) {
 
 function tickLair(lair) {
   if (lair.hp <= 0) return;
-  const T = lairTierSpec(lair);
+  const TIER = lairTierSpec(lair);
   const M = CONFIG.MONSTER;
 
   // --- lớn lên / teo đi ---
@@ -321,19 +321,19 @@ function tickLair(lair) {
   }
 
   // --- đi cướp ---
-  if (lair.tier >= M.RAID.MIN_TIER && T.raidEvery > 0) {
-    if (++lair.raidTimer >= T.raidEvery) { lair.raidTimer = 0; launchRaid(lair); }
+  if (lair.tier >= M.RAID.MIN_TIER && TIER.raidEvery > 0) {
+    if (++lair.raidTimer >= TIER.raidEvery) { lair.raidTimer = 0; launchRaid(lair); }
   }
 
   // --- nhả quái thường ---
   lair.timer++;
-  if (lair.timer < T.interval) return;
+  if (lair.timer < TIER.interval) return;
   lair.timer = 0;
   let alive = 0;
   for (const u of units) {
     if (u.type === 'monster' && u.lairId === lair.id && u.hp > 0 && u.mType !== 'lord') alive++;
   }
-  if (alive >= T.cap) return;
+  if (alive >= TIER.cap) return;
   spawnMonster(lair);
 }
 
@@ -376,8 +376,8 @@ function launchRaid(lair) {
   }
   lair.raidsSent++;
   const t = tribes[tid];
-  logEvent(`🩸 ${raiders.length} quái vật rời hang đi cướp ${t.name}!`, '#b783cc', lair.tier >= 3);
-  addHotspot(lair.x, lair.y, 9, 'Quái rời hang đi cướp');
+  logEvent(TL('🩸 {n} quái vật rời hang đi cướp {tribe}!', { n: raiders.length, tribe: t.name }), '#b783cc', lair.tier >= 3);
+  addHotspot(lair.x, lair.y, 9, TL('Quái rời hang đi cướp'));
 }
 
 // Công trình gần nhất trong tầm — bản có giới hạn bán kính, dùng riêng cho quái.
@@ -704,8 +704,8 @@ function onMonsterDeath(u) {
     // cả chiến dịch đi đánh Tổ Quỷ không có phần thưởng nào cả.
     const l = u.lairId >= 0 ? lairs.find(x => x.id === u.lairId) : null;
     if (l) l.lordDeadAt = tick;
-    logEvent(`⚔️ CHÚA HANG đã bị hạ gục!`, '#e07a56', true);
-    addHotspot(u.x, u.y, 12, 'Chúa Hang gục ngã');
+    logEvent(TL('⚔️ CHÚA HANG đã bị hạ gục!'), '#e07a56', true);
+    addHotspot(u.x, u.y, 12, TL('Chúa Hang gục ngã'));
   }
   if (Math.random() > spec.drop) return;
   const table = MONSTER_DROPS[u.mType];
@@ -722,7 +722,7 @@ function onMonsterDeath(u) {
 function onLairDestroyed(lair, attacker) {
   lair.hp = 0;
   addFx({ type: 'boom', x: lair.x, y: lair.y, life: 30, maxLife: 30, r: 4 });
-  addHotspot(lair.x, lair.y, 8, 'Hang ổ bị phá');
+  addHotspot(lair.x, lair.y, 8, TL('Hang ổ bị phá'));
   // Phá hang luôn ra thánh vật: đây là phần thưởng đáng để cả một đạo quân đi
   // đường vòng, nếu không thì chẳng ai buồn dọn hang và chúng chỉ là phiền toái.
   // ĐÚNG MỘT món, không phải hai như bản trước: hang ổ là mục tiêu khó nhất trên
@@ -736,8 +736,12 @@ function onLairDestroyed(lair, attacker) {
   // lên tự phản lại chính nó: chờ cho hang già đi là quyết định thuần lỗ.
   if (lair.tier >= 3) dropItem(lair.x + 2, lair.y, 'armor');
   const who = attacker && attacker.tribeId >= 0 ? tribes[attacker.tribeId] : null;
-  const tname = lairTierSpec(lair).name.toUpperCase();
-  logEvent(who ? `🏆 ${who.name} phá huỷ một ${tname} quái vật` : `🏆 Một ${tname} quái vật bị phá huỷ`,
+  // Đọc lại tên bậc LÚC VẼ chứ không chụp một chuỗi ở đây: dòng nhật ký sống lâu
+  // hơn khoảnh khắc nó được ghi, và `lairTierSpec(...).name` là nhãn dữ liệu bị vá
+  // theo ngôn ngữ. Chụp lại thì đổi ngôn ngữ để lại "destroyed a TỔ QUỶ lair".
+  const tname = () => lairTierSpec(lair).name.toUpperCase();
+  logEvent(who ? TL('🏆 {tribe} phá huỷ một {tier} quái vật', { tribe: who.name, tier: tname })
+                : TL('🏆 Một {tier} quái vật bị phá huỷ', { tier: tname }),
            who ? who.color : '#b783cc', true);
   // Quái của hang đó mất nhà: xích chúng vào chỗ cũ để chúng không lang thang vô định.
   for (const u of units) if (u.type === 'monster' && u.lairId === lair.id) u.lairId = -1;
@@ -791,7 +795,9 @@ function tryPickUpItems(u) {
       groundItems.splice(i, 1);
       twin.lv++;
       recomputeHeroStats(u);
-      logEvent(`⚗ ${u.name} hợp nhất hai ${spec.label}${lv > 1 ? ' ' + CONFIG.ITEM.LEVEL_TAG[lv] : ''} thành ${spec.label} ${CONFIG.ITEM.LEVEL_TAG[twin.lv]}`, t.color, true);
+      logEvent(TL('⚗ {hero} hợp nhất hai {from} thành {to}', { hero: u.name,
+             from: () => spec.label + (lv > 1 ? ' ' + CONFIG.ITEM.LEVEL_TAG[lv] : ''),
+             to: () => spec.label + ' ' + CONFIG.ITEM.LEVEL_TAG[twin.lv] }), t.color, true);
       addFx({ type: 'spark', x: u.x, y: u.y, life: 24, maxLife: 24, color: spec.color });
       return;
     }
@@ -802,14 +808,15 @@ function tryPickUpItems(u) {
       const fused = fuseHeldItems(u);
       if (!fused) return;                // không nung được: bỏ qua, để món nằm đó
       const fs = CONFIG.ITEM.TYPES[fused.key];
-      logEvent(`⚗ ${u.name} hợp nhất hai ${fs.label} thành ${fs.label} ${CONFIG.ITEM.LEVEL_TAG[fused.lv]}`, t.color, true);
+      logEvent(TL('⚗ {hero} hợp nhất hai {from} thành {to}', { hero: u.name, from: () => fs.label,
+             to: () => fs.label + ' ' + CONFIG.ITEM.LEVEL_TAG[fused.lv] }), t.color, true);
       addFx({ type: 'spark', x: u.x, y: u.y, life: 22, maxLife: 22, color: fs.color });
     }
     groundItems.splice(i, 1);
     u.items.push({ key: it.key, lv });
     recomputeHeroStats(u);
     const tag = lv > 1 ? ' ' + CONFIG.ITEM.LEVEL_TAG[lv] : '';
-    logEvent(`${spec.icon} ${u.name} nhặt được ${spec.label}${tag}`, t.color);
+    logEvent(TL('{icon} {hero} nhặt được {item}', { icon: spec.icon, hero: u.name, item: () => spec.label + tag }), t.color);
     addFx({ type: 'spark', x: u.x, y: u.y, life: 14, maxLife: 14, color: spec.color });
     return;
   }
@@ -1092,11 +1099,11 @@ function spawnWave() {
   nextWaveTick = tick + Math.max(D.INTERVAL_MIN, D.WAVE_INTERVAL - waveNumber * D.INTERVAL_TIGHTEN);
   const victim = waveTargetTribe >= 0 ? tribes[waveTargetTribe] : null;
   logEvent(victim
-    ? `🌊 ĐỢT ${waveNumber} — ${spawned} quái vật tràn vào ${victim.name} từ ${staging.length} hướng!`
-    : `🌊 ĐỢT ${waveNumber} — ${spawned} quái vật tràn tới!`, '#b783cc', true);
+    ? TL('🌊 ĐỢT {wave} — {n} quái vật tràn vào {tribe} từ {dirs} hướng!', { wave: waveNumber, n: spawned, tribe: victim.name, dirs: staging.length })
+    : TL('🌊 ĐỢT {wave} — {n} quái vật tràn tới!', { wave: waveNumber, n: spawned }), '#b783cc', true);
   // Điểm nóng ngay tại chỗ tập kết để camera đạo diễn cắt sang xem đàn quái đổ bộ.
   // Weight đặt cao hẳn vì đây là biến cố lớn nhất của chế độ này.
-  for (const st of staging) addHotspot(st.x, st.y, 14, `Đợt ${waveNumber} đổ bộ`);
+  for (const st of staging) addHotspot(st.x, st.y, 14, TL('Đợt {wave} đổ bộ', { wave: waveNumber }));
 }
 
 function findNearestLairInRange(x, y, range) {
@@ -1140,23 +1147,59 @@ function tickDefender(b, tribe) {
   // cả cơ chế: giá một cái tháp luôn đúng bằng tỉ lệ sức mạnh nó đang có, và cách
   // duy nhất giữ được điều đó là hai chỗ gọi chung một hàm.
   const ageAtk = b.type === 'tower' ? towerAgeMult(tribe.age) : 1;
-  const raw = spec.attack * stack * ageAtk * CONFIG.AGE.BONUS[tribe.age].atk;
-  enemy.hp -= Math.max(raw * CONFIG.UNIT.ARMOR_FLOOR, raw - effDefense(enemy));
-  // AI VỪA CHẠM VÀO NÓ. Dòng này tồn tại vì tháp canh là đường sát thương DUY
-  // NHẤT trong game không đi qua `dealDamage` — nó trừ thẳng vào máu ở ngay trên.
-  // Mọi thứ dựa vào "cửa duy nhất mà mọi cái chết đi qua" vì thế đều có một lỗ
-  // đúng ở đây, và kho báu Thiên Ma là thứ đầu tiên rơi vào lỗ đó: đo 3 ván thì
-  // 2 ván con boss chết mà KHÔNG bộ lạc nào nhận được gì, vì kẻ ra đòn cuối là
-  // một cái tháp. Ghi lại người chạm cuối cùng ngay tại đây rẻ hơn nhiều so với
-  // việc bắt tickDefender đi vòng qua dealDamage (nó cố ý không đi vòng: mũi tên
-  // tháp có luật giáp riêng và không có hồi chiêu của đơn vị).
-  enemy.lastHitTribe = b.tribeId;
+  // NỎ LIÊN CHÂU (Phase 3.38) — sát thương +20%/cấp, và SỐ MŨI TÊN. Đọc từ bảng bộ
+  // lạc mỗi phát bắn, cùng lý do đã viết ba dòng trên cho `b.level`: một nhánh
+  // nghiên cứu xong giữa lúc tháp đang bắn phải ăn ngay, không đợi xây lại.
+  const vb = (b.type === 'tower' && tribe.towerBonus) ? tribe.towerBonus : null;
+  const raw = spec.attack * stack * ageAtk * CONFIG.AGE.BONUS[tribe.age].atk * (1 + (vb ? vb.atk : 0));
+  // HAI MỤC TIÊU KHÁC NHAU, không phải hai phát vào cùng một người. Hai mũi vào một
+  // đầu là một phép nhân sát thương — thứ đã có sẵn ở `tatk`, và cộng hai lần cùng
+  // một hiệu ứng thì bảng cân bằng nói dối. Hai mũi vào hai đầu đổi thứ khác hẳn:
+  // tháp canh lần đầu tiên GHÌM ĐƯỢC một đội hình thay vì gặm từng người, và trên
+  // màn hình nó đọc ra ngay — hai vệt tên toả ra hai hướng từ một nóc tháp. Cùng
+  // thước đo đã dùng cho mũi tiến công ở chân tường: người xem phải thấy được luật
+  // chơi mà không cần một dòng chữ nào.
+  const shots = 1 + (vb ? vb.shots : 0);
+  const hit = [enemy];
+  for (let k = 1; k < shots; k++) {
+    // Mục tiêu thứ hai tìm bằng CHÍNH hai hàm của phát thứ nhất, chỉ loại kẻ đã
+    // trúng. Không viết một vòng quét riêng: hai chỗ cùng tả "địch gần nhất trong
+    // tầm" là đúng họ lỗi hai-nguồn-sự-thật, và ở đây hậu quả sẽ là mũi tên thứ hai
+    // bay theo một luật ngắm khác mũi thứ nhất.
+    // `false` ở khe `soldiersOnly` là BẮT BUỘC phải viết ra, không được bỏ trống:
+    // `skip` là tham số thứ SÁU của findNearestEnemyUnit. Truyền `hit` vào khe thứ
+    // năm thì nó thành một mảng truthy, và mũi tên thứ hai lặng lẽ ngừng bắn dân
+    // thường — một luật chơi khác, không một dòng lỗi nào.
+    const nx = findNearestEnemyHero(b.x, b.y, b.tribeId, range, hit)
+            || findNearestEnemyUnit(b.x, b.y, b.tribeId, range, false, hit);
+    if (!nx) break;
+    hit.push(nx);
+  }
+  for (const e of hit) {
+    e.hp -= Math.max(raw * CONFIG.UNIT.ARMOR_FLOOR, raw - effDefense(e));
+    // AI VỪA CHẠM VÀO NÓ. Dòng này tồn tại vì tháp canh là đường sát thương DUY
+    // NHẤT trong game không đi qua `dealDamage` — nó trừ thẳng vào máu ở ngay trên.
+    // Mọi thứ dựa vào "cửa duy nhất mà mọi cái chết đi qua" vì thế đều có một lỗ
+    // đúng ở đây, và kho báu Thiên Ma là thứ đầu tiên rơi vào lỗ đó: đo 3 ván thì
+    // 2 ván con boss chết mà KHÔNG bộ lạc nào nhận được gì, vì kẻ ra đòn cuối là
+    // một cái tháp. Ghi lại người chạm cuối cùng ngay tại đây rẻ hơn nhiều so với
+    // việc bắt tickDefender đi vòng qua dealDamage (nó cố ý không đi vòng: mũi tên
+    // tháp có luật giáp riêng và không có hồi chiêu của đơn vị).
+    //
+    // Nằm TRONG vòng lặp, không nằm sau nó: với nỏ liên châu, mũi tên thứ hai có
+    // thể là cú kết liễu — và ghi công cho một mình mục tiêu thứ nhất là dựng lại
+    // đúng cái lỗ vừa mô tả, chỉ hẹp hơn một nửa.
+    e.lastHitTribe = b.tribeId;
+    // Tháp bắn MŨI TÊN bay có thời gian bay, không phải tia sáng tức thời — đây là
+    // hiệu ứng dễ đọc nhất trên bản đồ: nhìn hướng tên là biết ai đang thủ ai. Một
+    // vệt cho MỖI mũi: đó là toàn bộ cách người xem nhận ra một cái tháp đã lên
+    // liên châu, và nếu chỉ vẽ một vệt thì nhánh nghiên cứu đắt nhất bảng trở thành
+    // một con số trong bảng chỉ số — đúng lý do nhánh Ngựa chiến đã bị xoá.
+    addFx({ type: 'arrow', x1: b.x, y1: b.y, x2: e.x, y2: e.y, life: 9, maxLife: 9, color: tribe.color });
+    addFx({ type: 'spark', x: e.x, y: e.y, life: 7, maxLife: 7, color: '#e07a56' });
+    if (e.hp <= 0) { tribe.kills++; if (e.tribeId >= 0) tribes[e.tribeId].losses++; }
+  }
   b.cooldown = spec.cooldown;
-  // Tháp bắn MŨI TÊN bay có thời gian bay, không phải tia sáng tức thời — đây là
-  // hiệu ứng dễ đọc nhất trên bản đồ: nhìn hướng tên là biết ai đang thủ ai.
-  addFx({ type: 'arrow', x1: b.x, y1: b.y, x2: enemy.x, y2: enemy.y, life: 9, maxLife: 9, color: tribe.color });
-  addFx({ type: 'spark', x: enemy.x, y: enemy.y, life: 7, maxLife: 7, color: '#e07a56' });
-  addHotspot(enemy.x, enemy.y, 1.5, b.type === 'town' ? 'Kinh đô cố thủ' : 'Tháp canh khai hoả');
-  if (enemy.hp <= 0) { tribe.kills++; if (enemy.tribeId >= 0) tribes[enemy.tribeId].losses++; }
+  addHotspot(enemy.x, enemy.y, 1.5, b.type === 'town' ? TL('Kinh đô cố thủ') : TL('Tháp canh khai hoả'));
 }
 

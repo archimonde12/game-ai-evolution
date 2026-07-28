@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chọn trò chơi</title>
+<!-- =============================================================================
+     TRANG CHỌN TRÒ — cái kệ, không phải cuốn sách
+
+     TẠI SAO TỆP NÀY TỒN TẠI. Thư mục này chứa HAI trò chơi rời nhau, mà `index.html`
+     là thứ MỌI đường vào đều rơi trúng: mở thư mục bằng trình duyệt, mở gốc máy chủ
+     (127.0.0.1:8123), hay khôi phục một thẻ cũ. Trước đây chỗ ấy là bản mô phỏng
+     tiến hoá đời đầu — tiêu đề thẻ ghi thẳng "Evolution Sim — Phase 1" — và bên
+     trong nó KHÔNG có một đường dẫn nào sang Chúa Tể. Nên rơi vào đấy là kẹt: thấy
+     một trò mình không định mở, và không có cách nào đi tiếp ngoài việc tự gõ tên
+     tệp. Bản mô phỏng cũ nay là `evolution.html`, chỗ này thành cái kệ.
+
+     TỰ CHỨA. Không `<link>`, không ảnh, không phông tải về — cùng lý do với hai tệp
+     trò chơi: người chơi mở bằng cách BẤM ĐÚP (giao thức `file:`), nên mọi thứ phải
+     nằm trong một tệp. Bảng màu chép lại phần dùng tới của `css/game.css` chứ không
+     dẫn sang nó: nếu dẫn, `body { display:flex; height:100vh; overflow:hidden }` của
+     game sẽ đè lên bố cục trang này, và trang chọn trò sẽ vỡ mỗi lần sửa giao diện
+     game — hai thứ không có lý do gì phải chết chung.
+
+     NGÔN NGỮ. Hai nút ghi thẳng tên ngôn ngữ bằng CHÍNH ngôn ngữ đó, đúng như trang
+     bìa trong game. Lựa chọn ghi vào `localStorage['civ.lang']` — cùng khoá mà
+     `js/00-i18n.js` đọc lúc khởi động — nên chọn English ở kệ thì mở game ra đã là
+     tiếng Anh, không phải chọn lại. Bản dịch nằm ngay trên thẻ (`data-en`), không
+     cần từ điển riêng: mặc định tiếng Việt là chính chữ đã viết trong HTML, nên
+     đường tiếng Việt không thể hỏng.
+     ============================================================================= -->
+<style>
+  :root {
+    color-scheme: dark;
+    --lac-900:#0d0b09; --lac-850:#12100c;
+    --rule:#2d2419;    --rule-soft:#1f1a13;
+    --bone:#e7dcc6;    --bone-2:#b1a58c;  --bone-3:#7b7160;
+    --gold:#d8a544;    --gold-hi:#f0cf85; --gold-dim:#8a6a2c;
+    --cinnabar:#c4402d;
+    --jade:#5aa07c;
+    --f-display:"Iowan Old Style","Superclarendon",Charter,Palatino,Georgia,serif;
+    --f-ui:"Avenir Next","Segoe UI",system-ui,-apple-system,sans-serif;
+    /* Hạt mực: nhiễu fractal ngưỡng hoá thành đốm rời, dùng làm MẶT NẠ nên chỉ ăn
+       bớt chứ không tô thêm màu — đúng cách mực khô trên mặt gỗ sơn. */
+    --ink-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' seed='7'/><feComponentTransfer><feFuncA type='discrete' tableValues='0 0 0 0 0 0 1'/></feComponentTransfer></filter><rect width='60' height='60' filter='url(%23g)'/></svg>");
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: var(--f-ui); color: var(--bone);
+    background:
+      radial-gradient(circle at 50% 34%, rgba(28,22,17,0.6), rgba(8,6,5,0.97)),
+      var(--lac-900);
+    display: flex; align-items: center; justify-content: center;
+    padding: 32px 18px;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; opacity: .5;
+    background: var(--lac-850);
+    -webkit-mask-image: var(--ink-grain); mask-image: var(--ink-grain);
+    -webkit-mask-size: 60px; mask-size: 60px;
+  }
+  ::selection { background: rgba(216,165,68,.28); }
+
+  .shelf { position: relative; width: 900px; max-width: 100%; text-align: center; }
+
+  /* Công tắc ngôn ngữ: ở LUỒNG bình thường, không ghim tuyệt đối. Trang này thấp
+     hơn trang bìa game nhiều, ghim tuyệt đối thì trên màn hẹp nó đè lên con dấu. */
+  .lang { display: flex; gap: 5px; justify-content: flex-end; margin-bottom: 18px; }
+  .lang button {
+    background: transparent; color: var(--bone-3); cursor: pointer; font: inherit;
+    font-size: 11.5px; letter-spacing: .03em; padding: 5px 11px; border: 0;
+    box-shadow: inset 0 0 0 1px var(--rule-soft);
+    transition: color .18s ease, box-shadow .18s ease;
+  }
+  .lang button:hover { color: var(--gold-hi); box-shadow: inset 0 0 0 1px rgba(216,165,68,.4); }
+  .lang button.on { color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold-dim); }
+
+  .seal {
+    position: relative; width: 58px; height: 58px; margin: 0 auto 18px;
+    background: var(--cinnabar);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    transform: rotate(-2.5deg); color: #fbeee0; font-family: var(--f-display);
+    box-shadow: inset 0 0 0 1px rgba(251,238,224,.5), inset 0 0 0 4px var(--cinnabar);
+  }
+  .seal::after {
+    content: ''; position: absolute; inset: 0; background: var(--lac-900); opacity: .5;
+    -webkit-mask-image: var(--ink-grain); mask-image: var(--ink-grain);
+    -webkit-mask-size: 60px; mask-size: 60px;
+  }
+  .seal .k { font-size: 9px; letter-spacing: .22em; opacity: .78; margin-bottom: -1px; }
+  .seal .n { font-size: 25px; line-height: 1; font-weight: 700; }
+
+  .eyebrow { font-size: 11px; letter-spacing: .32em; text-transform: uppercase; color: var(--bone-3); }
+  h1 {
+    font-family: var(--f-display); font-size: 46px; font-weight: 700;
+    letter-spacing: .02em; margin: 8px 0 12px; color: var(--bone);
+  }
+  .sub { font-size: 14px; color: var(--bone-2); max-width: 34em; margin: 0 auto 30px; line-height: 1.6; }
+
+  /* Hai trò KHÔNG ngang hàng và bố cục phải nói ra điều đó: Chúa Tể là trò đang
+     sống, bản mô phỏng cũ là thứ giữ lại để đối chiếu. Cột rộng hơn + con số thứ
+     tự "1" làm việc ấy trước khi người ta kịp đọc một chữ nào. */
+  .games { display: grid; grid-template-columns: 1.3fr 1fr; gap: 18px; text-align: left; }
+  .game {
+    position: relative; display: flex; flex-direction: column;
+    background: linear-gradient(180deg, #1c1712, #12100c);
+    box-shadow: inset 0 0 0 1px var(--rule), 0 14px 40px rgba(0,0,0,.5);
+    padding: 24px 24px 20px; cursor: pointer; color: inherit;
+    text-decoration: none; overflow: hidden;
+    transition: box-shadow .18s ease, transform .18s ease, background .18s ease;
+  }
+  .game::before {
+    content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px;
+    background: var(--accent); opacity: .55;
+  }
+  .game[data-key="1"] { --accent: var(--cinnabar); }
+  .game[data-key="2"] { --accent: var(--jade); }
+  .game:hover, .game:focus-visible {
+    background: linear-gradient(180deg, #221b14, #16120d); transform: translateY(-3px);
+    box-shadow: inset 0 0 0 1px var(--gold-dim), 0 0 0 1px rgba(216,165,68,.26), 0 18px 46px rgba(0,0,0,.62);
+    outline: none;
+  }
+  .game:hover::before, .game:focus-visible::before { opacity: 1; }
+  .game:focus-visible { box-shadow: inset 0 0 0 1px var(--gold), 0 0 0 2px rgba(216,165,68,.45), 0 18px 46px rgba(0,0,0,.62); }
+
+  .row { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+  .icon { font-size: 30px; line-height: 1; }
+  /* Phím tắt in ngay trên thẻ chứ không giấu dưới chân trang: chỗ duy nhất nó có
+     ích là lúc mắt đang nhìn cái thẻ nó sẽ mở. */
+  .num {
+    margin-left: auto; font-family: var(--f-display); font-size: 12px;
+    color: var(--bone-3); padding: 2px 8px; box-shadow: inset 0 0 0 1px var(--rule);
+  }
+  .name { font-family: var(--f-display); font-size: 28px; font-weight: 700; color: var(--bone); }
+  .tag { font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin: 4px 0 12px; }
+  .desc { font-size: 13px; color: var(--bone-2); line-height: 1.62; flex: 1 1 auto; }
+  .go { font-size: 12.5px; letter-spacing: .06em; color: var(--bone-3); margin-top: 18px; transition: color .18s ease; }
+  .game:hover .go, .game:focus-visible .go { color: var(--gold-hi); }
+
+  .foot { font-size: 11.5px; color: var(--bone-3); margin-top: 26px; line-height: 1.8; }
+  kbd {
+    font: inherit; font-size: 10.5px; padding: 1px 6px; color: var(--bone-2);
+    box-shadow: inset 0 0 0 1px var(--rule);
+  }
+
+  @media (max-width: 760px) {
+    .games { grid-template-columns: 1fr; }
+    h1 { font-size: 36px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shelf">
+  <div class="lang" role="group" aria-label="Language / Ngôn ngữ">
+    <button type="button" data-lang="vi">Tiếng Việt</button>
+    <button type="button" data-lang="en">English</button>
+  </div>
+
+  <div class="seal"><span class="k" data-en="PICK">CHỌN</span><span class="n">選</span></div>
+  <div class="eyebrow" data-en="Two games, one folder">Hai trò chơi, một thư mục</div>
+  <h1 data-en="Pick a game">Chọn trò chơi</h1>
+  <p class="sub" data-en="Both run straight from the file — no server, no install. Pick one; you can always come back here.">Cả hai đều chạy thẳng từ tệp — không cần máy chủ, không cần cài gì. Chọn một trò; lúc nào cũng quay lại đây được.</p>
+
+  <div class="games">
+    <a class="game" href="civilization.html" data-key="1">
+      <div class="row"><span class="icon">🏯</span><span class="num">1</span></div>
+      <div class="name" data-en="Overlord">Chúa Tể</div>
+      <div class="tag" data-en="Main game · in development">Trò chính · đang phát triển</div>
+      <div class="desc" data-en="A self-playing civilization in the Age-of-Empires mould. Four tribes build villages, work mines, age up and go to war; you are the god who watches and steps in now and then. Tribe genes are selected era by era, and a hero genome evolves inside that.">Một nền văn minh kiểu Age of Empires tự chơi lấy. Bốn bộ lạc dựng làng, khai mỏ, lên đời và đánh nhau; bạn là vị thần ngồi xem và thi thoảng can thiệp. Gen bộ lạc được chọn lọc qua từng kỷ nguyên, và bên trong nó còn một bộ gen anh hùng tiến hoá riêng.</div>
+      <div class="go" data-en="Enter →">Vào trò →</div>
+    </a>
+
+    <a class="game" href="evolution.html" data-key="2">
+      <div class="row"><span class="icon">🧬</span><span class="num">2</span></div>
+      <div class="name" data-en="Evolution">Tiến Hoá</div>
+      <div class="tag" data-en="First build · kept for reference">Bản đầu tiên · giữ để đối chiếu</div>
+      <div class="desc" data-en="Evolution at the level of the individual: prey and predators, genes passed on by sexual reproduction, your one lever being how fast food appears. This is where the project started, kept exactly as it was.">Tiến hoá ở tầng cá thể: thú ăn cỏ và thú ăn thịt, gen truyền qua sinh sản hữu tính, đòn bẩy duy nhất của bạn là tốc độ thức ăn mọc lên. Đây là chỗ dự án bắt đầu, giữ nguyên như cũ.</div>
+      <div class="go" data-en="Open the sim →">Mở bản mô phỏng →</div>
+    </a>
+  </div>
+
+  <p class="foot">
+    <span data-en="Press">Bấm</span> <kbd>1</kbd> <span data-en="or">hoặc</span> <kbd>2</kbd>
+    <span data-en="to pick without the mouse.">để chọn không cần chuột.</span>
+    <br>
+    <span data-en="Your language choice carries into Overlord.">Ngôn ngữ chọn ở đây sẽ theo sang trò Chúa Tể.</span>
+  </p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // -- Ngôn ngữ ------------------------------------------------------------
+  // Mặc định tiếng Việt LÀ chữ đã viết sẵn trong HTML, nên nó không thể hỏng: hàm
+  // dưới chỉ có việc cất bản gốc đi lần đầu rồi đổi qua đổi lại. Cùng khoá lưu với
+  // game (`civ.lang`) — đọc ở js/00-i18n.js.
+  var nodes = document.querySelectorAll('[data-en]');
+
+  function apply(lang) {
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (n.dataset.vi === undefined) n.dataset.vi = n.textContent;
+      n.textContent = (lang === 'en') ? n.dataset.en : n.dataset.vi;
+    }
+    document.documentElement.lang = lang;
+    document.title = (lang === 'en') ? 'Pick a game' : 'Chọn trò chơi';
+    var btns = document.querySelectorAll('.lang button');
+    for (var j = 0; j < btns.length; j++) {
+      btns[j].classList.toggle('on', btns[j].dataset.lang === lang);
+    }
+  }
+
+  function setLang(lang) {
+    var next = (lang === 'en') ? 'en' : 'vi';
+    // localStorage bị chặn khi mở bằng `file:` trên vài cấu hình (origin rỗng).
+    // Ghi nhớ là phần THÊM — hỏng chỗ này không được phép chặn việc đổi ngôn ngữ.
+    try { localStorage.setItem('civ.lang', next); } catch (e) { /* bỏ qua */ }
+    apply(next);
+  }
+
+  var saved = null;
+  try { saved = localStorage.getItem('civ.lang'); } catch (e) { /* bỏ qua */ }
+  apply(saved === 'en' ? 'en' : 'vi');
+
+  var langBtns = document.querySelectorAll('.lang button');
+  for (var k = 0; k < langBtns.length; k++) {
+    langBtns[k].addEventListener('click', function () { setLang(this.dataset.lang); });
+  }
+
+  // -- Phím tắt ------------------------------------------------------------
+  document.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    var card = document.querySelector('.game[data-key="' + e.key + '"]');
+    if (card) { e.preventDefault(); window.location.href = card.getAttribute('href'); }
+  });
+})();
+</script>
+
+</body>
+</html>

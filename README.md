@@ -75,7 +75,12 @@ js/00-i18n.js          bộ máy song ngữ: T()/TL(), vá nhãn trong dữ li�
 js/00-lang-en.js       từ điển Anh — nhãn dữ liệu + khung giao diện
 js/00-lang-en-legend.js  từ điển Anh — riêng bài luật chơi ở khung trái
 js/00-lang-en-game.js  từ điển Anh — chữ do mã sinh ra lúc chạy
-js/01-config.js        mọi con số của trò chơi (CONFIG, mẫu bộ lạc)
+js/01a-config.js       CONFIG phần 1/5 — bản đồ, kinh tế, thể lực, chỉ số đơn vị
+js/01b-config.js       CONFIG phần 2/5 — nâng cấp, anh hùng, phòng thủ, quái vật
+js/01c-config.js       CONFIG phần 3/5 — chế độ Thủ thành, vật phẩm, xây dựng, tường thành
+js/01d-config.js       CONFIG phần 4/5 — công thành, thuộc địa, thầy lang, hậu cần, Kỳ quan, ruộng
+js/01e-config.js       CONFIG phần 5/5 — đường cái, thời đại, kỷ nguyên, quyền năng, Thiên Ma;
+                       ghép cả 5 phần bằng Object.assign(); rồi tới TRIBE_TEMPLATES
 js/02-state-util.js    trạng thái toàn cục, tiện ích, sinh địa hình & bản đồ
 js/03-territory.js     lãnh thổ theo ảnh hưởng công trình
 js/04-genes.js         hai bộ gen: policy bộ lạc + gen anh hùng
@@ -87,7 +92,13 @@ js/09-ai-hero.js       não anh hùng
 js/10-monsters.js      hang ổ, quái, vật phẩm, sóng thủ thành
 js/11-tribe-brain.js   não bộ lạc, kinh tế, thờ cúng
 js/12-loop-era.js      vòng tick, kết/mở kỷ nguyên, thần lực
-js/13-render-world.js  toàn bộ phần vẽ khung hình
+js/13-render-terrain.js       camera/toạ độ, địa hình, sprite tài nguyên
+js/13b-render-buildings.js    vật liệu/mái theo thời đại, con dấu kinh đô, drawBuilding/drawRuin
+js/13c-render-units.js        dụng cụ dân, gear đọc được, drawUnit, thầy lang, hậu cần
+js/13d-render-cavalry-siege.js ngựa/kỵ binh, kíp vận hành, máy bắn đá, nỏ thần, voi chiến, quân kỳ
+js/13e-render-monsters.js     bộ đồ nghề quái dùng chung + 12 silhouette loài
+js/13f-render-roads-walls.js  mặt đường, tường thành, cổng
+js/13g-render-frame.js        renderWorld()/renderMinimap() — điều phối MỘT khung hình
 js/14-ui-panels.js     giao diện DOM ngoài canvas
 js/15-input-boot.js    chuột/phím, camera đạo diễn, vòng rAF, boot
 js/16-codex.js         Thư khố — sách tra quái/quân/công trình/anh hùng
@@ -98,8 +109,10 @@ js/17-i18n-boot.js     nối dây công tắc ngôn ngữ; chạy CUỐI vì ph�
 khi mở trang bằng `file://` (module nạp theo CORS, mà origin `file:` là opaque). Đo thật bằng Chrome
 headless: `classic=1 module=0`. Dùng script thường thì mọi khai báo top-level vẫn nằm chung một global
 scope như hồi còn một file, nên tách được mà không cần một dòng `import`/`export` nào — đổi lại,
-**thứ tự thẻ `<script>` trong `civilization.html` là bắt buộc** (`01-config.js` phải chạy trước, vì có
-code top-level đọc `CONFIG` ngay lúc tải).
+**thứ tự thẻ `<script>` trong `civilization.html` là bắt buộc** (`01a`..`01e-config.js` phải chạy trước
+mọi file khác — `01e` ghép `CONFIG_A..CONFIG_E` thành `CONFIG` thật ở dòng cuối, và có code top-level ở
+các file sau đọc `CONFIG` ngay lúc tải; `13g-render-frame.js` phải chạy sau cả 6 file `13*.js` kia vì nó
+gọi mọi hàm vẽ chúng định nghĩa).
 
 ## Song ngữ Việt / English
 

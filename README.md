@@ -169,6 +169,21 @@ gửi `Cache-Control: no-store`.
 Lưu ý: `no-store` chỉ có tác dụng với những lần tải **sau**. Nếu trình duyệt đã trót nhớ bản
 cũ thì phải nạp cứng **một lần** (`Cmd+Shift+R`) để đuổi nó đi.
 
+## Đo
+
+Mọi tuyên bố về hành vi trong dự án này phải đo được, mà `requestAnimationFrame` thì không chạy
+khi thẻ trình duyệt bị ẩn — nên `running = true` một mình không làm mô phỏng nhúc nhích.
+`.claude/measure-headless.js` giải quyết đúng chỗ đó: dán cả tệp vào console, rồi
+
+```js
+__measure.start('conquest', 8);   // chạy 8 kỷ nguyên nối tiếp, tự sang kỷ nguyên mới
+__measure.report();               // hỏi lúc nào cũng được, kể cả khi đang chạy
+```
+
+Nó tự gọi `simulationTick()` theo từng khúc 4.000 tick nối nhau, và mỗi 100 tick lấy một mẫu
+bằng chính `wonderBlock()` của game chứ không dựng lại điều kiện lần thứ hai. Tốc độ đo được:
+0,47 ms/tick đầu kỷ nguyên, 3,05 ms/tick lúc đã có 735 đơn vị — tám kỷ nguyên tốn chừng 10 phút.
+
 ## Giấy phép
 
 Chưa chọn. Repo công khai mà không kèm giấy phép nghĩa là **mặc định giữ toàn quyền** —

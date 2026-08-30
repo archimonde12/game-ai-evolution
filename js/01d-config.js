@@ -417,6 +417,26 @@ const CONFIG_D = {
     // thắng đậm mới với tới được thì nó không đổi được kết cục của ván nào" là bài
     // học đã phải trả giá ba lần ở đây (đền thờ khoá ở Đồ Sắt, chuồng ngựa ngưỡng
     // 0,22, nhà y tế ngưỡng 0,30).
+    //
+    // ĐO LẠI SAU 3.41/3.42 (2026-08-30). Mốc cũ ở 3.35 là 0 kinh đô bị hạ trong
+    // 28.000 tick / 3 kỷ nguyên, nghĩa là Thiên Mệnh khi đó là một cánh cửa chưa
+    // ai từng mở và Kỳ quan trên thực tế không tồn tại trong trò chơi. Đo lại ở
+    // trạng thái mã hiện tại, chế độ chinh phạt, 8 kỷ nguyên / 155.055 tick: 40
+    // kinh đô bị hạ (2,58 trên mỗi 10.000 tick), 7/8 kỷ nguyên có ít nhất một cái,
+    // và 4/8 kỷ nguyên kết thúc bằng chiến thắng Kỳ quan. Một kỷ nguyên chạy độc
+    // lập sau đó cho thêm 4 cái trong 20.835 tick, cùng chiều. Nếu nhịp cũ còn đúng
+    // thì 28.000 tick lẽ ra phải thấy chừng 7,2 cái, nên quan sát 0 có xác suất
+    // chừng 0,0008 — đây là thay đổi thật chứ không phải phương sai giữa kỷ nguyên.
+    //
+    // Không bản vá nào nhắm thẳng vào chỗ này. Thứ đã sửa nó là binh pháp công
+    // thành của 3.41: khi tỉ lệ lỗ thủng ở cổng lên 27,7% → 58,1% thì quân mới vào
+    // được bên trong tường, và hạ kinh đô là việc chỉ làm được sau khi đã vào.
+    //
+    // Cánh cửa hẹp nhất bây giờ KHÔNG còn là dòng dưới đây. Lấy mẫu wonderBlock()
+    // mỗi 100 tick trên 6 kỷ nguyên (3.140 mẫu bộ-lạc-tick, chỉ tính bộ lạc còn
+    // sống): 59,5% bị chặn vì chưa tới Thiên Triều, 33,5% vì chưa hạ đủ kinh đô,
+    // 7,0% đã mở. Muốn Kỳ quan xuất hiện dày hơn thì phải nới đường LÊN ĐỜI, chứ
+    // nới NEED_TOWNS chỉ chạm được vào một phần ba số ca.
     NEED_TOWNS: 1
   },
 
